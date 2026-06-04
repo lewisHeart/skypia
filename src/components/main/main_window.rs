@@ -1,5 +1,5 @@
-use crate::components::contact_list::ContactList;
-use crate::components::profile_header::ProfileHeader;
+use crate::components::main::contact_list::ContactList;
+use crate::components::profile::profile_header::ProfileHeader;
 use crate::models::{AppTheme, UserStatus};
 use crate::sound::play_sound;
 use crate::state::AppState;

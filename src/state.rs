@@ -1,5 +1,6 @@
 use crate::models::{
     AppTheme, BannerInfo, Contact, FileTransferState, Message, TicTacToe, TicTacToeCell, UserStatus,
+    ClientAction,
 };
 use dioxus::prelude::*;
 use std::collections::HashMap;
@@ -43,6 +44,18 @@ pub struct AppState {
     pub show_add_contact_modal: Signal<bool>,
     pub show_music_player_modal: Signal<bool>,
     pub recommended_songs: Signal<Vec<String>>,
+
+    // Autenticação real com o servidor
+    pub auth_token: Signal<Option<String>>,
+    pub server_user_id: Signal<Option<i64>>,
+    pub user_avatar_url: Signal<Option<String>>, // URL da foto real (do servidor)
+    pub show_register_modal: Signal<bool>,
+    pub server_error: Signal<Option<String>>,    // Último erro da API
+    pub show_avatar_picker: Signal<bool>,
+
+    // WebSocket e digitação em tempo real
+    pub ws_tx: Signal<Option<tokio::sync::mpsc::UnboundedSender<crate::models::ClientAction>>>,
+    pub typing_contacts: Signal<std::collections::HashMap<usize, Vec<usize>>>,
 }
 
 impl AppState {
@@ -76,6 +89,15 @@ impl AppState {
             show_add_contact_modal: Signal::new(false),
             show_music_player_modal: Signal::new(false),
             recommended_songs: Signal::new(Vec::new()),
+
+            auth_token: Signal::new(None),
+            server_user_id: Signal::new(None),
+            user_avatar_url: Signal::new(None),
+            show_register_modal: Signal::new(false),
+            server_error: Signal::new(None),
+            show_avatar_picker: Signal::new(false),
+            ws_tx: Signal::new(None),
+            typing_contacts: Signal::new(std::collections::HashMap::new()),
         }
     }
 
@@ -93,6 +115,8 @@ impl AppState {
         let mut custom_bar_sig = self.use_custom_titlebar;
         let mut theme_sig = self.theme;
 
+        let token_opt = self.auth_token();
+
         spawn(async move {
             if let Ok((scale, custom_bar, theme)) =
                 crate::services::db::DatabaseService::load_settings().await
@@ -102,9 +126,58 @@ impl AppState {
                 *theme_sig.write() = theme;
             }
 
+            // Sincronização de rede se autenticado
+            if let Some(token) = token_opt {
+                // 1. Busca contatos do servidor e salva localmente
+                if let Ok(srv_contacts) = crate::services::api::get_contacts(&token).await {
+                    for profile in srv_contacts {
+                        let status_enum = match profile.status.as_str() {
+                            "Online" => UserStatus::Online,
+                            "Ocupado" => UserStatus::Ocupado,
+                            "Ausente" => UserStatus::Ausente,
+                            "Invisivel" => UserStatus::Invisivel,
+                            _ => UserStatus::Offline,
+                        };
+                        let _ = crate::services::db::DatabaseService::add_contact(
+                            profile.email,
+                            profile.display_name,
+                            status_enum,
+                            profile.personal_message,
+                        ).await;
+                    }
+                }
+
+                // 2. Busca conversas do servidor e salva localmente
+                if let Ok(srv_conversations) = crate::services::api::get_conversations(&token).await {
+                    let _ = crate::services::db::DatabaseService::save_conversations(srv_conversations).await;
+                }
+            }
+
             if let Ok(loaded_contacts) = crate::services::db::DatabaseService::load_contacts().await
             {
-                *contacts_sig.write() = loaded_contacts;
+                *contacts_sig.write() = loaded_contacts.clone();
+
+                // Carrega mensagens de todos os contatos carregados
+                let mut all_messages = HashMap::new();
+                let mut max_msg_id = 0;
+
+                for contact in loaded_contacts {
+                    if let Ok(msgs) =
+                        crate::services::db::DatabaseService::load_messages(contact.id).await
+                    {
+                        for m in &msgs {
+                            if m.id > max_msg_id {
+                                max_msg_id = m.id;
+                            }
+                        }
+                        all_messages.insert(contact.id, msgs);
+                    }
+                }
+
+                *chat_messages_sig.write() = all_messages;
+                if max_msg_id > 0 {
+                    *message_counter_sig.write() = max_msg_id + 1;
+                }
             }
 
             if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
@@ -125,30 +198,6 @@ impl AppState {
 
             if let Ok(banner) = crate::services::db::DatabaseService::get_banner_info().await {
                 *banner_sig.write() = Some(banner);
-            }
-
-
-
-            // Carrega mensagens de contatos iniciais
-            let mut all_messages = HashMap::new();
-            let mut max_msg_id = 0;
-
-            for contact_id in &[1, 2] {
-                if let Ok(msgs) =
-                    crate::services::db::DatabaseService::load_messages(*contact_id).await
-                {
-                    for m in &msgs {
-                        if m.id > max_msg_id {
-                            max_msg_id = m.id;
-                        }
-                    }
-                    all_messages.insert(*contact_id, msgs);
-                }
-            }
-
-            *chat_messages_sig.write() = all_messages;
-            if max_msg_id > 0 {
-                *message_counter_sig.write() = max_msg_id + 1;
             }
         });
     }
@@ -181,8 +230,17 @@ impl AppState {
 
     pub fn set_user_name(&mut self, name: String) {
         *self.user_name.write() = name.clone();
+        let token_opt = self.auth_token();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_user_name(name).await;
+            let _ = crate::services::db::DatabaseService::save_user_name(name.clone()).await;
+            if let Some(token) = token_opt {
+                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                    display_name: Some(name),
+                    personal_message: None,
+                    status: None,
+                    music: None,
+                }).await;
+            }
         });
     }
 
@@ -191,8 +249,24 @@ impl AppState {
         if status == UserStatus::Offline {
             *self.logged_in.write() = false;
         }
+        let token_opt = self.auth_token();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_user_status(status).await;
+            if let Some(token) = token_opt {
+                let status_str = match status {
+                    UserStatus::Online => "Online",
+                    UserStatus::Ocupado => "Ocupado",
+                    UserStatus::Ausente => "Ausente",
+                    UserStatus::Invisivel => "Invisivel",
+                    UserStatus::Offline => "Offline",
+                };
+                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                    display_name: None,
+                    personal_message: None,
+                    status: Some(status_str.to_string()),
+                    music: None,
+                }).await;
+            }
         });
     }
 
@@ -205,15 +279,33 @@ impl AppState {
 
     pub fn set_user_personal_message(&mut self, msg: String) {
         *self.user_personal_message.write() = msg.clone();
+        let token_opt = self.auth_token();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_personal_message(msg).await;
+            let _ = crate::services::db::DatabaseService::save_personal_message(msg.clone()).await;
+            if let Some(token) = token_opt {
+                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                    display_name: None,
+                    personal_message: Some(msg),
+                    status: None,
+                    music: None,
+                }).await;
+            }
         });
     }
 
     pub fn set_user_music(&mut self, music: Option<String>) {
         *self.user_music.write() = music.clone();
+        let token_opt = self.auth_token();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_user_music(music).await;
+            let _ = crate::services::db::DatabaseService::save_user_music(music.clone()).await;
+            if let Some(token) = token_opt {
+                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                    display_name: None,
+                    personal_message: None,
+                    status: None,
+                    music: Some(music),
+                }).await;
+            }
         });
     }
 
@@ -301,6 +393,17 @@ impl AppState {
             return;
         }
 
+        // Se o WebSocket estiver ativo, envia para o servidor
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(ClientAction::SendMessage {
+                conversation_id: contact_id as i64,
+                text,
+                font_color,
+                font_family,
+            });
+            return;
+        }
+
         let msg_id = self.message_counter();
         *self.message_counter.write() += 1;
 
@@ -309,6 +412,7 @@ impl AppState {
 
         let new_msg = Message {
             id: msg_id,
+            conversation_id: contact_id,
             sender_id: 0,
             sender_name: self.user_name(),
             text,
@@ -333,6 +437,14 @@ impl AppState {
     }
 
     pub fn send_nudge(&mut self, contact_id: usize) {
+        // Se o WebSocket estiver ativo, envia para o servidor
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(ClientAction::SendNudge {
+                conversation_id: contact_id as i64,
+            });
+            return;
+        }
+
         let msg_id = self.message_counter();
         *self.message_counter.write() += 1;
 
@@ -341,6 +453,7 @@ impl AppState {
 
         let nudge_msg = Message {
             id: msg_id,
+            conversation_id: contact_id,
             sender_id: 0,
             sender_name: self.user_name(),
             text: "Você enviou um Chamar a Atenção.".to_string(),
@@ -364,6 +477,15 @@ impl AppState {
         });
     }
 
+    pub fn set_typing(&mut self, contact_id: usize, is_typing: bool) {
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(ClientAction::SetTyping {
+                conversation_id: contact_id as i64,
+                is_typing,
+            });
+        }
+    }
+
     pub fn receive_nudge(&mut self, contact_id: usize) {
         let contact_name = if let Some(c) = self.contacts().iter().find(|c| c.id == contact_id) {
             c.display_name.clone()
@@ -379,6 +501,7 @@ impl AppState {
 
         let nudge_msg = Message {
             id: msg_id,
+            conversation_id: contact_id,
             sender_id: contact_id,
             sender_name: contact_name.clone(),
             text: format!("{} enviou um Chamar a Atenção.", contact_name),
@@ -428,6 +551,7 @@ impl AppState {
 
         let new_msg = Message {
             id: msg_id,
+            conversation_id: contact_id,
             sender_id: contact_id,
             sender_name: contact_name,
             text,
@@ -493,22 +617,57 @@ impl AppState {
     ) {
         let mut list = self.contacts;
         let mut state_clone = *self;
+        let token_opt = self.auth_token();
 
         spawn(async move {
-            if let Ok(c) = crate::services::db::DatabaseService::add_contact(
-                email,
-                display_name,
-                status,
-                personal_message,
-            )
-            .await
-            {
+            let mut added_contact = None;
+
+            if let Some(token) = token_opt {
+                match crate::services::api::add_contact(&token, email.clone()).await {
+                    Ok(profile) => {
+                        let status_enum = match profile.status.as_str() {
+                            "Online" => UserStatus::Online,
+                            "Ocupado" => UserStatus::Ocupado,
+                            "Ausente" => UserStatus::Ausente,
+                            "Invisivel" => UserStatus::Invisivel,
+                            _ => UserStatus::Offline,
+                        };
+                        if let Ok(c) = crate::services::db::DatabaseService::add_contact(
+                            profile.email,
+                            profile.display_name,
+                            status_enum,
+                            profile.personal_message,
+                        ).await {
+                            added_contact = Some(c);
+                        }
+                    }
+                    Err(e) => {
+                        state_clone.add_toast(
+                            "Erro ao Adicionar".to_string(),
+                            format!("Não foi possível adicionar o contato: {}", e),
+                            0,
+                        );
+                    }
+                }
+            } else {
+                if let Ok(c) = crate::services::db::DatabaseService::add_contact(
+                    email,
+                    display_name,
+                    status,
+                    personal_message,
+                ).await {
+                    added_contact = Some(c);
+                }
+            }
+
+            if let Some(c) = added_contact {
                 list.write().push(c.clone());
                 state_clone.add_toast(
                     "Contato Adicionado".to_string(),
                     format!("{} acaba de ser adicionado.", c.display_name),
                     c.avatar_id,
                 );
+                state_clone.load_initial_data();
             }
         });
     }
@@ -628,6 +787,75 @@ impl AppState {
         self.recommended_songs.read().clone()
     }
 
+    pub fn auth_token(&self) -> Option<String> {
+        self.auth_token.read().clone()
+    }
+
+    pub fn server_user_id(&self) -> Option<i64> {
+        (self.server_user_id)()
+    }
+
+    pub fn user_avatar_url(&self) -> Option<String> {
+        self.user_avatar_url.read().clone()
+    }
+
+    pub fn show_register_modal(&self) -> bool {
+        (self.show_register_modal)()
+    }
+
+    pub fn server_error(&self) -> Option<String> {
+        self.server_error.read().clone()
+    }
+
+    pub fn show_avatar_picker(&self) -> bool {
+        (self.show_avatar_picker)()
+    }
+
+    pub fn typing_contacts(&self) -> HashMap<usize, Vec<usize>> {
+        self.typing_contacts.read().clone()
+    }
+
+    /// Aplica o perfil vindo do servidor ao estado local
+    pub fn apply_server_profile(&mut self, profile: crate::models::UserProfile, token: String) {
+        *self.auth_token.write() = Some(token.clone());
+        *self.server_user_id.write() = Some(profile.id);
+        *self.user_name.write() = profile.display_name.clone();
+        *self.user_email.write() = profile.email.clone();
+        *self.user_personal_message.write() = profile.personal_message.clone();
+        if let Some(music) = profile.music.clone() {
+            *self.user_music.write() = Some(music);
+        }
+        if let Some(url) = profile.avatar_url.clone() {
+            *self.user_avatar_url.write() = Some(url);
+        }
+        // Salva token no SQLite local para auto-login
+        let user_id = profile.id;
+        let mut self_clone = *self;
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::save_auth_token(token, user_id).await;
+            self_clone.connect_websocket();
+        });
+    }
+
+    /// Estabelece a conexão com o WebSocket do servidor
+    pub fn connect_websocket(&mut self) {
+        if let Some(token) = self.auth_token() {
+            crate::services::ws::connect_ws(*self, token);
+        }
+    }
+
+    /// Faz logout completo
+    pub fn logout(&mut self) {
+        *self.logged_in.write() = false;
+        *self.auth_token.write() = None;
+        *self.server_user_id.write() = None;
+        *self.user_avatar_url.write() = None;
+        *self.ws_tx.write() = None;
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::clear_auth_token().await;
+        });
+    }
+
     pub fn send_wink(&mut self, contact_id: usize, wink_name: String) {
         let msg_id = self.message_counter();
         *self.message_counter.write() += 1;
@@ -635,6 +863,7 @@ impl AppState {
         let now = chrono::Local::now().format("%H:%M:%S").to_string();
         let new_wink_msg = Message {
             id: msg_id,
+            conversation_id: contact_id,
             sender_id: 0,
             sender_name: self.user_name(),
             text: format!(
@@ -687,6 +916,7 @@ impl AppState {
 
         let new_msg = Message {
             id: msg_id,
+            conversation_id: contact_id,
             sender_id: 0,
             sender_name: self.user_name(),
             text: format!("Você enviou um convite de arquivo: '{}'.", filename),
@@ -770,6 +1000,7 @@ impl AppState {
         let now = chrono::Local::now().format("%H:%M:%S").to_string();
         let new_msg = Message {
             id: msg_id,
+            conversation_id: contact_id,
             sender_id: 0,
             sender_name: u_name,
             text: "Iniciou uma partida de Jogo da Velha.".to_string(),

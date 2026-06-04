@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use crate::state::AppState;
-use crate::models::{Contact, UserStatus, render_avatar};
+use crate::models::{Contact, render_avatar};
 
 #[component]
 pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
@@ -9,13 +9,6 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
 
     let handle_double_click = move |_| {
         state.open_chat(contact.id);
-    };
-
-    let status_color = match contact.status {
-        UserStatus::Online => "border-[#3cd070]",
-        UserStatus::Ocupado => "border-[#e81123]",
-        UserStatus::Ausente => "border-[#ffb900]",
-        UserStatus::Offline | UserStatus::Invisivel => "border-slate-400",
     };
 
     rsx! {

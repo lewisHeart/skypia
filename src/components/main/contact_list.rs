@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use crate::state::AppState;
 use crate::models::{Contact, UserStatus};
-use crate::components::contact_row::ContactRow;
+use crate::components::main::contact_row::ContactRow;
 
 #[component]
 pub fn ContactList(mut state: AppState) -> Element {

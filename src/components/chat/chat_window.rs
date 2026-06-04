@@ -1,9 +1,9 @@
 use dioxus::prelude::*;
-use crate::models::{render_avatar, UserStatus, AppTheme};
+use crate::models::render_avatar;
 use crate::state::AppState;
-use crate::components::chat_feed::ChatFeed;
-use crate::components::chat_input::ChatInput;
-use crate::components::chat_sidebar::ChatSidebar;
+use crate::components::chat::chat_feed::ChatFeed;
+use crate::components::chat::chat_input::ChatInput;
+use crate::components::chat::chat_sidebar::ChatSidebar;
 
 const WINK_STYLES: &str = r#"
 @keyframes msnKiss {
@@ -63,12 +63,6 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
     let mut is_shaking = use_signal(|| false);
     let shake_class = if is_shaking() { "nudge-shake" } else { "" };
 
-    let status_color = match contact.status {
-        UserStatus::Online => "border-[#3cd070]",
-        UserStatus::Ocupado => "border-[#e81123]",
-        UserStatus::Ausente => "border-[#ffb900]",
-        UserStatus::Offline | UserStatus::Invisivel => "border-slate-400",
-    };
 
     rsx! {
         style { "{WINK_STYLES}" }

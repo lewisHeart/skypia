@@ -1,4 +1,5 @@
-use crate::models::{render_avatar, AppTheme, UserStatus};
+use crate::models::{render_avatar, UserStatus, AppTheme};
+use crate::services::api;
 use crate::state::AppState;
 use dioxus::prelude::*;
 
@@ -42,7 +43,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-100/40 border border-transparent hover:border-red-200/50 text-red-600 cursor-pointer text-xs transition-colors",
                     title: "Desconectar",
                     onclick: move |_| {
-                        *state.logged_in.write() = false;
+                        state.logout();
                     },
                     "🚪"
                 }
@@ -91,15 +92,26 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 }
             }
 
-            // Avatar Frame with Fixed MSN Frame and Status Badge Overlay
+            // Avatar Frame — mostra foto real se disponível, caso contrário SVG built-in
             div {
-                class: "relative p-[3px] flex-shrink-0 cursor-pointer shadow rounded-[10px] border border-[#a1c6e7] bg-white transition-all",
+                class: "relative p-[3px] flex-shrink-0 cursor-pointer shadow rounded-[10px] border border-[#a1c6e7] bg-white transition-all hover:border-sky-400",
                 onclick: move |_| {
-                    // Cycle avatar ID
-                    let curr = state.user_avatar_id();
-                    state.set_user_avatar((curr + 1) % 7);
+                    state.show_avatar_picker.set(true);
                 },
-                {render_avatar(state.user_avatar_id(), 48)}
+                // Foto real (URL do servidor) ou SVG built-in
+                if let Some(avatar_url) = state.user_avatar_url() {
+                    img {
+                        src: "{avatar_url}",
+                        class: "w-12 h-12 rounded-[7px] object-cover",
+                        alt: "Avatar",
+                        // Fallback para SVG se a imagem falhar
+                        onerror: move |_| {
+                            *state.user_avatar_url.write() = None;
+                        }
+                    }
+                } else {
+                    {render_avatar(state.user_avatar_id(), 48)}
+                }
 
                 // Status Badge overlay
                 div {
@@ -109,6 +121,12 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         show_status_menu.set(!show_status_menu());
                     },
                     div { class: "w-[9px] h-[9px] rounded-full {state.user_status().color_class()} border border-black/10" }
+                }
+
+                // Ícone de edição sobre o avatar
+                div {
+                    class: "absolute inset-0 rounded-[7px] bg-black/0 hover:bg-black/20 transition-all flex items-center justify-center opacity-0 hover:opacity-100",
+                    span { class: "text-white text-base drop-shadow", "✏️" }
                 }
             }
 
@@ -122,13 +140,36 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             oninput: move |e| temp_name.set(e.value()),
                             onkeydown: move |e| {
                                 if e.key() == Key::Enter {
-                                    state.set_user_name(temp_name());
+                                    let name = temp_name();
+                                    state.set_user_name(name.clone());
                                     is_editing_name.set(false);
+                                    // Sincroniza com servidor
+                                    if let Some(token) = state.auth_token() {
+                                        spawn(async move {
+                                            let _ = api::update_profile(&token, api::UpdateProfileRequest {
+                                                display_name: Some(name),
+                                                personal_message: None,
+                                                status: None,
+                                                music: None,
+                                            }).await;
+                                        });
+                                    }
                                 }
                             },
                             onblur: move |_| {
-                                state.set_user_name(temp_name());
+                                let name = temp_name();
+                                state.set_user_name(name.clone());
                                 is_editing_name.set(false);
+                                if let Some(token) = state.auth_token() {
+                                    spawn(async move {
+                                        let _ = api::update_profile(&token, api::UpdateProfileRequest {
+                                            display_name: Some(name),
+                                            personal_message: None,
+                                            status: None,
+                                            music: None,
+                                        }).await;
+                                    });
+                                }
                             },
                             autofocus: true,
                         }
@@ -156,8 +197,20 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             }
                         },
                         onblur: move |_| {
-                            *state.user_personal_message.write() = temp_msg();
+                            let msg = temp_msg();
+                            *state.user_personal_message.write() = msg.clone();
                             is_editing_msg.set(false);
+                            // Sincroniza com servidor
+                            if let Some(token) = state.auth_token() {
+                                spawn(async move {
+                                    let _ = api::update_profile(&token, api::UpdateProfileRequest {
+                                        display_name: None,
+                                        personal_message: Some(msg),
+                                        status: None,
+                                        music: None,
+                                    }).await;
+                                });
+                            }
                         },
                         autofocus: true,
                     }
@@ -310,6 +363,10 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     }
                 }
             }
+        }
+        // Modal do AvatarPicker
+        if state.show_avatar_picker() {
+            crate::components::profile::avatar_picker::AvatarPicker { state }
         }
     }
 }

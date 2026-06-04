@@ -115,6 +115,19 @@ impl DatabaseService {
 
         sqlx::query(
             r#"
+            CREATE TABLE IF NOT EXISTS auth_token (
+                id      INTEGER PRIMARY KEY DEFAULT 1,
+                token   TEXT NOT NULL,
+                user_id INTEGER NOT NULL
+            )
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            r#"
             CREATE TABLE IF NOT EXISTS banners (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 text TEXT NOT NULL,
@@ -139,6 +152,40 @@ impl DatabaseService {
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS conversations (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                is_group INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS conversation_members (
+                conversation_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                display_name TEXT NOT NULL,
+                avatar_url TEXT,
+                PRIMARY KEY (conversation_id, user_id)
+            );
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        // Tenta adicionar a coluna conversation_id se ela não existir
+        let _ = sqlx::query("ALTER TABLE messages ADD COLUMN conversation_id INTEGER NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await;
 
         Ok(())
     }
@@ -290,6 +337,25 @@ impl DatabaseService {
                     .execute(pool)
                     .await
                     .map_err(|e| e.to_string())?;
+            }
+        }
+
+        let conv_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM conversations")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+        if conv_count == 0 {
+            for contact_id in 1..=6 {
+                let _ = sqlx::query("INSERT INTO conversations (id, name, is_group, created_at) VALUES (?, NULL, 0, datetime('now'))")
+                    .bind(contact_id)
+                    .execute(pool)
+                    .await;
+                
+                let _ = sqlx::query("INSERT INTO conversation_members (conversation_id, user_id, display_name) VALUES (?, ?, 'Contato')")
+                    .bind(contact_id)
+                    .bind(contact_id)
+                    .execute(pool)
+                    .await;
             }
         }
 
@@ -461,12 +527,12 @@ impl DatabaseService {
 
     // ─── Messages ───
 
-    pub async fn load_messages(contact_id: usize) -> Result<Vec<Message>, String> {
+    pub async fn load_messages(conversation_id: usize) -> Result<Vec<Message>, String> {
         let pool = get_pool();
         let rows = sqlx::query(
-            "SELECT id, contact_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_wink, file_transfer, is_game_invite FROM messages WHERE contact_id = ? ORDER BY id",
+            "SELECT id, conversation_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_wink, file_transfer, is_game_invite FROM messages WHERE conversation_id = ? ORDER BY id",
         )
-        .bind(contact_id as i64)
+        .bind(conversation_id as i64)
         .fetch_all(pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -475,6 +541,7 @@ impl DatabaseService {
             .iter()
             .map(|row| {
                 let id: i64 = row.get("id");
+                let conv_id: i64 = row.get("conversation_id");
                 let sender_id: i64 = row.get("sender_id");
                 let is_nudge: i32 = row.get("is_nudge");
                 let is_game_invite: i32 = row.get("is_game_invite");
@@ -487,6 +554,7 @@ impl DatabaseService {
 
                 Message {
                     id: id as usize,
+                    conversation_id: conv_id as usize,
                     sender_id: sender_id as usize,
                     sender_name: row.get("sender_name"),
                     text: row.get("text"),
@@ -504,7 +572,7 @@ impl DatabaseService {
         Ok(messages)
     }
 
-    pub async fn save_message(contact_id: usize, message: Message) -> Result<(), String> {
+    pub async fn save_message(conversation_id: usize, message: Message) -> Result<(), String> {
         let pool = get_pool();
 
         let file_transfer_str = message
@@ -513,9 +581,9 @@ impl DatabaseService {
             .and_then(|ft| serde_json::to_string(ft).ok());
 
         sqlx::query(
-            "INSERT INTO messages (contact_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_wink, file_transfer, is_game_invite) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO messages (conversation_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_wink, file_transfer, is_game_invite) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .bind(contact_id as i64)
+        .bind(conversation_id as i64)
         .bind(message.sender_id as i64)
         .bind(&message.sender_name)
         .bind(&message.text)
@@ -639,6 +707,122 @@ impl DatabaseService {
             .map_err(|e| e.to_string())?;
 
         Ok(rows.iter().map(|r| r.get("title")).collect())
+    }
+
+    // ─── Auth Token (auto-login) ───
+
+    pub async fn save_auth_token(token: String, user_id: i64) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query(
+            "INSERT INTO auth_token (id, token, user_id) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET token = excluded.token, user_id = excluded.user_id"
+        )
+        .bind(&token)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn load_auth_token() -> Result<Option<(String, i64)>, String> {
+        let pool = get_pool();
+        let row: Option<(String, i64)> =
+            sqlx::query_as("SELECT token, user_id FROM auth_token WHERE id = 1")
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+        Ok(row)
+    }
+
+    pub async fn clear_auth_token() -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("DELETE FROM auth_token WHERE id = 1")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn save_conversations(conversations: Vec<crate::models::Conversation>) -> Result<(), String> {
+        let pool = get_pool();
+        
+        let _ = sqlx::query("DELETE FROM conversations").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM conversation_members").execute(pool).await;
+
+        for conv in conversations {
+            sqlx::query("INSERT INTO conversations (id, name, is_group, created_at) VALUES (?, ?, ?, ?)")
+                .bind(conv.id as i64)
+                .bind(&conv.name)
+                .bind(conv.is_group as i32)
+                .bind(&conv.created_at)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+
+            for member in conv.members {
+                sqlx::query("INSERT INTO conversation_members (conversation_id, user_id, display_name, avatar_url) VALUES (?, ?, ?, ?)")
+                    .bind(conv.id as i64)
+                    .bind(member.id)
+                    .bind(&member.display_name)
+                    .bind(&member.avatar_url)
+                    .execute(pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn load_conversations() -> Result<Vec<crate::models::Conversation>, String> {
+        let pool = get_pool();
+        
+        let rows = sqlx::query("SELECT id, name, is_group, created_at FROM conversations ORDER BY id DESC")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let mut conversations = Vec::new();
+
+        for row in rows {
+            let id: i64 = row.get("id");
+            let name: Option<String> = row.get("name");
+            let is_group: i32 = row.get("is_group");
+            let created_at: String = row.get("created_at");
+
+            let member_rows = sqlx::query("SELECT user_id, display_name, avatar_url FROM conversation_members WHERE conversation_id = ?")
+                .bind(id)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+
+            let mut members = Vec::new();
+            for m_row in member_rows {
+                let u_id: i64 = m_row.get("user_id");
+                let display_name: String = m_row.get("display_name");
+                let avatar_url: Option<String> = m_row.get("avatar_url");
+
+                members.push(crate::models::UserProfile {
+                    id: u_id,
+                    email: "".to_string(),
+                    display_name,
+                    personal_message: "".to_string(),
+                    status: "Offline".to_string(),
+                    music: None,
+                    avatar_url,
+                });
+            }
+
+            conversations.push(crate::models::Conversation {
+                id: id as usize,
+                name,
+                is_group: is_group != 0,
+                created_at,
+                members,
+            });
+        }
+
+        Ok(conversations)
     }
 }
 

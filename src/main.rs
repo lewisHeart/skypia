@@ -1,8 +1,8 @@
 use dioxus::prelude::*;
 use crate::state::AppState;
-use crate::components::login::Login;
-use crate::components::main_window::MainWindow;
-use crate::components::chat_window::ChatWindow;
+use crate::components::auth::login::Login;
+use crate::components::main::main_window::MainWindow;
+use crate::components::chat::chat_window::ChatWindow;
 use crate::components::ToastList;
 use crate::models::{UserStatus, AppTheme};
 
@@ -306,7 +306,7 @@ fn App() -> Element {
                             button { 
                                 class: "px-2 py-1.5 hover:bg-red-50 text-red-600 rounded text-left flex items-center space-x-2 cursor-pointer",
                                 onclick: move |_| {
-                                    *app_state.logged_in.write() = false;
+                                    app_state.logout();
                                     show_options_menu.set(false);
                                 },
                                 span { "🚪" }
@@ -428,7 +428,7 @@ fn App() -> Element {
                             button { 
                                 class: "px-2 py-1.5 hover:bg-red-50 text-red-600 rounded text-left flex items-center space-x-2 cursor-pointer",
                                 onclick: move |_| {
-                                    *app_state.logged_in.write() = false;
+                                    app_state.logout();
                                     show_options_menu.set(false);
                                 },
                                 span { "🚪" }

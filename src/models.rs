@@ -101,6 +101,7 @@ pub struct Contact {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Message {
     pub id: usize,
+    pub conversation_id: usize,
     pub sender_id: usize, // 0 for local user, others for contacts
     pub sender_name: String,
     pub text: String,
@@ -282,3 +283,65 @@ pub fn render_avatar(id: usize, size_px: usize) -> Element {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Conversation {
+    pub id: usize,
+    pub name: Option<String>,
+    pub is_group: bool,
+    pub created_at: String,
+    pub members: Vec<UserProfile>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UserProfile {
+    pub id: i64,
+    pub email: String,
+    pub display_name: String,
+    pub personal_message: String,
+    pub status: String,
+    pub music: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type", content = "payload")]
+pub enum WsEvent {
+    ChatMessage(Message),
+    PresenceUpdate {
+        user_id: i64,
+        status: String,
+        personal_message: String,
+        music: Option<String>,
+        avatar_url: Option<String>,
+    },
+    Nudge {
+        conversation_id: i64,
+        sender_id: i64,
+        sender_name: String,
+    },
+    Typing {
+        conversation_id: i64,
+        user_id: i64,
+        is_typing: bool,
+    },
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type", content = "payload")]
+pub enum ClientAction {
+    SendMessage {
+        conversation_id: i64,
+        text: String,
+        font_color: String,
+        font_family: String,
+    },
+    SendNudge {
+        conversation_id: i64,
+    },
+    SetTyping {
+        conversation_id: i64,
+        is_typing: bool,
+    },
+}
+

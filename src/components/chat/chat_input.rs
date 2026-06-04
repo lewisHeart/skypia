@@ -19,7 +19,23 @@ pub fn ChatInput(
     let mut show_wink_panel = use_signal(|| false);
     let mut show_file_panel = use_signal(|| false);
     
-    let is_typing = use_signal(|| false);
+    let typings = state.typing_contacts();
+    let is_typing_srv = typings.get(&contact_id).map(|list: &Vec<usize>| list.contains(&contact_id)).unwrap_or(false);
+
+    // Efeito de debounce para notificar o servidor que o usuário está digitando
+    use_effect(move || {
+        let txt = input_text();
+        let mut state = state;
+        if !txt.trim().is_empty() {
+            state.set_typing(contact_id, true);
+            spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                state.set_typing(contact_id, false);
+            });
+        } else {
+            state.set_typing(contact_id, false);
+        }
+    });
  
     let contact = state.contacts().into_iter().find(|c| c.id == contact_id);
     if contact.is_none() {
@@ -264,7 +280,7 @@ pub fn ChatInput(
 
             // Chat message input area
             div { class: "h-20 bg-white border-t border-white/20 p-2 flex flex-col justify-between relative",
-                if is_typing() {
+                if is_typing_srv {
                     div { class: "absolute -top-5 left-2 h-5 text-[10px] text-slate-500 italic flex items-center space-x-1 animate-pulse z-10 bg-white/60 px-2 rounded-t border-t border-l border-r border-slate-200/50",
                         span { "✍️" }
                         span { "{contact.display_name} está digitando..." }
