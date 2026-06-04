@@ -1,0 +1,151 @@
+/* Segoe UI is the official font of Windows Live Messenger 2009/2011 */
+body {
+    background: radial-gradient(circle at top left, #eef5fc, #c3daee);
+    color: #2b3e51;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    font-size: 13px;
+    user-select: none;
+}
+
+/* Animations */
+@keyframes msn-spin {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(360deg); }
+}
+
+.animate-msn-spin {
+    animation: msn-spin 2.2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+    perspective: 800px;
+    transform-style: preserve-3d;
+}
+
+@keyframes shake {
+    0% { transform: translate(0, 0); }
+    10% { transform: translate(-6px, 5px); }
+    20% { transform: translate(6px, -5px); }
+    30% { transform: translate(-5px, -3px); }
+    40% { transform: translate(5px, 3px); }
+    50% { transform: translate(-4px, 4px); }
+    60% { transform: translate(4px, 2px); }
+    70% { transform: translate(-3px, -3px); }
+    80% { transform: translate(3px, 3px); }
+    90% { transform: translate(-1px, -2px); }
+    100% { transform: translate(0, 0); }
+}
+
+.nudge-shake {
+    animation: shake 0.4s ease-in-out;
+}
+
+@keyframes toast-slide-in {
+    0% { transform: translateY(110%); opacity: 0; }
+    80% { transform: translateY(-4px); opacity: 0.95; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+.toast-in {
+    animation: toast-slide-in 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Aero Glass styling */
+.aero-glass {
+    backdrop-filter: blur(15px) saturate(125%);
+    -webkit-backdrop-filter: blur(15px) saturate(125%);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15),
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.6),
+                inset 1px 0 0 0 rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+/* Window Buttons */
+.win-btn {
+    transition: all 0.15s ease;
+}
+
+.win-btn-close:hover {
+    background-color: #e81123 !important;
+    color: white !important;
+}
+
+/* Scrollbars - 2010 style */
+::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-left: 1px solid #dcdcdc;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c2d5e7;
+    border: 2px solid #f1f1f1;
+    border-radius: 4px;
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #90bce3;
+}
+
+/* MSN Bubbles and Aero Skins */
+.bg-bubbles {
+    background-image: 
+        radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.15) 8%, transparent 8%),
+        radial-gradient(circle at 90% 40%, rgba(255, 255, 255, 0.2) 12%, transparent 12%),
+        radial-gradient(circle at 50% 80%, rgba(255, 255, 255, 0.12) 15%, transparent 15%),
+        radial-gradient(circle at 75% 15%, rgba(255, 255, 255, 0.18) 6%, transparent 6%);
+}
+
+/* Custom fonts for chat input and text */
+.font-comic { font-family: 'Comic Sans MS', 'Comic Sans', cursive; }
+.font-segoe { font-family: 'Segoe UI', Tahoma, sans-serif; }
+.font-arial { font-family: 'Arial', sans-serif; }
+.font-courier { font-family: 'Courier New', Courier, monospace; }
+
+/* MSN input field highlight */
+.msn-input {
+    border: 1px solid #a6b9cd;
+    background: white;
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+}
+.msn-input:focus {
+    border-color: #5c98d6;
+    box-shadow: 0 0 4px rgba(92, 152, 214, 0.6), inset 1px 1px 1px rgba(0,0,0,0.05);
+    outline: none;
+}
+
+/* Avatar Frame Effect */
+.avatar-frame {
+    position: relative;
+    border-radius: 8px;
+    padding: 3px;
+    background: linear-gradient(135deg, #ffffff 0%, #d5e5f5 100%);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15), inset 0 1px 0 white;
+    border: 1px solid #a6b9cd;
+}
+
+.avatar-hover:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Nudge button animations */
+@keyframes shake-btn {
+    0% { transform: rotate(0deg); }
+    25% { transform: rotate(8deg); }
+    50% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
+    100% { transform: rotate(0deg); }
+}
+
+.nudge-btn-hover:hover {
+    animation: shake-btn 0.3s ease-in-out infinite;
+}
