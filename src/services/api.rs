@@ -1,7 +1,7 @@
 /// Serviço HTTP para comunicação com o skypia-serve (Actix-web)
 use serde::{Deserialize, Serialize};
 
-pub const SERVER_BASE_URL: &str = "http://127.0.0.1:8080";
+pub const SERVER_BASE_URL: &str = "http://127.0.0.1:8082";
 
 // ── Structs de request/response espelhadas do servidor ────────────────────
 
@@ -16,6 +16,8 @@ pub struct AuthResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct RegisterRequest {
     pub email: String,
+    pub username: String,
+    pub full_name: String,
     pub password: String,
     pub display_name: String,
 }
@@ -43,11 +45,13 @@ pub struct UpdateProfileRequest {
 /// Registra um novo usuário
 pub async fn register(
     email: String,
+    username: String,
+    full_name: String,
     password: String,
     display_name: String,
 ) -> Result<AuthResponse, String> {
     let client = reqwest::Client::new();
-    let req = RegisterRequest { email, password, display_name };
+    let req = RegisterRequest { email, username, full_name, password, display_name };
 
     let resp = client
         .post(format!("{}/auth/register", SERVER_BASE_URL))
@@ -227,10 +231,10 @@ pub async fn get_conversations(token: &str) -> Result<Vec<crate::models::Convers
     }
 }
 
-/// Adiciona um contato pelo e-mail
-pub async fn add_contact(token: &str, email: String) -> Result<UserProfile, String> {
+/// Adiciona um contato pelo e-mail ou username
+pub async fn add_contact(token: &str, email_or_username: String) -> Result<UserProfile, String> {
     let client = reqwest::Client::new();
-    let req = serde_json::json!({ "email": email });
+    let req = serde_json::json!({ "email_or_username": email_or_username });
 
     let resp = client
         .post(format!("{}/contacts/add", SERVER_BASE_URL))
@@ -340,7 +344,7 @@ pub async fn get_pending_requests(token: &str) -> Result<Vec<UserProfile>, Strin
 }
 
 /// Aceita uma solicitação de contato
-pub async fn accept_friend(token: &str, contact_id: i64) -> Result<UserProfile, String> {
+pub async fn accept_friend(token: &str, contact_id: String) -> Result<UserProfile, String> {
     let client = reqwest::Client::new();
     let req = serde_json::json!({ "contact_id": contact_id });
 
@@ -368,7 +372,7 @@ pub async fn accept_friend(token: &str, contact_id: i64) -> Result<UserProfile, 
 }
 
 /// Rejeita/recusa uma solicitação de contato
-pub async fn reject_friend(token: &str, contact_id: i64) -> Result<(), String> {
+pub async fn reject_friend(token: &str, contact_id: String) -> Result<(), String> {
     let client = reqwest::Client::new();
     let req = serde_json::json!({ "contact_id": contact_id });
 
@@ -395,7 +399,7 @@ pub async fn reject_friend(token: &str, contact_id: i64) -> Result<(), String> {
 }
 
 /// Bloqueia ou desbloqueia um contato
-pub async fn block_friend(token: &str, contact_id: i64, block: bool) -> Result<(), String> {
+pub async fn block_friend(token: &str, contact_id: String, block: bool) -> Result<(), String> {
     let client = reqwest::Client::new();
     let req = serde_json::json!({ "contact_id": contact_id, "block": block });
 
@@ -422,7 +426,7 @@ pub async fn block_friend(token: &str, contact_id: i64, block: bool) -> Result<(
 }
 
 /// Atualiza o apelido local de um contato
-pub async fn update_contact_nickname(token: &str, contact_id: i64, nickname: Option<String>) -> Result<(), String> {
+pub async fn update_contact_nickname(token: &str, contact_id: String, nickname: Option<String>) -> Result<(), String> {
     let client = reqwest::Client::new();
     let req = serde_json::json!({ "contact_id": contact_id, "nickname": nickname });
 
@@ -447,3 +451,25 @@ pub async fn update_contact_nickname(token: &str, contact_id: i64, nickname: Opt
         Err(msg)
     }
 }
+
+/// Carrega o histórico de mensagens de uma conversa do servidor
+pub async fn get_conversation_messages(token: &str, conversation_id: &str) -> Result<Vec<crate::models::Message>, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/conversations/{}/messages", SERVER_BASE_URL, conversation_id))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        serde_json::from_str::<Vec<crate::models::Message>>(&body)
+            .map_err(|e| format!("Erro ao parsear mensagens: {}", e))
+    } else {
+        Err(format!("Erro ao carregar mensagens ({})", status))
+    }
+}
+

@@ -4,7 +4,7 @@ use crate::sound::play_sound;
 
 #[component]
 pub fn ChatInput(
-    contact_id: usize,
+    contact_id: String,
     mut state: AppState,
     on_nudge: EventHandler<()>,
 ) -> Element {
@@ -20,20 +20,22 @@ pub fn ChatInput(
     let mut show_file_panel = use_signal(|| false);
     
     let typings = state.typing_contacts();
-    let is_typing_srv = typings.get(&contact_id).map(|list: &Vec<usize>| list.contains(&contact_id)).unwrap_or(false);
+    let is_typing_srv = typings.get(&contact_id).map(|list: &Vec<String>| list.contains(&contact_id)).unwrap_or(false);
 
     // Efeito de debounce para notificar o servidor que o usuário está digitando
+    let contact_id_clone = contact_id.clone();
     use_effect(move || {
         let txt = input_text();
         let mut state = state;
+        let cid = contact_id_clone.clone();
         if !txt.trim().is_empty() {
-            state.set_typing(contact_id, true);
+            state.set_typing(cid.clone(), true);
             spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
-                state.set_typing(contact_id, false);
+                state.set_typing(cid, false);
             });
         } else {
-            state.set_typing(contact_id, false);
+            state.set_typing(cid, false);
         }
     });
  
@@ -43,21 +45,12 @@ pub fn ChatInput(
     }
     let contact = contact.unwrap();
 
-    // Send Message Handler
-    let mut handle_send = move || {
-        let txt = input_text();
-        if txt.trim().is_empty() {
-            return;
-        }
-        
-        state.send_message(contact_id, txt.clone(), selected_color(), selected_font());
-        input_text.set(String::new());
-        play_sound("message");
-    };
+
 
     // Send nudge handler
+    let contact_id_nudge = contact_id.clone();
     let handle_send_nudge = move |_| {
-        state.send_nudge(contact_id);
+        state.send_nudge(contact_id_nudge.clone());
         play_sound("nudge");
         on_nudge.call(());
     };
@@ -143,13 +136,16 @@ pub fn ChatInput(
 
                     button { 
                         class: "hover:text-[#0066cc] cursor-pointer flex items-center space-x-0.5 font-semibold transition-colors",
-                        onclick: move |_| {
-                            state.start_game(contact_id);
-                            show_file_panel.set(false);
-                            show_wink_panel.set(false);
-                            show_font_panel.set(false);
-                            show_color_panel.set(false);
-                            show_emoticon_panel.set(false);
+                        onclick: {
+                            let cid = contact_id.clone();
+                            move |_| {
+                                state.start_game(cid.clone());
+                                show_file_panel.set(false);
+                                show_wink_panel.set(false);
+                                show_font_panel.set(false);
+                                show_color_panel.set(false);
+                                show_emoticon_panel.set(false);
+                            }
                         },
                         span { "🎮" }
                         span { "Jogos" }
@@ -217,27 +213,36 @@ pub fn ChatInput(
                     div { class: "absolute left-24 bottom-9 w-40 bg-white border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
                         button {
                             class: "px-2 py-1 text-left hover:bg-purple-100 rounded transition-colors flex items-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.send_wink(contact_id, "kiss".to_string());
-                                show_wink_panel.set(false);
+                            onclick: {
+                                let cid = contact_id.clone();
+                                move |_| {
+                                    state.send_wink(cid.clone(), "kiss".to_string());
+                                    show_wink_panel.set(false);
+                                }
                             },
                             span { "💋" }
                             span { "Beijo de Batom" }
                         }
                         button {
                             class: "px-2 py-1 text-left hover:bg-purple-100 rounded transition-colors flex items-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.send_wink(contact_id, "hammer".to_string());
-                                show_wink_panel.set(false);
+                            onclick: {
+                                let cid = contact_id.clone();
+                                move |_| {
+                                    state.send_wink(cid.clone(), "hammer".to_string());
+                                    show_wink_panel.set(false);
+                                }
                             },
                             span { "🔨" }
                             span { "Martelada na Tela" }
                         }
                         button {
                             class: "px-2 py-1 text-left hover:bg-purple-100 rounded transition-colors flex items-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.send_wink(contact_id, "pig".to_string());
-                                show_wink_panel.set(false);
+                            onclick: {
+                                let cid = contact_id.clone();
+                                move |_| {
+                                    state.send_wink(cid.clone(), "pig".to_string());
+                                    show_wink_panel.set(false);
+                                }
                             },
                             span { "🐷" }
                             span { "Porco Dançarino" }
@@ -249,27 +254,36 @@ pub fn ChatInput(
                     div { class: "absolute left-36 bottom-9 w-40 bg-white border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
                         button {
                             class: "px-2 py-1 text-left hover:bg-sky-100 rounded transition-colors flex items-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.send_file_transfer(contact_id, "foto_flogao_2010.jpg".to_string());
-                                show_file_panel.set(false);
+                            onclick: {
+                                let cid = contact_id.clone();
+                                move |_| {
+                                    state.send_file_transfer(cid.clone(), "foto_flogao_2010.jpg".to_string());
+                                    show_file_panel.set(false);
+                                }
                             },
                             span { "🖼️" }
                             span { "Enviar Foto (.jpg)" }
                         }
                         button {
                             class: "px-2 py-1 text-left hover:bg-sky-100 rounded transition-colors flex items-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.send_file_transfer(contact_id, "musica_emo.mp3".to_string());
-                                show_file_panel.set(false);
+                            onclick: {
+                                let cid = contact_id.clone();
+                                move |_| {
+                                    state.send_file_transfer(cid.clone(), "musica_emo.mp3".to_string());
+                                    show_file_panel.set(false);
+                                }
                             },
                             span { "🎵" }
                             span { "Enviar Música (.mp3)" }
                         }
                         button {
                             class: "px-2 py-1 text-left hover:bg-sky-100 rounded transition-colors flex items-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.send_file_transfer(contact_id, "jogo_habbo.exe".to_string());
-                                show_file_panel.set(false);
+                            onclick: {
+                                let cid = contact_id.clone();
+                                move |_| {
+                                    state.send_file_transfer(cid.clone(), "jogo_habbo.exe".to_string());
+                                    show_file_panel.set(false);
+                                }
                             },
                             span { "💾" }
                             span { "Enviar Programa (.exe)" }
@@ -286,24 +300,42 @@ pub fn ChatInput(
                         span { "{contact.display_name} está digitando..." }
                     }
                 }
-                div { class: "flex-1 flex space-x-2 w-full",
+                 div { class: "flex-1 flex space-x-2 w-full",
                     textarea {
                         class: "flex-1 resize-none p-1.5 text-xs msn-input rounded",
                         style: "font-family: {selected_font()}; color: {selected_color()};",
                         placeholder: "Digite sua mensagem aqui...",
                         value: "{input_text}",
                         oninput: move |e| input_text.set(e.value()),
-                        onkeydown: move |e| {
-                            if e.key() == Key::Enter && !e.modifiers().shift() {
-                                e.prevent_default();
-                                handle_send();
+                        onkeydown: {
+                            let cid = contact_id.clone();
+                            move |e| {
+                                if e.key() == Key::Enter && !e.modifiers().shift() {
+                                    e.prevent_default();
+                                    let txt = input_text();
+                                    if !txt.trim().is_empty() {
+                                        state.send_message(cid.clone(), txt.clone(), selected_color(), selected_font());
+                                        input_text.set(String::new());
+                                        play_sound("message");
+                                    }
+                                }
                             }
                         }
                     }
                     
                     button {
                         class: "w-16 h-full bg-gradient-to-b from-[#8fc1e9] via-[#5c98d6] to-[#4585c5] hover:from-[#9bd0fa] hover:via-[#70abeb] hover:to-[#579adf] text-white border border-[#4074a8] rounded font-bold text-xs shadow cursor-pointer flex items-center justify-center active:scale-95 transition-transform",
-                        onclick: move |_| handle_send(),
+                        onclick: {
+                            let cid = contact_id.clone();
+                            move |_| {
+                                let txt = input_text();
+                                if !txt.trim().is_empty() {
+                                    state.send_message(cid.clone(), txt.clone(), selected_color(), selected_font());
+                                    input_text.set(String::new());
+                                    play_sound("message");
+                                }
+                            }
+                        },
                         "Enviar"
                     }
                 }

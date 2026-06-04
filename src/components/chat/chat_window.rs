@@ -43,9 +43,9 @@ const WINK_STYLES: &str = r#"
 "#;
 
 #[component]
-pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Element {
+pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Element {
     let active_chats = state.active_chats();
-    let resolved_contact_id = match contact_id_prop {
+    let resolved_contact_id = match contact_id_prop.clone() {
         Some(id) => id,
         None => match state.selected_chat_id() {
             Some(id) => id,
@@ -104,12 +104,14 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                                     "bg-white/30 border-transparent text-[#2f4b6c]/80 hover:bg-white/50"
                                 };
                                 let name_to_show = c.nickname.clone().unwrap_or(c.display_name.clone());
+                                let chat_id_select = chat_id.clone();
+                                let chat_id_close = chat_id.clone();
                                 
                                 rsx! {
                                     button {
                                         class: "px-3 h-6 flex items-center space-x-1.5 border rounded-t text-[11px] transition-all cursor-pointer truncate max-w-[120px] {active_tab_style}",
                                         onclick: move |_| {
-                                            *state.selected_chat_id.write() = Some(chat_id);
+                                            *state.selected_chat_id.write() = Some(chat_id_select.clone());
                                         },
                                         div { class: "w-2 h-2 rounded-full {c.status.color_class()}" }
                                         span { "{name_to_show}" }
@@ -117,7 +119,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                                             class: "text-[9px] text-slate-400 hover:text-red-500 font-bold ml-1.5",
                                             onclick: move |e| {
                                                 e.stop_propagation();
-                                                state.close_chat(chat_id);
+                                                state.close_chat(chat_id_close.clone());
                                             },
                                             "x"
                                         }
@@ -148,7 +150,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                     // Avatar do cabeçalho com moldura fixa e badge de status clássico do MSN
                     div { 
                         class: "relative p-[2.5px] flex-shrink-0 shadow rounded-[8px] border border-[#a1c6e7] bg-white transition-all",
-                        {render_avatar(contact.avatar_id, 36)}
+                        {render_avatar(contact.avatar_url.as_deref(), 36)}
                         
                         // Status Badge overlay
                         div { 
@@ -167,29 +169,34 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                 }
                 
                 if contact_id_prop.is_none() {
-                    button {
-                        class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors flex-shrink-0",
-                        title: "Desvincular conversa",
-                        onclick: move |_| {
-                            state.detach_chat(contact_id);
-                            let dom = VirtualDom::new_with_props(
-                                DetachedChatWindow,
-                                DetachedChatWindowProps { contact_id }
-                            );
-                            
-                            #[cfg(feature = "desktop")]
-                            spawn(async move {
-                                let _ = dioxus::desktop::window().new_window(
-                                    dom,
-                                    dioxus::desktop::Config::default().with_menu(None)
-                                ).await;
-                            });
-                            #[cfg(not(feature = "desktop"))]
-                            {
-                                let _ = dom;
+                    {
+                        let contact_id_detach = contact_id.clone();
+                        rsx! {
+                            button {
+                                class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors flex-shrink-0",
+                                title: "Desvincular conversa",
+                                onclick: move |_| {
+                                    state.detach_chat(contact_id_detach.clone());
+                                    let dom = VirtualDom::new_with_props(
+                                        DetachedChatWindow,
+                                        DetachedChatWindowProps { contact_id: contact_id_detach.clone() }
+                                    );
+                                    
+                                    #[cfg(feature = "desktop")]
+                                    spawn(async move {
+                                        let _ = dioxus::desktop::window().new_window(
+                                            dom,
+                                            dioxus::desktop::Config::default().with_menu(None)
+                                        ).await;
+                                    });
+                                    #[cfg(not(feature = "desktop"))]
+                                    {
+                                        let _ = dom;
+                                    }
+                                },
+                                "↗"
                             }
-                        },
-                        "↗"
+                        }
                     }
                 }
             }
@@ -200,24 +207,32 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                 // Coluna Esquerda: Histórico e Input de texto
                 div { class: "flex-1 flex flex-col sm:border-r border-white/20 min-w-0 h-full",
                     // Histórico do Chat (ChatFeed)
-                    ChatFeed { contact_id, state }
+                    ChatFeed { contact_id: contact_id.clone(), state }
                     
-                    // Barra de formatação e Entrada de mensagem (ChatInput)
-                    ChatInput {
-                        contact_id,
-                        state,
-                        on_nudge: move |_| {
-                            is_shaking.set(true);
-                            spawn(async move {
-                                tokio::time::sleep(std::time::Duration::from_millis(420)).await;
-                                is_shaking.set(false);
-                            });
+                    // Barra de formatação e Entrada de mensagem (ChatInput) ou aviso amarelo
+                    if contact.relation_status == "Pendente" {
+                        div { class: "h-20 bg-[#fffec8] border-t border-[#d8d080] p-4 flex flex-col justify-center items-center text-center text-xs text-[#5c5010] space-y-1 select-text flex-shrink-0",
+                            span { class: "text-base", "⚠️" }
+                            p { class: "font-semibold", "Esta solicitação de contato ainda não foi aceita." }
+                            p { class: "text-[10.5px] text-[#7c7030]", "Você não pode enviar mensagens até que o contato aceite a solicitação." }
+                        }
+                    } else {
+                        ChatInput {
+                            contact_id: contact_id.clone(),
+                            state,
+                            on_nudge: move |_| {
+                                is_shaking.set(true);
+                                spawn(async move {
+                                    tokio::time::sleep(std::time::Duration::from_millis(420)).await;
+                                    is_shaking.set(false);
+                                });
+                            }
                         }
                     }
                 }
                 
                 // Coluna Direita: Avatars grandes de perfil ou Jogo da Velha (ChatSidebar)
-                ChatSidebar { contact_id, state }
+                ChatSidebar { contact_id: contact_id.clone(), state }
             }
         }
     }
@@ -225,7 +240,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
 
 #[derive(Props, Clone, PartialEq)]
 pub struct DetachedChatWindowProps {
-    pub contact_id: usize,
+    pub contact_id: String,
 }
 
 #[component]
@@ -237,10 +252,10 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
         
         // Garante login e seleção local
         *app_state.logged_in.write() = true;
-        *app_state.selected_chat_id.write() = Some(props.contact_id);
+        *app_state.selected_chat_id.write() = Some(props.contact_id.clone());
         
         // Abre o chat localmente no estado da nova janela
-        app_state.open_chat(props.contact_id);
+        app_state.open_chat(props.contact_id.clone());
 
         use_effect(move || {
             let mut state = app_state;
@@ -248,8 +263,9 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
         });
 
         // Verificação periódica para fechar janela se o chat for acoplado de volta
+        let c_id = props.contact_id.clone();
         use_effect(move || {
-            let c_id = props.contact_id;
+            let cid = c_id.clone();
             let desktop_clone = desktop.clone();
             spawn(async move {
                 loop {
@@ -257,7 +273,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                     
                     // Se o chat for acoplado, fecha esta janela
                     if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
-                        if !detached.contains(&c_id) {
+                        if !detached.contains(&cid) {
                             desktop_clone.close();
                             break;
                         }
@@ -376,11 +392,15 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                                 button {
                                     class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:text-sky-600 shadow-sm cursor-pointer transition-colors focus:outline-none",
                                     title: "Vincular de volta à janela principal do Skypia",
-                                    onclick: move |e| {
-                                        e.stop_propagation();
-                                        spawn(async move {
-                                            let _ = crate::services::db::DatabaseService::attach_chat(props.contact_id).await;
-                                        });
+                                    onclick: {
+                                        let cid = props.contact_id.clone();
+                                        move |e| {
+                                            e.stop_propagation();
+                                            let cid_spawn = cid.clone();
+                                            spawn(async move {
+                                                let _ = crate::services::db::DatabaseService::attach_chat(cid_spawn.clone()).await;
+                                            });
+                                        }
                                     },
                                     span { class: "mr-1 text-xs", "↙" }
                                     span { "Acoplar" }
@@ -431,11 +451,15 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                             button {
                                 class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:text-sky-600 shadow-sm cursor-pointer transition-colors focus:outline-none",
                                 title: "Vincular de volta à janela principal do Skypia",
-                                onclick: move |e| {
-                                    e.stop_propagation();
-                                    spawn(async move {
-                                        let _ = crate::services::db::DatabaseService::attach_chat(props.contact_id).await;
-                                    });
+                                onclick: {
+                                    let cid = props.contact_id.clone();
+                                    move |e| {
+                                        e.stop_propagation();
+                                        let cid_spawn = cid.clone();
+                                        spawn(async move {
+                                            let _ = crate::services::db::DatabaseService::attach_chat(cid_spawn.clone()).await;
+                                        });
+                                    }
                                 },
                                 span { class: "mr-1 text-xs", "↙" }
                                 span { "Acoplar" }
@@ -454,7 +478,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                                 class: "w-full h-full relative",
                                 style: "transform: scale({app_state.interface_scale()}); transform-origin: top left; width: {100.0 / app_state.interface_scale()}%; height: {100.0 / app_state.interface_scale()}%;",
                                 
-                                ChatWindow { state: app_state, contact_id_prop: Some(props.contact_id) }
+                                ChatWindow { state: app_state, contact_id_prop: Some(props.contact_id.clone()) }
                             }
                         }
                     }

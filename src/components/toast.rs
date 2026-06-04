@@ -39,7 +39,7 @@ fn ToastCard(toast: crate::state::Toast, mut state: AppState) -> Element {
 
             // Avatar
             div { class: "w-9 h-9 rounded border border-slate-300 overflow-hidden flex-shrink-0 bg-white shadow-sm",
-                {render_avatar(toast.avatar_id, 36)}
+                {render_avatar(toast.avatar_url.as_deref(), 36)}
             }
 
             // Content

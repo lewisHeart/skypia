@@ -4,7 +4,7 @@ use crate::state::AppState;
 use std::collections::HashSet;
 
 #[component]
-pub fn ChatFeed(contact_id: usize, mut state: AppState) -> Element {
+pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     let mut show_images = use_signal(|| HashSet::new());
     
     let messages = state.chat_messages();
@@ -45,7 +45,7 @@ pub fn ChatFeed(contact_id: usize, mut state: AppState) -> Element {
             } else {
                 for msg in chat_history {
                     {
-                        let name_color = if msg.sender_id == 0 { "text-[#0066cc]" } else { "text-[#e6007e]" };
+                        let name_color = if msg.sender_id == "0" { "text-[#0066cc]" } else { "text-[#e6007e]" };
                         
                         rsx! {
                             div { class: "flex flex-col space-y-0.5 text-xs text-slate-800 select-text",
@@ -79,18 +79,22 @@ pub fn ChatFeed(contact_id: usize, mut state: AppState) -> Element {
                                         {
                                             match transfer {
                                                 FileTransferState::Waiting => {
-                                                    if msg.sender_id != 0 {
+                                                    if msg.sender_id != "0" {
+                                                        let cid_accept = contact_id.clone();
+                                                        let cid_reject = contact_id.clone();
+                                                        let mid = msg.id.clone();
+                                                        let mid_reject = msg.id.clone();
                                                         rsx! {
                                                             div { class: "flex items-center space-x-2 text-[11px] font-normal pt-1",
                                                                 span { "Arquivo pendente: {msg.text}" }
                                                                 button {
-                                                                    class: "px-2 py-0.5 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white rounded border border-[#4074a8] hover:from-[#9bd0fa] hover:to-[#579adf] font-bold cursor-pointer transition-colors",
-                                                                    onclick: move |_| state.accept_file_transfer(contact_id, msg.id),
+                                                                    class: "px-2 py-0.5 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white rounded border border-[#4074a8] hover:from-[#9bd0fa] hover:to-[#70abeb] hover:to-[#579adf] font-bold cursor-pointer transition-colors",
+                                                                    onclick: move |_| state.accept_file_transfer(cid_accept.clone(), mid.clone()),
                                                                     "Aceitar"
                                                                 }
                                                                 button {
-                                                                    class: "px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-350 rounded cursor-pointer transition-colors",
-                                                                    onclick: move |_| state.reject_file_transfer(contact_id, msg.id),
+                                                                    class: "px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-355 rounded cursor-pointer transition-colors",
+                                                                    onclick: move |_| state.reject_file_transfer(cid_reject.clone(), mid_reject.clone()),
                                                                     "Recusar"
                                                                 }
                                                             }
@@ -111,6 +115,7 @@ pub fn ChatFeed(contact_id: usize, mut state: AppState) -> Element {
                                                 }
                                                 FileTransferState::Completed(filename) => {
                                                     let is_image_visible = show_images().contains(&msg.id);
+                                                    let mid = msg.id.clone();
                                                     rsx! {
                                                         div { class: "flex flex-col space-y-1 pt-1 font-normal text-[11px]",
                                                             div { class: "flex items-center space-x-2",
@@ -119,10 +124,10 @@ pub fn ChatFeed(contact_id: usize, mut state: AppState) -> Element {
                                                                     button {
                                                                         class: "text-[#0066cc] hover:underline font-bold cursor-pointer transition-all",
                                                                         onclick: move |_| {
-                                                                            if show_images().contains(&msg.id) {
-                                                                                show_images.write().remove(&msg.id);
+                                                                            if show_images().contains(&mid) {
+                                                                                show_images.write().remove(&mid);
                                                                             } else {
-                                                                                show_images.write().insert(msg.id);
+                                                                                show_images.write().insert(mid.clone());
                                                                             }
                                                                         },
                                                                         if is_image_visible { "Ocultar Foto" } else { "Visualizar Foto" }
@@ -136,10 +141,10 @@ pub fn ChatFeed(contact_id: usize, mut state: AppState) -> Element {
                                                                             class: "w-full h-full object-cover rounded-sm"
                                                                         }
                                                                     }
+                                                                }
                                                             }
                                                         }
                                                     }
-                                                }
                                                 FileTransferState::Rejected => {
                                                     rsx! { span { class: "text-[11px] font-normal text-red-500/80 italic", "Transferência cancelada ou rejeitada." } }
                                                 }

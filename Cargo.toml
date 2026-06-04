@@ -17,6 +17,7 @@ reqwest = { version = "0.12", features = ["json", "multipart", "native-tls"], de
 rfd = { version = "0.15", optional = true }
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["desktop"]

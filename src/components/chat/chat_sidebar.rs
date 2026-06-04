@@ -3,7 +3,7 @@ use crate::state::AppState;
 use crate::models::{render_avatar, TicTacToeCell, UserStatus};
 
 #[component]
-pub fn ChatSidebar(contact_id: usize, mut state: AppState) -> Element {
+pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
     let contact = state.contacts().into_iter().find(|c| c.id == contact_id);
     if contact.is_none() {
         return rsx! {};
@@ -49,11 +49,12 @@ pub fn ChatSidebar(contact_id: usize, mut state: AppState) -> Element {
                                 TicTacToeCell::X => "bg-sky-500/80 text-white font-black text-sm cursor-default",
                                 TicTacToeCell::O => "bg-rose-500/80 text-white font-black text-sm cursor-default",
                             };
+                            let cid = contact_id.clone();
                             rsx! {
                                 button {
                                     class: "w-full aspect-square rounded flex items-center justify-center border border-white/20 transition-all cursor-pointer {cell_color}",
                                     disabled: !game.active || *cell != TicTacToeCell::Empty || game.turn != TicTacToeCell::X,
-                                    onclick: move |_| state.make_game_move(contact_id, idx),
+                                    onclick: move |_| state.make_game_move(cid.clone(), idx),
                                     "{cell_text}"
                                 }
                             }
@@ -83,13 +84,19 @@ pub fn ChatSidebar(contact_id: usize, mut state: AppState) -> Element {
                 // Controls
                 button {
                     class: "w-full py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold transition-all text-[10px] cursor-pointer text-center",
-                    onclick: move |_| state.start_game(contact_id),
+                    onclick: {
+                        let cid = contact_id.clone();
+                        move |_| state.start_game(cid.clone())
+                    },
                     if game.active { "Reiniciar" } else { "Jogar de Novo" }
                 }
                 button {
                     class: "w-full py-1 bg-red-100 hover:bg-red-200 border border-red-300 rounded font-bold transition-all text-[10px] text-red-700 cursor-pointer text-center",
-                    onclick: move |_| {
-                        state.game_states.write().remove(&contact_id);
+                    onclick: {
+                        let cid = contact_id.clone();
+                        move |_| {
+                            state.game_states.write().remove(&cid);
+                        }
                     },
                     "Sair do Jogo"
                 }
@@ -101,7 +108,7 @@ pub fn ChatSidebar(contact_id: usize, mut state: AppState) -> Element {
                 div { class: "flex flex-col items-center space-y-1.5",
                     div { 
                         class: "shadow-md relative rounded-[8px] border-[3.5px] {contact_status_color} overflow-hidden bg-transparent",
-                        {render_avatar(contact.avatar_id, 64)}
+                        {render_avatar(contact.avatar_url.as_deref(), 64)}
                         div { 
                             class: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow-sm",
                             div { class: "w-2.5 h-2.5 rounded-full {contact.status.color_class()} border border-black/10" }
@@ -114,7 +121,7 @@ pub fn ChatSidebar(contact_id: usize, mut state: AppState) -> Element {
                 div { class: "flex flex-col items-center space-y-1.5",
                     div { 
                         class: "shadow-md relative rounded-[8px] border-[3.5px] {user_status_color} overflow-hidden bg-transparent",
-                        {render_avatar(state.user_avatar_id(), 64)}
+                        {render_avatar(state.user_avatar_url().as_deref(), 64)}
                         div { 
                             class: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow-sm",
                             div { class: "w-2.5 h-2.5 rounded-full {state.user_status().color_class()} border border-black/10" }

@@ -14,8 +14,15 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
     let mut show_rename_modal = use_signal(|| false);
     let mut new_nickname = use_signal(|| contact.nickname.clone().unwrap_or_default());
 
+    let contact_id = contact.id.clone();
+    let cid_double = contact_id.clone();
+    let cid_context_open = contact_id.clone();
+    let cid_context_block = contact_id.clone();
+    let cid_rename_enter = contact_id.clone();
+    let cid_rename_click = contact_id.clone();
+
     let handle_double_click = move |_| {
-        state.open_chat(contact.id);
+        state.open_chat(cid_double.clone());
     };
 
     let name_to_show = if let Some(ref nick) = contact.nickname {
@@ -58,7 +65,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             // Small Avatar with fixed border
             div { 
                 class: "flex-shrink-0 shadow-sm rounded-[4px] border border-slate-300/60 overflow-hidden bg-transparent",
-                {render_avatar(contact.avatar_id, 24)}
+                {render_avatar(contact.avatar_url.as_deref(), 24)}
             }
             
             // Name and Sub-status
@@ -86,7 +93,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                         // Tooltip Avatar with fixed border
                         div { 
                             class: "flex-shrink-0 shadow rounded-[6px] border border-slate-300/70 overflow-hidden bg-transparent",
-                            {render_avatar(contact.avatar_id, 44)}
+                            {render_avatar(contact.avatar_url.as_deref(), 44)}
                         }
                         div { class: "flex-1 min-w-0 flex flex-col space-y-1",
                             span { class: "font-bold text-sm text-[#1b324d] truncate", "{name_to_show}" }
@@ -115,9 +122,12 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                     
                     button { 
                         class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
-                        onclick: move |_| {
-                            show_context_menu.set(false);
-                            state.open_chat(contact.id);
+                        onclick: {
+                            let cid = cid_context_open.clone();
+                            move |_| {
+                                show_context_menu.set(false);
+                                state.open_chat(cid.clone());
+                            }
                         },
                         span { "💬" }
                         span { "Enviar mensagem" }
@@ -134,9 +144,12 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                     
                     button { 
                         class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
-                        onclick: move |_| {
-                            show_context_menu.set(false);
-                            state.block_contact(contact.id, !is_blocked);
+                        onclick: {
+                            let cid = cid_context_block.clone();
+                            move |_| {
+                                show_context_menu.set(false);
+                                state.block_contact(cid.clone(), !is_blocked);
+                            }
                         },
                         span { if is_blocked { "🟢" } else { "🚫" } }
                         span { if is_blocked { "Desbloquear contato" } else { "Bloquear contato" } }
@@ -169,12 +182,15 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                                 placeholder: "Apelido personalizado...",
                                 value: "{new_nickname}",
                                 oninput: move |e| new_nickname.set(e.value()),
-                                onkeydown: move |e| {
-                                    if e.key() == Key::Enter {
-                                        let nick = new_nickname();
-                                        let final_nick = if nick.trim().is_empty() { None } else { Some(nick) };
-                                        state.rename_contact(contact.id, final_nick);
-                                        show_rename_modal.set(false);
+                                onkeydown: {
+                                    let cid = cid_rename_enter.clone();
+                                    move |e| {
+                                        if e.key() == Key::Enter {
+                                            let nick = new_nickname();
+                                            let final_nick = if nick.trim().is_empty() { None } else { Some(nick) };
+                                            state.rename_contact(cid.clone(), final_nick);
+                                            show_rename_modal.set(false);
+                                        }
                                     }
                                 }
                             }
@@ -183,11 +199,14 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                         div { class: "flex items-center justify-end space-x-2 pt-2 border-t border-[#a8c9eb]/50",
                             button { 
                                 class: "px-4 py-1.5 bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
-                                onclick: move |_| {
-                                    let nick = new_nickname();
-                                    let final_nick = if nick.trim().is_empty() { None } else { Some(nick) };
-                                    state.rename_contact(contact.id, final_nick);
-                                    show_rename_modal.set(false);
+                                onclick: {
+                                    let cid = cid_rename_click.clone();
+                                    move |_| {
+                                        let nick = new_nickname();
+                                        let final_nick = if nick.trim().is_empty() { None } else { Some(nick) };
+                                        state.rename_contact(cid.clone(), final_nick);
+                                        show_rename_modal.set(false);
+                                    }
                                 },
                                 "Salvar"
                             }

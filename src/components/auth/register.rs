@@ -7,6 +7,8 @@ use dioxus::prelude::*;
 #[component]
 pub fn Register(mut state: AppState) -> Element {
     let mut display_name = use_signal(|| String::new());
+    let mut username = use_signal(|| String::new());
+    let mut full_name = use_signal(|| String::new());
     let mut email = use_signal(|| String::new());
     let mut password = use_signal(|| String::new());
     let mut confirm_password = use_signal(|| String::new());
@@ -21,12 +23,26 @@ pub fn Register(mut state: AppState) -> Element {
         }
 
         let name = display_name().trim().to_string();
+        let user_val = username().trim().to_lowercase();
+        let full_val = full_name().trim().to_string();
         let email_val = email().trim().to_string();
         let pass = password();
         let confirm = confirm_password();
 
         if name.is_empty() {
             error_msg.set(Some("Nome de exibição é obrigatório.".to_string()));
+            return;
+        }
+        if user_val.is_empty() {
+            error_msg.set(Some("Nome de usuário é obrigatório.".to_string()));
+            return;
+        }
+        if user_val.contains('@') {
+            error_msg.set(Some("Nome de usuário não pode conter '@'.".to_string()));
+            return;
+        }
+        if full_val.is_empty() {
+            error_msg.set(Some("Nome completo é obrigatório.".to_string()));
             return;
         }
         if email_val.is_empty() || !email_val.contains('@') {
@@ -47,9 +63,9 @@ pub fn Register(mut state: AppState) -> Element {
 
         let mut state = state;
         spawn(async move {
-            match api::register(email_val, pass, name).await {
+            match api::register(email_val, user_val, full_val, pass, name).await {
                 Ok(auth) => {
-                    state.apply_server_profile(auth.user, auth.token);
+                    state.apply_server_profile(auth.user, auth.token).await;
                     state.set_user_status(UserStatus::Online);
                     is_loading.set(false);
                     state.show_register_modal.set(false);
@@ -58,9 +74,8 @@ pub fn Register(mut state: AppState) -> Element {
                     state.add_toast(
                         "Conta criada!".to_string(),
                         "Bem-vindo ao Skypia Messenger! 🦋".to_string(),
-                        0,
+                        None,
                     );
-                    state.load_initial_data();
                 }
                 Err(e) => {
                     is_loading.set(false);
@@ -96,7 +111,7 @@ pub fn Register(mut state: AppState) -> Element {
                 }
 
                 // Formulário
-                div { class: "flex flex-col space-y-3",
+                div { class: "flex flex-col space-y-3 max-h-[380px] overflow-y-auto pr-1",
 
                     // Erro
                     if let Some(err) = error_msg() {
@@ -116,6 +131,32 @@ pub fn Register(mut state: AppState) -> Element {
                             value: "{display_name}",
                             maxlength: 40,
                             oninput: move |e| display_name.set(e.value()),
+                        }
+                    }
+
+                    // Nome de usuário (username)
+                    div { class: "space-y-1",
+                        label { class: "block text-xs font-semibold text-[#2f4b6c]", "Nome de usuário" }
+                        input {
+                            r#type: "text",
+                            class: "w-full px-2.5 py-1.5 text-xs msn-input rounded-lg",
+                            placeholder: "Ex: wellington",
+                            value: "{username}",
+                            maxlength: 20,
+                            oninput: move |e| username.set(e.value()),
+                        }
+                    }
+
+                    // Nome completo
+                    div { class: "space-y-1",
+                        label { class: "block text-xs font-semibold text-[#2f4b6c]", "Nome completo" }
+                        input {
+                            r#type: "text",
+                            class: "w-full px-2.5 py-1.5 text-xs msn-input rounded-lg",
+                            placeholder: "Ex: Wellington Moreira",
+                            value: "{full_name}",
+                            maxlength: 80,
+                            oninput: move |e| full_name.set(e.value()),
                         }
                     }
 
@@ -143,7 +184,7 @@ pub fn Register(mut state: AppState) -> Element {
                         }
                     }
 
-                    // Confirmar senha — Enter dispara registro
+                    // Confirmar senha
                     div { class: "space-y-1",
                         label { class: "block text-xs font-semibold text-[#2f4b6c]", "Confirmar senha" }
                         input {

@@ -1,4 +1,3 @@
-use crate::models::render_avatar;
 use crate::services::api;
 use crate::state::AppState;
 use dioxus::prelude::*;
@@ -42,58 +41,6 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                             span { "⚠️" }
                             span { "{err}" }
                         }
-                    }
-
-                    // Seção 1: Avatares SVG embutidos
-                    div { class: "flex flex-col space-y-2",
-                        p { class: "text-xs font-bold text-[#1b324d]", "Avatares do Skypia" }
-                        div { class: "grid grid-cols-4 gap-2",
-                            for avatar_id in 0usize..=6 {
-                                {
-                                    let is_selected = state.user_avatar_id() == avatar_id;
-                                    rsx! {
-                                        button {
-                                            class: if is_selected {
-                                                "relative p-1 rounded-xl border-2 border-sky-400 bg-sky-100/50 cursor-pointer transition-all shadow-md hover:scale-105"
-                                            } else {
-                                                "relative p-1 rounded-xl border-2 border-transparent hover:border-sky-300/60 bg-white/30 cursor-pointer transition-all hover:scale-105"
-                                            },
-                                            onclick: move |_| {
-                                                state.set_user_avatar(avatar_id);
-                                                // Limpa avatar URL do servidor ao escolher SVG built-in
-                                                *state.user_avatar_url.write() = None;
-                                                state.show_avatar_picker.set(false);
-
-                                                // Sincroniza com servidor se autenticado
-                                                if let Some(token) = state.auth_token() {
-                                                    spawn(async move {
-                                                        let _ = api::update_profile(&token, api::UpdateProfileRequest {
-                                                            display_name: None,
-                                                            personal_message: None,
-                                                            status: None,
-                                                            music: None,
-                                                        }).await;
-                                                    });
-                                                }
-                                            },
-                                            {render_avatar(avatar_id, 56)}
-                                            if is_selected {
-                                                div { class: "absolute -top-1 -right-1 w-4 h-4 bg-sky-500 rounded-full flex items-center justify-center shadow",
-                                                    span { class: "text-white text-[8px] font-bold", "✓" }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Divisor
-                    div { class: "flex items-center space-x-2",
-                        div { class: "flex-1 h-px bg-[#7ba9d4]/30" }
-                        span { class: "text-[10px] text-slate-500", "ou" }
-                        div { class: "flex-1 h-px bg-[#7ba9d4]/30" }
                     }
 
                     // Seção 2: Upload de foto real

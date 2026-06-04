@@ -17,6 +17,22 @@ const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
+fn get_current_slot() -> Option<u32> {
+    let my_pid = std::process::id();
+    let db_dir = std::path::Path::new(".skypia_data").join("db");
+    for slot in 1..=10 {
+        let lock_path = db_dir.join(format!("skypia_{}.lock", slot));
+        if let Ok(content) = std::fs::read_to_string(&lock_path) {
+            if let Ok(pid) = content.trim().parse::<u32>() {
+                if pid == my_pid {
+                    return Some(slot);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn main() {
     // Cria o runtime do Tokio global persistente com suporte completo (rede, timers, etc.)
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -37,8 +53,21 @@ fn main() {
 
     #[cfg(feature = "desktop")]
     {
+        let mut config = dioxus::desktop::Config::new().with_menu(None);
+        if let Some(slot) = get_current_slot() {
+            let data_dir = std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join(".skypia_data")
+                .join("webview")
+                .join(format!("slot_{}", slot));
+            
+            // Garante a criação do diretório de dados
+            let _ = std::fs::create_dir_all(&data_dir);
+            config = config.with_data_directory(data_dir);
+        }
+
         dioxus::LaunchBuilder::desktop()
-            .with_cfg(dioxus::desktop::Config::new().with_menu(None))
+            .with_cfg(config)
             .launch(App);
     }
     #[cfg(not(feature = "desktop"))]
@@ -54,7 +83,7 @@ fn App() -> Element {
     let mut app_state = use_context_provider(|| AppState::new());
     let logged_in = app_state.logged_in();
     let theme = app_state.theme();
-    let use_custom_bar = app_state.use_custom_titlebar();
+    
     
     // Sinais locais para controle da barra de título e opções
     let mut show_about = use_signal(|| false);
@@ -66,15 +95,23 @@ fn App() -> Element {
         #[cfg(feature = "desktop")]
         {
             let desktop = dioxus::desktop::use_window();
-            desktop.set_decorations(!use_custom_bar);
+            desktop.set_decorations(!app_state.use_custom_titlebar());
         }
     });
 
     // Carregamento dinâmico de dados quando logado
     use_effect(move || {
-        if logged_in {
+        if app_state.logged_in() {
             let mut state = app_state;
             state.load_initial_data();
+        }
+    });
+
+    // Conexão com o WebSocket em tempo real quando logado
+    use_effect(move || {
+        if app_state.logged_in() {
+            let mut state = app_state;
+            state.connect_websocket();
         }
     });
 
@@ -544,6 +581,8 @@ fn App() -> Element {
             if logged_in && !app_state.pending_requests().is_empty() {
                 let pending_list = app_state.pending_requests();
                 let first_req = pending_list[0].clone();
+                let first_req_id_accept = first_req.id.clone();
+                let first_req_id_reject = first_req.id.clone();
                 
                 rsx! {
                     div { 
@@ -575,14 +614,14 @@ fn App() -> Element {
                                 button { 
                                     class: "px-4 py-1.5 bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                     onclick: move |_| {
-                                        app_state.accept_friend_request(first_req.id);
+                                        app_state.accept_friend_request(first_req_id_accept.clone());
                                     },
                                     "Aceitar"
                                 }
                                 button { 
                                     class: "px-4 py-1.5 bg-gradient-to-b from-rose-400 to-rose-500 hover:from-rose-500 hover:to-rose-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                     onclick: move |_| {
-                                        app_state.reject_friend_request(first_req.id);
+                                        app_state.reject_friend_request(first_req_id_reject.clone());
                                     },
                                     "Recusar"
                                 }

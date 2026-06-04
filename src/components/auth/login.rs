@@ -21,16 +21,15 @@ pub fn Login(mut state: AppState) -> Element {
             {
                 match api::get_profile(&token).await {
                     Ok(profile) => {
-                        state.apply_server_profile(profile, token);
+                        state.apply_server_profile(profile, token).await;
                         state.set_user_status(UserStatus::Online);
                         *state.logged_in.write() = true;
                         play_sound("online");
                         state.add_toast(
                             "Bem-vindo de volta!".to_string(),
                             "Sessão restaurada com sucesso.".to_string(),
-                            0,
+                            None,
                         );
-                        state.load_initial_data();
                     }
                     Err(_) => {
                         // Token expirado — limpa
@@ -62,7 +61,7 @@ pub fn Login(mut state: AppState) -> Element {
         spawn(async move {
             match api::login(email_val, password_val).await {
                 Ok(auth) => {
-                    state.apply_server_profile(auth.user, auth.token);
+                    state.apply_server_profile(auth.user, auth.token).await;
                     state.set_user_status(status);
                     *state.signing_in.write() = false;
                     *state.logged_in.write() = true;
@@ -70,9 +69,8 @@ pub fn Login(mut state: AppState) -> Element {
                     state.add_toast(
                         "Bem-vindo de volta!".to_string(),
                         "Você entrou no Skypia Messenger.".to_string(),
-                        0,
+                        None,
                     );
-                    state.load_initial_data();
                 }
                 Err(e) => {
                     *state.signing_in.write() = false;

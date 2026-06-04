@@ -8,7 +8,7 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message as TungsteniteMsg;
 
 pub fn connect_ws(mut state: AppState, token: String) {
-    let ws_url = format!("ws://127.0.0.1:8080/ws?token={}", token);
+    let ws_url = format!("ws://127.0.0.1:8082/ws?token={}", token);
 
     // Spawna o loop de conexão em background no scheduler do Dioxus (evita erros de Send)
     dioxus::prelude::spawn(async move {
@@ -18,14 +18,14 @@ pub fn connect_ws(mut state: AppState, token: String) {
                 break;
             }
 
-            println!("Conectando ao WebSocket em: ws://127.0.0.1:8080/ws");
+            println!("Conectando ao WebSocket em: ws://127.0.0.1:8082/ws");
             match connect_async(&ws_url).await {
                 Ok((ws_stream, _)) => {
                     println!("WebSocket conectado com sucesso!");
                     state.add_toast(
                         "Tempo Real Conectado".to_string(),
                         "Você está conectado ao servidor do Skypia.".to_string(),
-                        0,
+                        None,
                     );
 
                     // Cria o canal de ações específico para ESTA conexão ativa
@@ -86,7 +86,7 @@ pub fn connect_ws(mut state: AppState, token: String) {
                     state.add_toast(
                         "Conexão Perdida".to_string(),
                         "Tentando reconectar ao servidor de mensagens...".to_string(),
-                        0,
+                        None,
                     );
 
                     // Limpa o transmissor do WebSocket ao cair a conexão
@@ -111,35 +111,40 @@ pub fn connect_ws(mut state: AppState, token: String) {
 
 async fn process_ws_event(state: &mut AppState, event: WsEvent) {
     match event {
-        WsEvent::ChatMessage(msg) => {
-            let conv_id = msg.conversation_id;
+        WsEvent::ChatMessage(mut msg) => {
+            let conv_id = msg.conversation_id.clone();
 
-            // 1. Salva no banco de dados local
-            let _ = crate::services::db::DatabaseService::save_message(conv_id, msg.clone()).await;
-
-            // 2. Adiciona à lista de mensagens em memória
-            {
-                let mut chat_msgs = state.chat_messages.write();
-                chat_msgs.entry(conv_id).or_default().push(msg.clone());
+            // Normaliza o sender_id para "0" se for o próprio usuário local
+            if Some(msg.sender_id.clone()) == state.server_user_id() {
+                msg.sender_id = "0".to_string();
             }
 
-            // 3. Efeitos visuais e sonoros para mensagens de terceiros
-            if msg.sender_id != 0 {
+            // 1. Adiciona à lista de mensagens em memória
+            {
+                let mut chat_msgs = state.chat_messages.write();
+                chat_msgs.entry(conv_id.clone()).or_default().push(msg.clone());
+            }
+
+            // 2. Efeitos visuais e sonoros para mensagens de terceiros
+            if msg.sender_id != "0" {
                 crate::sound::play_sound("message");
 
                 {
                     // Garante que o chat esteja nas abas ativas
                     let mut active = state.active_chats.write();
                     if !active.contains(&conv_id) {
-                        active.push(conv_id);
+                        active.push(conv_id.clone());
                     }
                 }
+
+                // Tenta achar a foto de perfil do contato remetente
+                let avatar_url = state.contacts().iter().find(|c| c.id == conv_id).and_then(|c| c.avatar_url.clone());
 
                 // Dispara notificação toast
                 state.add_toast(
                     msg.sender_name.clone(),
                     msg.text.clone(),
-                    0, // avatar padrão se não identificado
+                    avatar_url,
                 );
             }
         }
@@ -148,7 +153,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             status,
             personal_message,
             music,
-            avatar_url: _, // ignora por enquanto
+            avatar_url,
         } => {
             let user_status = match status.as_str() {
                 "Online" => UserStatus::Online,
@@ -161,19 +166,22 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             let mut should_play_online = false;
             let mut name = String::new();
             let mut pm = String::new();
-            let mut avatar = 0;
+            let mut final_avatar_url = None;
 
             {
                 // Atualiza na lista de contatos em memória
                 let mut list = state.contacts.write();
-                if let Some(c) = list.iter_mut().find(|c| c.id as i64 == user_id) {
+                if let Some(c) = list.iter_mut().find(|c| c.id == user_id) {
                     let old_status = c.status;
                     c.status = user_status;
                     c.personal_message = personal_message;
                     c.music_listening = music;
+                    if avatar_url.is_some() {
+                        c.avatar_url = avatar_url.clone();
+                    }
                     name = c.display_name.clone();
                     pm = c.personal_message.clone();
-                    avatar = c.avatar_id;
+                    final_avatar_url = c.avatar_url.clone();
 
                     // Toca som de entrada se o usuário acabou de ficar Online
                     if old_status == UserStatus::Offline && user_status == UserStatus::Online {
@@ -185,7 +193,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if should_play_online {
                 crate::sound::play_sound("online");
                 // Exibe toast de quem entrou
-                state.add_toast(format!("{} está online", name), pm, avatar);
+                state.add_toast(format!("{} está online", name), pm, final_avatar_url);
             }
         }
         WsEvent::Nudge {
@@ -193,16 +201,18 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             sender_id,
             sender_name,
         } => {
-            if sender_id != 0 {
+            if sender_id != "0" {
                 // Toca som do nudge
                 crate::sound::play_sound("nudge");
 
                 // Ativa animação de tremor no AppState para essa conversa
                 // Se a conversa não estiver aberta, seleciona e abre
-                state.open_chat(conversation_id as usize);
+                state.open_chat(conversation_id.clone());
+
+                let avatar_url = state.contacts().iter().find(|c| c.id == conversation_id).and_then(|c| c.avatar_url.clone());
 
                 // Exibe notificação toast
-                state.add_toast(sender_name, "enviou um Chamar a Atenção!".to_string(), 0);
+                state.add_toast(sender_name, "enviou um Chamar a Atenção!".to_string(), avatar_url);
             }
         }
         WsEvent::Typing {
@@ -210,8 +220,8 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             user_id,
             is_typing,
         } => {
-            let conv_id = conversation_id as usize;
-            let u_id = user_id as usize;
+            let conv_id = conversation_id.clone();
+            let u_id = user_id.clone();
 
             {
                 let mut typings = state.typing_contacts.write();
@@ -221,7 +231,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                         entry.push(u_id);
                     }
                 } else {
-                    entry.retain(|&id| id != u_id);
+                    entry.retain(|id| id != &u_id);
                 }
             }
         }
@@ -235,13 +245,13 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             };
 
             let contact = crate::models::Contact {
-                id: requester.id as usize,
+                id: requester.id.clone(),
                 email: requester.email.clone(),
                 display_name: requester.display_name.clone(),
                 status: status_enum,
                 personal_message: requester.personal_message.clone(),
                 music_listening: requester.music.clone(),
-                avatar_id: (requester.id % 7) as usize,
+                avatar_url: requester.avatar_url.clone(),
                 is_favorite: false,
                 relation_status: "Pendente".to_string(),
                 nickname: None,
@@ -263,28 +273,11 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     "{} ({}) quer adicionar você.",
                     contact.display_name, contact.email
                 ),
-                contact.avatar_id,
+                contact.avatar_url.clone(),
             );
         }
         WsEvent::ContactRequestAccepted { contact } => {
-            let status_enum = match contact.status.as_str() {
-                "Online" => UserStatus::Online,
-                "Ocupado" => UserStatus::Ocupado,
-                "Ausente" => UserStatus::Ausente,
-                "Invisivel" => UserStatus::Invisivel,
-                _ => UserStatus::Offline,
-            };
-
-            let _ = crate::services::db::DatabaseService::add_contact(
-                contact.email.clone(),
-                contact.display_name.clone(),
-                status_enum,
-                contact.personal_message.clone(),
-                "Aceito".to_string(),
-                contact.nickname.clone(),
-            )
-            .await;
-
+            // Toca som
             crate::sound::play_sound("online");
 
             state.add_toast(
@@ -293,7 +286,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     "{} aceitou sua solicitação de amizade.",
                     contact.display_name
                 ),
-                (contact.id % 7) as usize,
+                contact.avatar_url.clone(),
             );
 
             state.load_initial_data();

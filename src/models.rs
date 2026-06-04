@@ -88,13 +88,13 @@ impl TicTacToe {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Contact {
-    pub id: usize,
+    pub id: String,
     pub email: String,
     pub display_name: String,
     pub status: UserStatus,
     pub personal_message: String,
     pub music_listening: Option<String>,
-    pub avatar_id: usize, // 0-9
+    pub avatar_url: Option<String>,
     pub is_favorite: bool,
     pub relation_status: String,
     pub nickname: Option<String>,
@@ -102,9 +102,9 @@ pub struct Contact {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Message {
-    pub id: usize,
-    pub conversation_id: usize,
-    pub sender_id: usize, // 0 for local user, others for contacts
+    pub id: String,
+    pub conversation_id: String,
+    pub sender_id: String, // "0" for local user, others for contacts
     pub sender_name: String,
     pub text: String,
     pub timestamp: String,
@@ -205,82 +205,49 @@ impl AppTheme {
     }
 }
 
-pub fn render_avatar(id: usize, size_px: usize) -> Element {
-    match id {
-        1 => {
-            rsx! {
-                svg { view_box: "0 0 100 100", width: "{size_px}px", height: "{size_px}px", class: "rounded-md",
-                    rect { width: "100", height: "100", rx: "10", fill: "#1a1a2e" }
-                    path { d: "M20 30 L40 10 L50 35 L65 5 L75 35 L90 20 L80 60 L20 60 Z", fill: "#ff007f" }
-                    path { d: "M15 35 Q40 50 65 30 Q75 60 85 35 L80 65 L20 65 Z", fill: "#111111" }
-                    polygon { points: "50,25 55,40 70,40 58,50 62,65 50,55 38,65 42,50 30,40 45,40", fill: "#00fff0" }
+pub fn render_avatar(url_opt: Option<&str>, size_px: usize) -> Element {
+    let final_url = match url_opt {
+        Some(url) if url.starts_with("http") => url.to_string(),
+        Some(url) => format!("{}{}", crate::services::api::SERVER_BASE_URL, url),
+        None => "".to_string(),
+    };
+
+    if !final_url.is_empty() {
+        rsx! {
+            img {
+                src: "{final_url}",
+                width: "{size_px}px",
+                height: "{size_px}px",
+                class: "rounded-md object-cover flex-shrink-0 border border-slate-350 shadow-inner",
+                alt: "Avatar",
+                onerror: move |_| {
+                    // Se falhar o carregamento, renderiza o fallback (nada a fazer pois final_url não é editável na hora, mas é um bom placeholder)
                 }
             }
         }
-        2 => {
-            rsx! {
-                svg { view_box: "0 0 100 100", width: "{size_px}px", height: "{size_px}px", class: "rounded-md",
-                    rect { width: "100", height: "100", rx: "10", fill: "#ffe5ec" }
-                    circle { cx: "25", cy: "45", r: "14", fill: "#e07a5f" }
-                    circle { cx: "75", cy: "45", r: "14", fill: "#e07a5f" }
-                    circle { cx: "50", cy: "50", r: "28", fill: "#f4f1de" }
-                    path { d: "M22 50 Q50 30 78 50 C70 32 30 32 22 50 Z", fill: "#e07a5f" }
-                    circle { cx: "42", cy: "52", r: "3", fill: "#3d405b" }
-                    circle { cx: "58", cy: "52", r: "3", fill: "#3d405b" }
-                    path { d: "M45 62 Q50 67 55 62", stroke: "#e07a5f", stroke_width: "2.5", fill: "none" }
+    } else {
+        rsx! {
+            svg {
+                view_box: "0 0 100 100",
+                width: "{size_px}px",
+                height: "{size_px}px",
+                class: "rounded-md flex-shrink-0 border border-slate-300 shadow-sm",
+                defs {
+                    linearGradient { id: "msnGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%",
+                        stop { offset: "0%", stop_color: "#e6f2ff" }
+                        stop { offset: "100%", stop_color: "#bcd6f7" }
+                    }
                 }
-            }
-        }
-        3 => {
-            rsx! {
-                svg { view_box: "0 0 100 100", width: "{size_px}px", height: "{size_px}px", class: "rounded-md",
-                    rect { width: "100", height: "100", rx: "10", fill: "#2a9d8f" }
-                    rect { x: "20", y: "35", width: "60", height: "30", rx: "12", fill: "#e76f51" }
-                    circle { cx: "35", cy: "50", r: "5", fill: "#264653" }
-                    circle { cx: "60", cy: "50", r: "4", fill: "#e9c46a" }
-                    circle { cx: "70", cy: "50", r: "4", fill: "#e9c46a" }
-                }
-            }
-        }
-        4 => {
-            rsx! {
-                svg { view_box: "0 0 100 100", width: "{size_px}px", height: "{size_px}px", class: "rounded-md",
-                    rect { width: "100", height: "100", rx: "10", fill: "#ffccd5" }
-                    path { d: "M12,38 C12,22 35,15 50,35 C65,15 88,22 88,38 C88,60 50,85 50,85 C50,85 12,60 12,38 Z", fill: "#ff4d6d" }
-                    polygon { points: "25,20 28,26 34,27 29,32 30,38 25,34 20,38 21,32 16,27 22,26", fill: "#fff" }
-                    polygon { points: "75,65 77,69 82,70 78,74 79,79 75,76 71,79 72,74 68,70 73,69", fill: "#fff" }
-                }
-            }
-        }
-        5 => {
-            rsx! {
-                svg { view_box: "0 0 100 100", width: "{size_px}px", height: "{size_px}px", class: "rounded-md",
-                    rect { width: "100", height: "100", rx: "10", fill: "#1c1c1e" }
-                    circle { cx: "32", cy: "68", r: "10", fill: "#00d2ff" }
-                    circle { cx: "68", cy: "58", r: "10", fill: "#00d2ff" }
-                    rect { x: "37", y: "25", width: "5", height: "43", fill: "#00d2ff" }
-                    rect { x: "73", y: "15", width: "5", height: "43", fill: "#00d2ff" }
-                    path { d: "M37 25 L78 15 L78 25 L37 35 Z", fill: "#00d2ff" }
-                }
-            }
-        }
-        6 => {
-            rsx! {
-                svg { view_box: "0 0 100 100", width: "{size_px}px", height: "{size_px}px", class: "rounded-md",
-                    rect { width: "100", height: "100", rx: "10", fill: "#e9c46a" }
-                    path { d: "M10 65 Q 30 55, 50 65 T 90 65 L 90 90 L 10 90 Z", fill: "#264653" }
-                    path { d: "M10 75 Q 30 68, 50 75 T 90 75 L 90 90 L 10 90 Z", fill: "#2a9d8f" }
-                    circle { cx: "50", cy: "40", r: "18", fill: "#f4a261" }
-                }
-            }
-        }
-        _ => {
-            rsx! {
-                svg { view_box: "0 0 100 100", width: "{size_px}px", height: "{size_px}px", class: "rounded-md",
-                    rect { width: "100", height: "100", rx: "10", fill: "#aed2f2" }
-                    circle { cx: "50", cy: "35", r: "18", fill: "#0078d7" }
-                    path { d: "M15 85 C15 62, 85 62, 85 85 Z", fill: "#0078d7" }
-                }
+                rect { width: "100", height: "100", rx: "10", fill: "url(#msnGrad)" }
+                // Boneco clássico do MSN azul/verde
+                // Cabeça azul
+                circle { cx: "44", cy: "38", r: "13", fill: "#3b82f6" }
+                // Corpo azul
+                path { d: "M20 76 C20 58, 68 58, 68 76 Z", fill: "#3b82f6" }
+                // Cabeça verde (parceiro clássico)
+                circle { cx: "66", cy: "48", r: "10", fill: "#22c55e" }
+                // Corpo verde
+                path { d: "M48 76 C48 64, 84 64, 84 76 Z", fill: "#22c55e" }
             }
         }
     }
@@ -288,7 +255,7 @@ pub fn render_avatar(id: usize, size_px: usize) -> Element {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Conversation {
-    pub id: usize,
+    pub id: String,
     pub name: Option<String>,
     pub is_group: bool,
     pub created_at: String,
@@ -297,8 +264,10 @@ pub struct Conversation {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UserProfile {
-    pub id: i64,
+    pub id: String,
     pub email: String,
+    pub username: String,
+    pub full_name: String,
     pub display_name: String,
     pub personal_message: String,
     pub status: String,
@@ -313,20 +282,20 @@ pub struct UserProfile {
 pub enum WsEvent {
     ChatMessage(Message),
     PresenceUpdate {
-        user_id: i64,
+        user_id: String,
         status: String,
         personal_message: String,
         music: Option<String>,
         avatar_url: Option<String>,
     },
     Nudge {
-        conversation_id: i64,
-        sender_id: i64,
+        conversation_id: String,
+        sender_id: String,
         sender_name: String,
     },
     Typing {
-        conversation_id: i64,
-        user_id: i64,
+        conversation_id: String,
+        user_id: String,
         is_typing: bool,
     },
     ContactRequestReceived {
@@ -341,16 +310,16 @@ pub enum WsEvent {
 #[serde(tag = "type", content = "payload")]
 pub enum ClientAction {
     SendMessage {
-        conversation_id: i64,
+        conversation_id: String,
         text: String,
         font_color: String,
         font_family: String,
     },
     SendNudge {
-        conversation_id: i64,
+        conversation_id: String,
     },
     SetTyping {
-        conversation_id: i64,
+        conversation_id: String,
         is_typing: bool,
     },
 }

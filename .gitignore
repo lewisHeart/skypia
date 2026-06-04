@@ -10,3 +10,6 @@
 .env
 .env.*
 .git
+
+# Pasta de dados isolada das instâncias
+.skypia_data/

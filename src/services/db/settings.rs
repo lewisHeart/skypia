@@ -1,0 +1,105 @@
+use crate::models::{AppTheme, BannerInfo};
+use crate::services::db::{get_pool, DatabaseService, theme_to_str, str_to_theme};
+use sqlx::Row;
+
+impl DatabaseService {
+    pub async fn load_settings() -> Result<(f64, bool, AppTheme), String> {
+        let pool = get_pool();
+        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme FROM settings WHERE id = 1")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let scale: f64 = row.get("interface_scale");
+        let custom_bar: i32 = row.get("use_custom_titlebar");
+        let theme_str: String = row.get("theme");
+
+        Ok((scale, custom_bar != 0, str_to_theme(&theme_str)))
+    }
+
+    pub async fn save_settings(
+        scale: f64,
+        custom_bar: bool,
+        theme: AppTheme,
+    ) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ? WHERE id = 1")
+            .bind(scale)
+            .bind(custom_bar as i32)
+            .bind(theme_to_str(&theme))
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn detach_chat(contact_id: String) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("INSERT OR IGNORE INTO detached_chats (contact_id) VALUES (?)")
+            .bind(contact_id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn attach_chat(contact_id: String) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("DELETE FROM detached_chats WHERE contact_id = ?")
+            .bind(contact_id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn get_detached_chats() -> Result<Vec<String>, String> {
+        let pool = get_pool();
+        let rows = sqlx::query("SELECT contact_id FROM detached_chats")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(rows.iter().map(|r| {
+            let id: String = r.get("contact_id");
+            id
+        }).collect())
+    }
+
+    pub async fn get_banner_info() -> Result<BannerInfo, String> {
+        let pool = get_pool();
+        let rows = sqlx::query("SELECT text, action_label, link, icon FROM banners ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if rows.is_empty() {
+            return Err("Nenhum banner cadastrado".to_string());
+        }
+
+        // Rotaciona baseado no tempo atual
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let idx = (now / 15) as usize % rows.len();
+        let row = &rows[idx];
+
+        Ok(BannerInfo {
+            text: row.get("text"),
+            action_label: row.get("action_label"),
+            link: row.get("link"),
+            icon: row.get("icon"),
+        })
+    }
+
+    pub async fn get_recommended_songs() -> Result<Vec<String>, String> {
+        let pool = get_pool();
+        let rows = sqlx::query("SELECT title FROM recommended_songs ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(rows.iter().map(|r| r.get("title")).collect())
+    }
+}

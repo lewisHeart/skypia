@@ -98,20 +98,8 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 onclick: move |_| {
                     state.show_avatar_picker.set(true);
                 },
-                // Foto real (URL do servidor) ou SVG built-in
-                if let Some(avatar_url) = state.user_avatar_url() {
-                    img {
-                        src: "{avatar_url}",
-                        class: "w-12 h-12 rounded-[7px] object-cover",
-                        alt: "Avatar",
-                        // Fallback para SVG se a imagem falhar
-                        onerror: move |_| {
-                            *state.user_avatar_url.write() = None;
-                        }
-                    }
-                } else {
-                    {render_avatar(state.user_avatar_id(), 48)}
-                }
+                // Foto real (URL do servidor) ou SVG fallback
+                {render_avatar(state.user_avatar_url().as_deref(), 48)}
 
                 // Status Badge overlay
                 div {
