@@ -18,16 +18,22 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
-    // Inicializa o pool SQLite (cria tabelas + seed) antes do Dioxus
-    {
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-        rt.block_on(async {
-            if let Err(e) = crate::services::db::DatabaseService::init_pool().await {
-                eprintln!("Erro ao inicializar banco de dados: {}", e);
-                std::process::exit(1);
-            }
-        });
-    }
+    // Cria o runtime do Tokio global persistente com suporte completo (rede, timers, etc.)
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("Failed to create tokio runtime");
+
+    // Vincula o runtime do Tokio à thread principal e todas as threads filhas criadas
+    // pelo Dioxus Desktop para que o driver de rede e IO esteja disponível para o WebSocket
+    let _guard = rt.enter();
+
+    rt.block_on(async {
+        if let Err(e) = crate::services::db::DatabaseService::init_pool().await {
+            eprintln!("Erro ao inicializar banco de dados: {}", e);
+            std::process::exit(1);
+        }
+    });
 
     #[cfg(feature = "desktop")]
     {
@@ -72,6 +78,19 @@ fn App() -> Element {
         }
     });
 
+    // Loop periódico para verificar inatividade (Ausente automático)
+    use_future(move || {
+        let mut state = app_state;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                if state.logged_in() {
+                    state.check_inactivity_and_update();
+                }
+            }
+        }
+    });
+
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -81,9 +100,22 @@ fn App() -> Element {
         // Main Application Screen
         div { 
             class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-br {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
+            onmousemove: move |_| {
+                if logged_in {
+                    app_state.record_activity();
+                }
+            },
+            onkeydown: move |_| {
+                if logged_in {
+                    app_state.record_activity();
+                }
+            },
             onclick: move |_| {
                 show_options_menu.set(false);
                 show_theme_menu.set(false);
+                if logged_in {
+                    app_state.record_activity();
+                }
             },
 
             // 1. Bordas e Cantos para Redimensionamento Nativo de Janela (Escala 100%)
@@ -505,6 +537,62 @@ fn App() -> Element {
 
             // Active Toast Alerts floating layer
             ToastList { state: app_state }
+        }
+
+        // Modal de Solicitação de Amizade Pendente (MSN Style)
+        {
+            if logged_in && !app_state.pending_requests().is_empty() {
+                let pending_list = app_state.pending_requests();
+                let first_req = pending_list[0].clone();
+                
+                rsx! {
+                    div { 
+                        class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9998] flex items-center justify-center p-4 pointer-events-auto",
+                        div { 
+                            class: "w-[360px] bg-gradient-to-b from-[#f2f7fc] to-[#d8e8f7] border-2 border-[#5c98d6] rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b] pointer-events-auto",
+                            
+                            // Cabeçalho clássico
+                            div { class: "flex items-center justify-between border-b border-[#a8c9eb] pb-2",
+                                span { class: "font-bold text-sm flex items-center space-x-1.5",
+                                    span { "👤" }
+                                    span { "Solicitação de Amizade" }
+                                }
+                            }
+                            
+                            // Conteúdo
+                            div { class: "flex flex-col space-y-3 py-1",
+                                p { class: "font-semibold text-slate-700",
+                                    "{first_req.display_name} ({first_req.email}) deseja adicionar você à lista de contatos."
+                                }
+                                
+                                div { class: "bg-white/60 border border-[#a8c9eb] p-3 rounded text-[11px] leading-relaxed text-slate-600 space-y-2",
+                                    p { "Ao aceitar, você poderá ver o status dele, trocar mensagens em tempo real e compartilhar winks e nudges!" }
+                                }
+                            }
+                            
+                            // Botões de Ação
+                            div { class: "flex items-center justify-end space-x-2 pt-2 border-t border-[#a8c9eb]/50",
+                                button { 
+                                    class: "px-4 py-1.5 bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                                    onclick: move |_| {
+                                        app_state.accept_friend_request(first_req.id);
+                                    },
+                                    "Aceitar"
+                                }
+                                button { 
+                                    class: "px-4 py-1.5 bg-gradient-to-b from-rose-400 to-rose-500 hover:from-rose-500 hover:to-rose-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                                    onclick: move |_| {
+                                        app_state.reject_friend_request(first_req.id);
+                                    },
+                                    "Recusar"
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                rsx! {}
+            }
         }
         
         // About Skypia Modal Dialog

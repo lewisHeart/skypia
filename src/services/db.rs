@@ -10,13 +10,60 @@ fn get_pool() -> &'static SqlitePool {
     POOL.get().expect("Database pool not initialized. Call DatabaseService::init_pool() first.")
 }
 
+fn is_pid_running(pid: u32) -> bool {
+    // No Linux, verificamos no diretório /proc
+    #[cfg(target_os = "linux")]
+    {
+        std::path::Path::new(&format!("/proc/{}", pid)).exists()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
+fn get_isolated_db_path() -> String {
+    // Tenta encontrar um slot livre de 1 a 10
+    for slot in 1..=10 {
+        let lock_path = format!("skypia_{}.lock", slot);
+        let mut take_slot = false;
+        
+        if let Ok(content) = std::fs::read_to_string(&lock_path) {
+            if let Ok(pid) = content.trim().parse::<u32>() {
+                if !is_pid_running(pid) {
+                    take_slot = true;
+                }
+            } else {
+                take_slot = true;
+            }
+        } else {
+            take_slot = true;
+        }
+        
+        if take_slot {
+            let my_pid = std::process::id();
+            if std::fs::write(&lock_path, my_pid.to_string()).is_ok() {
+                if slot == 1 {
+                    println!("🔒 Slot 1 travado (PID {}). Usando skypia.db", my_pid);
+                    return "skypia.db".to_string();
+                } else {
+                    println!("🔒 Slot {} travado (PID {}). Usando skypia_{}.db", slot, my_pid, slot);
+                    return format!("skypia_{}.db", slot);
+                }
+            }
+        }
+    }
+    
+    "skypia.db".to_string()
+}
+
 pub struct DatabaseService;
 
 impl DatabaseService {
     /// Inicializa o pool de conexões SQLite e roda migrations + seed.
     /// Deve ser chamado UMA VEZ na inicialização do app.
     pub async fn init_pool() -> Result<(), String> {
-        let db_path = "skypia.db";
+        let db_path = get_isolated_db_path();
 
         let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", db_path))
             .map_err(|e| e.to_string())?
@@ -76,7 +123,9 @@ impl DatabaseService {
                 personal_message TEXT NOT NULL DEFAULT '',
                 music_listening TEXT,
                 avatar_id INTEGER NOT NULL DEFAULT 0,
-                is_favorite INTEGER NOT NULL DEFAULT 0
+                is_favorite INTEGER NOT NULL DEFAULT 0,
+                relation_status TEXT NOT NULL DEFAULT 'Aceito',
+                nickname TEXT
             )
             "#,
         )
@@ -187,10 +236,31 @@ impl DatabaseService {
             .execute(pool)
             .await;
 
+        let _ = sqlx::query("ALTER TABLE contacts ADD COLUMN relation_status TEXT NOT NULL DEFAULT 'Aceito'")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE contacts ADD COLUMN nickname TEXT")
+            .execute(pool)
+            .await;
+
         Ok(())
     }
 
     async fn seed_initial_data(pool: &SqlitePool) -> Result<(), String> {
+        // Se houver dados mocks legados (ex. o e-mail de mock lucas_heavy@hotmail.com), limpa o banco local
+        let has_mock: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM contacts WHERE email = 'lucas_heavy@hotmail.com'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+        if has_mock > 0 {
+            let _ = sqlx::query("DELETE FROM contacts").execute(pool).await;
+            let _ = sqlx::query("DELETE FROM messages").execute(pool).await;
+            let _ = sqlx::query("DELETE FROM conversations").execute(pool).await;
+            let _ = sqlx::query("DELETE FROM conversation_members").execute(pool).await;
+            println!("🧹 Banco de dados local limpo de dados mocks legados.");
+        }
+
         // Seed user_profile se não existe
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profile")
             .fetch_one(pool)
@@ -219,70 +289,6 @@ impl DatabaseService {
                 .execute(pool)
                 .await
                 .map_err(|e| e.to_string())?;
-        }
-
-        // Seed contatos se tabela vazia
-        let contact_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM contacts")
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if contact_count == 0 {
-            let seed_contacts = vec![
-                ("lucas_heavy@hotmail.com", "Lucas [Emo Core]", "Online", "Sei que o amanhã trará esperança... 🎧 NX Zero", Some("NX Zero - Cedo Ou Tarde"), 1, true),
-                ("gabi_sz@live.com", "Gabii *_* (ausente)", "Ausente", "Estudando para a prova de física... nao perturbe", None, 2, true),
-                ("felipe.games@skypia.io", "Felipe [Jogando CS 1.6]", "Ocupado", "Dando HS no de_dust2! Sem convite p/ call", None, 3, false),
-                ("mari_ballet@gmail.com", "Mariana ✨", "Offline", "Offline é mais legal... tchau!", None, 4, false),
-                ("thiago_rock@hotmail.com", "Thiago [Linkin Park fan]", "Online", "In the end, it doesn't even matter...", Some("Linkin Park - In The End"), 5, false),
-                ("aninha_loves@skypia.io", "Ana Carolina ♥", "Offline", "Sorria, mesmo sem motivos!", None, 6, false),
-            ];
-
-            for (email, name, status, pm, music, avatar, fav) in seed_contacts {
-                sqlx::query(
-                    "INSERT INTO contacts (email, display_name, status, personal_message, music_listening, avatar_id, is_favorite) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                )
-                .bind(email)
-                .bind(name)
-                .bind(status)
-                .bind(pm)
-                .bind(music)
-                .bind(avatar as i64)
-                .bind(fav as i32)
-                .execute(pool)
-                .await
-                .map_err(|e| e.to_string())?;
-            }
-        }
-
-        // Seed mensagens se tabela vazia
-        let msg_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM messages")
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if msg_count == 0 {
-            let seed_msgs: Vec<(i64, i64, &str, &str, &str, &str, &str)> = vec![
-                (1, 1, "Lucas [Emo Core]", "Eae cara! blz?", "02:10:15", "#e6007e", "Comic Sans MS"),
-                (1, 0, "Você", "Fala Lucas! Tudo ótimo por aqui. E contigo?", "02:11:00", "#0066cc", "Segoe UI"),
-                (1, 1, "Lucas [Emo Core]", "Tranquilo, escutando o novo cd do NX Zero, mto bom (Y)", "02:11:32", "#e6007e", "Comic Sans MS"),
-                (2, 2, "Gabii *_* (ausente)", "Oi, quando voltar a gente se fala!", "23:45:10", "#bb00cc", "Arial"),
-            ];
-
-            for (contact_id, sender_id, sender_name, text, ts, color, font) in seed_msgs {
-                sqlx::query(
-                    "INSERT INTO messages (contact_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_game_invite) VALUES (?, ?, ?, ?, ?, 0, ?, ?, 0)",
-                )
-                .bind(contact_id)
-                .bind(sender_id)
-                .bind(sender_name)
-                .bind(text)
-                .bind(ts)
-                .bind(color)
-                .bind(font)
-                .execute(pool)
-                .await
-                .map_err(|e| e.to_string())?;
-            }
         }
 
         // Seed banners se tabela vazia
@@ -337,25 +343,6 @@ impl DatabaseService {
                     .execute(pool)
                     .await
                     .map_err(|e| e.to_string())?;
-            }
-        }
-
-        let conv_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM conversations")
-            .fetch_one(pool)
-            .await
-            .unwrap_or(0);
-        if conv_count == 0 {
-            for contact_id in 1..=6 {
-                let _ = sqlx::query("INSERT INTO conversations (id, name, is_group, created_at) VALUES (?, NULL, 0, datetime('now'))")
-                    .bind(contact_id)
-                    .execute(pool)
-                    .await;
-                
-                let _ = sqlx::query("INSERT INTO conversation_members (conversation_id, user_id, display_name) VALUES (?, ?, 'Contato')")
-                    .bind(contact_id)
-                    .bind(contact_id)
-                    .execute(pool)
-                    .await;
             }
         }
 
@@ -438,7 +425,7 @@ impl DatabaseService {
     pub async fn load_contacts() -> Result<Vec<Contact>, String> {
         let pool = get_pool();
         let rows = sqlx::query(
-            "SELECT id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite FROM contacts ORDER BY id",
+            "SELECT id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname FROM contacts ORDER BY id",
         )
         .fetch_all(pool)
         .await
@@ -461,6 +448,8 @@ impl DatabaseService {
                     music_listening: row.get("music_listening"),
                     avatar_id: avatar as usize,
                     is_favorite: is_fav != 0,
+                    relation_status: row.get("relation_status"),
+                    nickname: row.get("nickname"),
                 }
             })
             .collect();
@@ -473,17 +462,58 @@ impl DatabaseService {
         display_name: String,
         status: UserStatus,
         personal_message: String,
+        relation_status: String,
+        nickname: Option<String>,
     ) -> Result<Contact, String> {
         let pool = get_pool();
 
+        // Verifica se já existe um contato com o mesmo e-mail para evitar duplicação local
+        let existing = sqlx::query("SELECT id, is_favorite, avatar_id FROM contacts WHERE email = ?")
+            .bind(&email)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if let Some(row) = existing {
+            let existing_id: i64 = row.get("id");
+            let is_fav: i32 = row.get("is_favorite");
+            let avatar: i64 = row.get("avatar_id");
+
+            sqlx::query("UPDATE contacts SET display_name = ?, status = ?, personal_message = ?, relation_status = ?, nickname = ? WHERE id = ?")
+                .bind(&display_name)
+                .bind(status_to_str(&status))
+                .bind(&personal_message)
+                .bind(&relation_status)
+                .bind(&nickname)
+                .bind(existing_id)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+
+            return Ok(Contact {
+                id: existing_id as usize,
+                email,
+                display_name,
+                status,
+                personal_message,
+                music_listening: None,
+                avatar_id: avatar as usize,
+                is_favorite: is_fav != 0,
+                relation_status,
+                nickname,
+            });
+        }
+
         let result = sqlx::query(
-            "INSERT INTO contacts (email, display_name, status, personal_message, music_listening, avatar_id, is_favorite) VALUES (?, ?, ?, ?, NULL, ?, 0)",
+            "INSERT INTO contacts (email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname) VALUES (?, ?, ?, ?, NULL, ?, 0, ?, ?)",
         )
         .bind(&email)
         .bind(&display_name)
         .bind(status_to_str(&status))
         .bind(&personal_message)
         .bind(0_i64)
+        .bind(&relation_status)
+        .bind(&nickname)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -508,7 +538,41 @@ impl DatabaseService {
             music_listening: None,
             avatar_id,
             is_favorite: false,
+            relation_status,
+            nickname,
         })
+    }
+
+    pub async fn update_contact_nickname(contact_id: usize, nickname: Option<String>) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE contacts SET nickname = ? WHERE id = ?")
+            .bind(nickname)
+            .bind(contact_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn update_contact_relation(contact_id: usize, relation_status: String) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE contacts SET relation_status = ? WHERE id = ?")
+            .bind(relation_status)
+            .bind(contact_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn delete_contact(contact_id: usize) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("DELETE FROM contacts WHERE id = ?")
+            .bind(contact_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub async fn save_contact_favorite(
@@ -810,6 +874,8 @@ impl DatabaseService {
                     status: "Offline".to_string(),
                     music: None,
                     avatar_url,
+                    relation_status: None,
+                    nickname: None,
                 });
             }
 

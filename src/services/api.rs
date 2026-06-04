@@ -291,3 +291,159 @@ pub async fn create_conversation(
         Err(msg)
     }
 }
+
+/// Busca um perfil de usuário pelo email
+pub async fn search_user(token: &str, email: &str) -> Result<UserProfile, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/contacts/search", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .query(&[("email", email)])
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        serde_json::from_str::<UserProfile>(&body)
+            .map_err(|e| format!("Erro ao parsear perfil: {}", e))
+    } else {
+        let msg = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v["error"].as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("Usuário não encontrado ({})", status));
+        Err(msg)
+    }
+}
+
+/// Carrega solicitações de amizade pendentes recebidas
+pub async fn get_pending_requests(token: &str) -> Result<Vec<UserProfile>, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/contacts/pending", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        serde_json::from_str::<Vec<UserProfile>>(&body)
+            .map_err(|e| format!("Erro ao parsear solicitações pendentes: {}", e))
+    } else {
+        Err(format!("Erro ao carregar solicitações pendentes ({})", status))
+    }
+}
+
+/// Aceita uma solicitação de contato
+pub async fn accept_friend(token: &str, contact_id: i64) -> Result<UserProfile, String> {
+    let client = reqwest::Client::new();
+    let req = serde_json::json!({ "contact_id": contact_id });
+
+    let resp = client
+        .post(format!("{}/contacts/accept", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&req)
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        serde_json::from_str::<UserProfile>(&body)
+            .map_err(|e| format!("Erro ao parsear contato aceito: {}", e))
+    } else {
+        let msg = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v["error"].as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("Erro ao aceitar contato ({})", status));
+        Err(msg)
+    }
+}
+
+/// Rejeita/recusa uma solicitação de contato
+pub async fn reject_friend(token: &str, contact_id: i64) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let req = serde_json::json!({ "contact_id": contact_id });
+
+    let resp = client
+        .post(format!("{}/contacts/reject", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&req)
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        Ok(())
+    } else {
+        let msg = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v["error"].as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("Erro ao rejeitar contato ({})", status));
+        Err(msg)
+    }
+}
+
+/// Bloqueia ou desbloqueia um contato
+pub async fn block_friend(token: &str, contact_id: i64, block: bool) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let req = serde_json::json!({ "contact_id": contact_id, "block": block });
+
+    let resp = client
+        .post(format!("{}/contacts/block", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&req)
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        Ok(())
+    } else {
+        let msg = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v["error"].as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("Erro ao atualizar bloqueio ({})", status));
+        Err(msg)
+    }
+}
+
+/// Atualiza o apelido local de um contato
+pub async fn update_contact_nickname(token: &str, contact_id: i64, nickname: Option<String>) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let req = serde_json::json!({ "contact_id": contact_id, "nickname": nickname });
+
+    let resp = client
+        .post(format!("{}/contacts/nickname", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&req)
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        Ok(())
+    } else {
+        let msg = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v["error"].as_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| format!("Erro ao atualizar apelido ({})", status));
+        Err(msg)
+    }
+}

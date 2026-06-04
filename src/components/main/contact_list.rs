@@ -17,7 +17,11 @@ pub fn ContactList(mut state: AppState) -> Element {
             list
         } else {
             list.into_iter()
-                .filter(|c| c.display_name.to_lowercase().contains(&query) || c.email.to_lowercase().contains(&query))
+                .filter(|c| {
+                    c.display_name.to_lowercase().contains(&query)
+                    || c.email.to_lowercase().contains(&query)
+                    || c.nickname.as_ref().map(|n| n.to_lowercase().contains(&query)).unwrap_or(false)
+                })
                 .collect()
         }
     });

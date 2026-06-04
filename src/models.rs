@@ -96,6 +96,8 @@ pub struct Contact {
     pub music_listening: Option<String>,
     pub avatar_id: usize, // 0-9
     pub is_favorite: bool,
+    pub relation_status: String,
+    pub nickname: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -302,6 +304,8 @@ pub struct UserProfile {
     pub status: String,
     pub music: Option<String>,
     pub avatar_url: Option<String>,
+    pub relation_status: Option<String>,
+    pub nickname: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -324,6 +328,12 @@ pub enum WsEvent {
         conversation_id: i64,
         user_id: i64,
         is_typing: bool,
+    },
+    ContactRequestReceived {
+        requester: UserProfile,
+    },
+    ContactRequestAccepted {
+        contact: UserProfile,
     },
 }
 

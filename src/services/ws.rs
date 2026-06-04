@@ -1,11 +1,11 @@
-use crate::models::{ClientAction, WsEvent, UserStatus};
+use crate::models::{ClientAction, UserStatus, WsEvent};
 use crate::state::AppState;
+use dioxus::prelude::*;
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message as TungsteniteMsg;
-use tokio::sync::mpsc;
-use dioxus::prelude::*;
 
 pub fn connect_ws(mut state: AppState, token: String) {
     let ws_url = format!("ws://127.0.0.1:8080/ws?token={}", token);
@@ -42,7 +42,11 @@ pub fn connect_ws(mut state: AppState, token: String) {
                     dioxus::prelude::spawn(async move {
                         while let Some(action) = rx.recv().await {
                             if let Ok(json_str) = serde_json::to_string(&action) {
-                                if ws_sender.send(TungsteniteMsg::Text(json_str.into())).await.is_err() {
+                                if ws_sender
+                                    .send(TungsteniteMsg::Text(json_str.into()))
+                                    .await
+                                    .is_err()
+                                {
                                     break;
                                 }
                             }
@@ -57,8 +61,13 @@ pub fn connect_ws(mut state: AppState, token: String) {
                         while let Some(msg_res) = ws_receiver.next().await {
                             match msg_res {
                                 Ok(TungsteniteMsg::Text(text)) => {
-                                    if let Ok(event) = serde_json::from_str::<WsEvent>(&text) {
-                                        process_ws_event(&mut state_read, event).await;
+                                    match serde_json::from_str::<WsEvent>(&text) {
+                                        Ok(event) => {
+                                            process_ws_event(&mut state_read, event).await;
+                                        }
+                                        Err(e) => {
+                                            eprintln!("❌ Erro ao desserializar WsEvent: {}. JSON recebido: {}", e, text);
+                                        }
                                     }
                                 }
                                 Ok(TungsteniteMsg::Close(_)) | Err(_) => {
@@ -79,12 +88,15 @@ pub fn connect_ws(mut state: AppState, token: String) {
                         "Tentando reconectar ao servidor de mensagens...".to_string(),
                         0,
                     );
-                    
+
                     // Limpa o transmissor do WebSocket ao cair a conexão
                     *state.ws_tx.write() = None;
                 }
                 Err(e) => {
-                    eprintln!("Erro ao conectar no WebSocket: {}. Tentando novamente...", e);
+                    eprintln!(
+                        "Erro ao conectar no WebSocket: {}. Tentando novamente...",
+                        e
+                    );
                 }
             }
 
@@ -101,7 +113,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
     match event {
         WsEvent::ChatMessage(msg) => {
             let conv_id = msg.conversation_id;
-            
+
             // 1. Salva no banco de dados local
             let _ = crate::services::db::DatabaseService::save_message(conv_id, msg.clone()).await;
 
@@ -173,11 +185,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if should_play_online {
                 crate::sound::play_sound("online");
                 // Exibe toast de quem entrou
-                state.add_toast(
-                    format!("{} está online", name),
-                    pm,
-                    avatar,
-                );
+                state.add_toast(format!("{} está online", name), pm, avatar);
             }
         }
         WsEvent::Nudge {
@@ -192,13 +200,9 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 // Ativa animação de tremor no AppState para essa conversa
                 // Se a conversa não estiver aberta, seleciona e abre
                 state.open_chat(conversation_id as usize);
-                
+
                 // Exibe notificação toast
-                state.add_toast(
-                    sender_name,
-                    "enviou um Chamar a Atenção!".to_string(),
-                    0,
-                );
+                state.add_toast(sender_name, "enviou um Chamar a Atenção!".to_string(), 0);
             }
         }
         WsEvent::Typing {
@@ -220,6 +224,79 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     entry.retain(|&id| id != u_id);
                 }
             }
+        }
+        WsEvent::ContactRequestReceived { requester } => {
+            let status_enum = match requester.status.as_str() {
+                "Online" => UserStatus::Online,
+                "Ocupado" => UserStatus::Ocupado,
+                "Ausente" => UserStatus::Ausente,
+                "Invisivel" => UserStatus::Invisivel,
+                _ => UserStatus::Offline,
+            };
+
+            let contact = crate::models::Contact {
+                id: requester.id as usize,
+                email: requester.email.clone(),
+                display_name: requester.display_name.clone(),
+                status: status_enum,
+                personal_message: requester.personal_message.clone(),
+                music_listening: requester.music.clone(),
+                avatar_id: (requester.id % 7) as usize,
+                is_favorite: false,
+                relation_status: "Pendente".to_string(),
+                nickname: None,
+            };
+
+            // Toca som
+            crate::sound::play_sound("message");
+
+            {
+                let mut pending = state.pending_requests.write();
+                if !pending.iter().any(|c| c.email == contact.email) {
+                    pending.push(contact.clone());
+                }
+            }
+
+            state.add_toast(
+                "Solicitação de Amizade".to_string(),
+                format!(
+                    "{} ({}) quer adicionar você.",
+                    contact.display_name, contact.email
+                ),
+                contact.avatar_id,
+            );
+        }
+        WsEvent::ContactRequestAccepted { contact } => {
+            let status_enum = match contact.status.as_str() {
+                "Online" => UserStatus::Online,
+                "Ocupado" => UserStatus::Ocupado,
+                "Ausente" => UserStatus::Ausente,
+                "Invisivel" => UserStatus::Invisivel,
+                _ => UserStatus::Offline,
+            };
+
+            let _ = crate::services::db::DatabaseService::add_contact(
+                contact.email.clone(),
+                contact.display_name.clone(),
+                status_enum,
+                contact.personal_message.clone(),
+                "Aceito".to_string(),
+                contact.nickname.clone(),
+            )
+            .await;
+
+            crate::sound::play_sound("online");
+
+            state.add_toast(
+                "Solicitação Aceita!".to_string(),
+                format!(
+                    "{} aceitou sua solicitação de amizade.",
+                    contact.display_name
+                ),
+                (contact.id % 7) as usize,
+            );
+
+            state.load_initial_data();
         }
     }
 }

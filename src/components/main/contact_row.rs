@@ -7,20 +7,46 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
     let mut show_tooltip = use_signal(|| false);
     let mut tooltip_y = use_signal(|| 0i32);
 
+    let mut show_context_menu = use_signal(|| false);
+    let mut menu_x = use_signal(|| 0i32);
+    let mut menu_y = use_signal(|| 0i32);
+
+    let mut show_rename_modal = use_signal(|| false);
+    let mut new_nickname = use_signal(|| contact.nickname.clone().unwrap_or_default());
+
     let handle_double_click = move |_| {
         state.open_chat(contact.id);
     };
+
+    let name_to_show = if let Some(ref nick) = contact.nickname {
+        format!("{} ({})", nick, contact.display_name)
+    } else {
+        contact.display_name.clone()
+    };
+
+    let is_blocked = contact.relation_status == "Bloqueado";
 
     rsx! {
         div {
             class: "flex items-center space-x-2.5 p-1 rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
             ondoubleclick: handle_double_click,
+            oncontextmenu: move |e| {
+                e.prevent_default();
+                menu_x.set(e.client_coordinates().x as i32);
+                menu_y.set(e.client_coordinates().y as i32);
+                show_context_menu.set(true);
+                show_tooltip.set(false);
+            },
             onmouseenter: move |e| {
-                tooltip_y.set(e.client_coordinates().y as i32);
-                show_tooltip.set(true);
+                if !show_context_menu() {
+                    tooltip_y.set(e.client_coordinates().y as i32);
+                    show_tooltip.set(true);
+                }
             },
             onmousemove: move |e| {
-                tooltip_y.set(e.client_coordinates().y as i32);
+                if !show_context_menu() {
+                    tooltip_y.set(e.client_coordinates().y as i32);
+                }
             },
             onmouseleave: move |_| show_tooltip.set(false),
             
@@ -37,7 +63,12 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             
             // Name and Sub-status
             div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
-                span { class: "font-semibold text-xs text-[#1e395b] truncate group-hover:text-sky-700", "{contact.display_name}" }
+                div { class: "flex items-center space-x-1",
+                    span { class: "font-semibold text-xs text-[#1e395b] truncate group-hover:text-sky-700", "{name_to_show}" }
+                    if is_blocked {
+                        span { class: "text-[9px] opacity-75", "🚫" }
+                    }
+                }
                 span { class: "text-[10px] text-slate-500 truncate italic font-normal", "{contact.personal_message}" }
             }
             
@@ -58,7 +89,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                             {render_avatar(contact.avatar_id, 44)}
                         }
                         div { class: "flex-1 min-w-0 flex flex-col space-y-1",
-                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{contact.display_name}" }
+                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{name_to_show}" }
                             span { class: "text-[10px] text-slate-400 select-all font-semibold", "{contact.email}" }
                             span { class: "font-semibold text-[10px] text-slate-500", "Status: {contact.status.as_str()}" }
                         }
@@ -69,6 +100,101 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                             div { class: "flex items-center space-x-1 text-[9px] text-[#0066cc] font-medium",
                                 span { "🎵" }
                                 span { "{song}" }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Menu de Contexto MSN Style
+            if show_context_menu() {
+                div { 
+                    class: "fixed w-44 bg-white border border-slate-300 rounded shadow-2xl z-[9999] p-1 flex flex-col text-xs text-slate-700",
+                    style: "left: {menu_x}px; top: {menu_y}px;",
+                    onmouseleave: move |_| show_context_menu.set(false),
+                    
+                    button { 
+                        class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
+                        onclick: move |_| {
+                            show_context_menu.set(false);
+                            state.open_chat(contact.id);
+                        },
+                        span { "💬" }
+                        span { "Enviar mensagem" }
+                    }
+                    button { 
+                        class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
+                        onclick: move |_| {
+                            show_context_menu.set(false);
+                            show_rename_modal.set(true);
+                        },
+                        span { "✏️" }
+                        span { "Renomear (Apelido)" }
+                    }
+                    
+                    button { 
+                        class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
+                        onclick: move |_| {
+                            show_context_menu.set(false);
+                            state.block_contact(contact.id, !is_blocked);
+                        },
+                        span { if is_blocked { "🟢" } else { "🚫" } }
+                        span { if is_blocked { "Desbloquear contato" } else { "Bloquear contato" } }
+                    }
+                }
+            }
+
+            // Modal de Renomeação (MSN Style)
+            if show_rename_modal() {
+                div { 
+                    class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 cursor-default",
+                    onclick: move |_| show_rename_modal.set(false),
+                    div { 
+                        class: "w-80 bg-gradient-to-b from-[#f2f7fc] to-[#d8e8f7] border-2 border-[#5c98d6] rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b]",
+                        onclick: move |e| e.stop_propagation(),
+                        
+                        div { class: "flex items-center justify-between border-b border-[#a8c9eb] pb-2",
+                            span { class: "font-bold text-sm", "Renomear Contato" }
+                            button { 
+                                class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors focus:outline-none",
+                                onclick: move |_| show_rename_modal.set(false),
+                                "✕"
+                            }
+                        }
+                        
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Digite o apelido para {contact.display_name}:" }
+                            input { 
+                                class: "w-full px-2.5 py-1.5 border border-[#a8c9eb] rounded bg-white focus:outline-none focus:border-[#5c98d6] text-xs text-slate-800",
+                                placeholder: "Apelido personalizado...",
+                                value: "{new_nickname}",
+                                oninput: move |e| new_nickname.set(e.value()),
+                                onkeydown: move |e| {
+                                    if e.key() == Key::Enter {
+                                        let nick = new_nickname();
+                                        let final_nick = if nick.trim().is_empty() { None } else { Some(nick) };
+                                        state.rename_contact(contact.id, final_nick);
+                                        show_rename_modal.set(false);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        div { class: "flex items-center justify-end space-x-2 pt-2 border-t border-[#a8c9eb]/50",
+                            button { 
+                                class: "px-4 py-1.5 bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                                onclick: move |_| {
+                                    let nick = new_nickname();
+                                    let final_nick = if nick.trim().is_empty() { None } else { Some(nick) };
+                                    state.rename_contact(contact.id, final_nick);
+                                    show_rename_modal.set(false);
+                                },
+                                "Salvar"
+                            }
+                            button { 
+                                class: "px-4 py-1.5 bg-gradient-to-b from-slate-200 to-slate-300 hover:from-slate-300 hover:to-slate-400 text-slate-700 rounded font-bold shadow border border-slate-400/40 cursor-pointer transition-all focus:outline-none",
+                                onclick: move |_| show_rename_modal.set(false),
+                                "Cancelar"
                             }
                         }
                     }

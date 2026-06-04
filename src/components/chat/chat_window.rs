@@ -59,6 +59,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
         return rsx! {};
     }
     let contact = contact.unwrap();
+    let display_name_to_show = contact.nickname.clone().unwrap_or(contact.display_name.clone());
 
     let mut is_shaking = use_signal(|| false);
     let shake_class = if is_shaking() { "nudge-shake" } else { "" };
@@ -102,6 +103,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                                 } else {
                                     "bg-white/30 border-transparent text-[#2f4b6c]/80 hover:bg-white/50"
                                 };
+                                let name_to_show = c.nickname.clone().unwrap_or(c.display_name.clone());
                                 
                                 rsx! {
                                     button {
@@ -110,7 +112,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                                             *state.selected_chat_id.write() = Some(chat_id);
                                         },
                                         div { class: "w-2 h-2 rounded-full {c.status.color_class()}" }
-                                        span { "{c.display_name}" }
+                                        span { "{name_to_show}" }
                                         span { 
                                             class: "text-[9px] text-slate-400 hover:text-red-500 font-bold ml-1.5",
                                             onclick: move |e| {
@@ -157,7 +159,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                     
                     div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
                         div { class: "flex items-center space-x-2",
-                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{contact.display_name}" }
+                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{display_name_to_show}" }
                             span { class: "text-[10px] px-1 py-0.1 {contact.status.color_class()} text-white rounded font-medium", "{contact.status.as_str()}" }
                         }
                         p { class: "text-xs text-[#3a5879]/85 italic truncate", "“{contact.personal_message}”" }
@@ -267,7 +269,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
 
         let theme = app_state.theme();
         let contact = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);
-        let contact_name = contact.map(|c| c.display_name).unwrap_or_else(|| "Contato".to_string());
+        let contact_name = contact.map(|c| c.nickname.unwrap_or(c.display_name)).unwrap_or_else(|| "Contato".to_string());
 
         rsx! {
             document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }

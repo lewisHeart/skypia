@@ -56,6 +56,11 @@ pub struct AppState {
     // WebSocket e digitação em tempo real
     pub ws_tx: Signal<Option<tokio::sync::mpsc::UnboundedSender<crate::models::ClientAction>>>,
     pub typing_contacts: Signal<std::collections::HashMap<usize, Vec<usize>>>,
+
+    // Solicitações pendentes e inatividade
+    pub pending_requests: Signal<Vec<Contact>>,
+    pub last_activity_time: Signal<u64>,
+    pub was_automatically_away: Signal<bool>,
 }
 
 impl AppState {
@@ -98,6 +103,10 @@ impl AppState {
             show_avatar_picker: Signal::new(false),
             ws_tx: Signal::new(None),
             typing_contacts: Signal::new(std::collections::HashMap::new()),
+
+            pending_requests: Signal::new(Vec::new()),
+            last_activity_time: Signal::new(chrono::Utc::now().timestamp() as u64),
+            was_automatically_away: Signal::new(false),
         }
     }
 
@@ -114,6 +123,7 @@ impl AppState {
         let mut scale_sig = self.interface_scale;
         let mut custom_bar_sig = self.use_custom_titlebar;
         let mut theme_sig = self.theme;
+        let mut pending_sig = self.pending_requests;
 
         let token_opt = self.auth_token();
 
@@ -143,8 +153,36 @@ impl AppState {
                             profile.display_name,
                             status_enum,
                             profile.personal_message,
+                            profile.relation_status.unwrap_or_else(|| "Aceito".to_string()),
+                            profile.nickname,
                         ).await;
                     }
+                }
+
+                // 1.1 Busca solicitações pendentes do servidor
+                if let Ok(pending_srv) = crate::services::api::get_pending_requests(&token).await {
+                    let contacts_mapped: Vec<Contact> = pending_srv.into_iter().enumerate().map(|(idx, profile)| {
+                        let status_enum = match profile.status.as_str() {
+                            "Online" => UserStatus::Online,
+                            "Ocupado" => UserStatus::Ocupado,
+                            "Ausente" => UserStatus::Ausente,
+                            "Invisivel" => UserStatus::Invisivel,
+                            _ => UserStatus::Offline,
+                        };
+                        Contact {
+                            id: profile.id as usize,
+                            email: profile.email,
+                            display_name: profile.display_name,
+                            status: status_enum,
+                            personal_message: profile.personal_message,
+                            music_listening: profile.music,
+                            avatar_id: idx % 7,
+                            is_favorite: false,
+                            relation_status: "Pendente".to_string(),
+                            nickname: None,
+                        }
+                    }).collect();
+                    *pending_sig.write() = contacts_mapped;
                 }
 
                 // 2. Busca conversas do servidor e salva localmente
@@ -637,6 +675,8 @@ impl AppState {
                             profile.display_name,
                             status_enum,
                             profile.personal_message,
+                            profile.relation_status.unwrap_or_else(|| "Aceito".to_string()),
+                            profile.nickname,
                         ).await {
                             added_contact = Some(c);
                         }
@@ -655,16 +695,25 @@ impl AppState {
                     display_name,
                     status,
                     personal_message,
+                    "Aceito".to_string(),
+                    None,
                 ).await {
                     added_contact = Some(c);
                 }
             }
 
             if let Some(c) = added_contact {
-                list.write().push(c.clone());
+                {
+                    let mut list_w = list.write();
+                    if let Some(existing) = list_w.iter_mut().find(|item| item.email == c.email) {
+                        *existing = c.clone();
+                    } else {
+                        list_w.push(c.clone());
+                    }
+                }
                 state_clone.add_toast(
                     "Contato Adicionado".to_string(),
-                    format!("{} acaba de ser adicionado.", c.display_name),
+                    format!("{} foi adicionado ou atualizado.", c.display_name),
                     c.avatar_id,
                 );
                 state_clone.load_initial_data();
@@ -1038,6 +1087,157 @@ impl AppState {
 
             game.turn = TicTacToeCell::O;
         }
+    }
+
+    pub fn pending_requests(&self) -> Vec<Contact> {
+        self.pending_requests.read().clone()
+    }
+
+    pub fn accept_friend_request(&mut self, contact_id: usize) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        spawn(async move {
+            if let Some(token) = token_opt {
+                match crate::services::api::accept_friend(&token, contact_id as i64).await {
+                    Ok(profile) => {
+                        let status_enum = match profile.status.as_str() {
+                            "Online" => UserStatus::Online,
+                            "Ocupado" => UserStatus::Ocupado,
+                            "Ausente" => UserStatus::Ausente,
+                            "Invisivel" => UserStatus::Invisivel,
+                            _ => UserStatus::Offline,
+                        };
+                        let friend_name = profile.display_name.clone();
+                        let _ = crate::services::db::DatabaseService::add_contact(
+                            profile.email,
+                            profile.display_name,
+                            status_enum,
+                            profile.personal_message,
+                            "Aceito".to_string(),
+                            profile.nickname,
+                        ).await;
+                        state_clone.add_toast(
+                            "Solicitação Aceita".to_string(),
+                            format!("Você agora é amigo de {}.", friend_name),
+                            0,
+                        );
+                    }
+                    Err(e) => {
+                        state_clone.add_toast("Erro ao Aceitar".to_string(), e, 0);
+                    }
+                }
+            }
+            state_clone.load_initial_data();
+        });
+    }
+
+    pub fn reject_friend_request(&mut self, contact_id: usize) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        spawn(async move {
+            if let Some(token) = token_opt {
+                match crate::services::api::reject_friend(&token, contact_id as i64).await {
+                    Ok(_) => {
+                        state_clone.add_toast(
+                            "Solicitação Recusada".to_string(),
+                            "A solicitação de amizade foi removida.".to_string(),
+                            0,
+                        );
+                    }
+                    Err(e) => {
+                        state_clone.add_toast("Erro ao Recusar".to_string(), e, 0);
+                    }
+                }
+            }
+            state_clone.load_initial_data();
+        });
+    }
+
+    pub fn block_contact(&mut self, contact_id: usize, block: bool) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        spawn(async move {
+            if let Some(token) = token_opt {
+                match crate::services::api::block_friend(&token, contact_id as i64, block).await {
+                    Ok(_) => {
+                        let rel = if block { "Bloqueado".to_string() } else { "Aceito".to_string() };
+                        let _ = crate::services::db::DatabaseService::update_contact_relation(contact_id, rel).await;
+                        state_clone.add_toast(
+                            if block { "Contato Bloqueado".to_string() } else { "Contato Desbloqueado".to_string() },
+                            if block { "Você bloqueou o contato.".to_string() } else { "Você desbloqueou o contato.".to_string() },
+                            0,
+                        );
+                    }
+                    Err(e) => {
+                        state_clone.add_toast("Erro ao Atualizar".to_string(), e, 0);
+                    }
+                }
+            } else {
+                let rel = if block { "Bloqueado".to_string() } else { "Aceito".to_string() };
+                let _ = crate::services::db::DatabaseService::update_contact_relation(contact_id, rel).await;
+            }
+            state_clone.load_initial_data();
+        });
+    }
+
+    pub fn rename_contact(&mut self, contact_id: usize, nickname: Option<String>) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        spawn(async move {
+            if let Some(token) = token_opt {
+                match crate::services::api::update_contact_nickname(&token, contact_id as i64, nickname.clone()).await {
+                    Ok(_) => {
+                        let _ = crate::services::db::DatabaseService::update_contact_nickname(contact_id, nickname).await;
+                    }
+                    Err(e) => {
+                        state_clone.add_toast("Erro ao Renomear".to_string(), e, 0);
+                    }
+                }
+            } else {
+                let _ = crate::services::db::DatabaseService::update_contact_nickname(contact_id, nickname).await;
+            }
+            state_clone.load_initial_data();
+        });
+    }
+
+    pub fn record_activity(&mut self) {
+        let now_sec = chrono::Utc::now().timestamp() as u64;
+        *self.last_activity_time.write() = now_sec;
+        if self.was_automatically_away() {
+            *self.was_automatically_away.write() = false;
+            if self.user_status() == UserStatus::Online {
+                self.set_user_status(UserStatus::Online);
+                self.add_toast(
+                    "Status Online".to_string(),
+                    "Você voltou e seu status foi definido para Online.".to_string(),
+                    self.user_avatar_id(),
+                );
+            }
+        }
+    }
+
+    pub fn check_inactivity_and_update(&mut self) {
+        let now_sec = chrono::Utc::now().timestamp() as u64;
+        let last = self.last_activity_time();
+        if now_sec > last + 300 { // 5 minutos = 300 segundos
+            if self.user_status() == UserStatus::Online {
+                *self.was_automatically_away.write() = true;
+                self.set_user_status(UserStatus::Ausente);
+                self.add_toast(
+                    "Status Alterado".to_string(),
+                    "Você está ausente por inatividade.".to_string(),
+                    self.user_avatar_id(),
+                );
+            }
+        }
+    }
+
+    pub fn last_activity_time(&self) -> u64 {
+        (self.last_activity_time)()
+    }
+
+    pub fn was_automatically_away(&self) -> bool {
+        (self.was_automatically_away)()
     }
 }
 
