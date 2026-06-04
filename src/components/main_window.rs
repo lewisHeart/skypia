@@ -1,84 +1,137 @@
 use dioxus::prelude::*;
-use crate::models::{Contact, UserStatus, AppTheme, render_avatar};
+use crate::models::{UserStatus, AppTheme};
 use crate::state::AppState;
 use crate::sound::play_sound;
+use crate::components::profile_header::ProfileHeader;
+use crate::components::contact_list::ContactList;
 
 #[component]
 pub fn MainWindow(mut state: AppState) -> Element {
-    let mut search_query = use_signal(|| String::new());
-    let mut is_editing_msg = use_signal(|| false);
-    let mut temp_msg = use_signal(|| state.user_personal_message());
-    
-    // Collapsible group states
-    let mut fav_collapsed = use_signal(|| false);
-    let mut online_collapsed = use_signal(|| false);
-    let mut offline_collapsed = use_signal(|| false);
-    
-    // Theme selector menu visibility
-    let mut show_theme_menu = use_signal(|| false);
+    // Sinais para os modais locais
+    let mut add_contact_email = use_signal(|| String::new());
+    let mut add_contact_name = use_signal(|| String::new());
+    let mut add_contact_pm = use_signal(|| String::new());
+    let mut add_contact_status = use_signal(|| UserStatus::Online);
 
-    // Active status menu visibility
-    let mut show_status_menu = use_signal(|| false);
-
-    // Simulate contact activity in background
+    // Simulação em segundo plano de atividade de contatos (totalmente dinâmica puxando do banco JSON)
     use_effect(move || {
         let mut app_state = state;
         spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(18)).await;
                 
-                // Only run simulation if logged in
                 if !app_state.logged_in() {
                     continue;
                 }
 
-                // Random action selection (0 = status change, 1 = message notification, 2 = sign in)
                 let now_ms = chrono::Utc::now().timestamp_millis();
                 let action = (now_ms % 3) as usize;
                 
                 match action {
                     0 => {
-                        // Toggle a contact's status
-                        let mut contacts = app_state.contacts.write();
-                        if let Some(c) = contacts.iter_mut().find(|c| c.id == 3) {
-                            if c.status == UserStatus::Ocupado {
-                                c.status = UserStatus::Online;
-                                c.personal_message = "Voltei! CS 1.6 fechado (Y)".to_string();
-                            } else {
-                                c.status = UserStatus::Ocupado;
-                                c.personal_message = "Dando HS no de_dust2!".to_string();
+                        let contacts_list = app_state.contacts();
+                        let active_contacts: Vec<_> = contacts_list.iter().filter(|c| c.status != UserStatus::Offline).collect();
+                        if !active_contacts.is_empty() {
+                            let idx = (now_ms as usize) % active_contacts.len();
+                            let target_contact = active_contacts[idx];
+                            let contact_id = target_contact.id;
+                            
+                            let mut contacts = app_state.contacts.write();
+                            if let Some(c) = contacts.iter_mut().find(|c| c.id == contact_id) {
+                                if c.status == UserStatus::Ocupado {
+                                    c.status = UserStatus::Online;
+                                    c.personal_message = "Voltei! CS 1.6 fechado (Y)".to_string();
+                                } else {
+                                    c.status = UserStatus::Ocupado;
+                                    c.personal_message = "Dando HS no de_dust2!".to_string();
+                                }
                             }
                         }
                     }
                     1 => {
-                        // Simulates a message from Lucas if not already in chat, or adds to chat
-                        if !app_state.active_chats().contains(&1) {
-                            app_state.add_toast(
-                                "Lucas [Emo Core]".to_string(),
-                                "diz: eae cara! viu a nova música do green day? (H)".to_string(),
-                                1,
-                            );
-                            play_sound("message");
+                        let contacts_list = app_state.contacts();
+                        let active_contacts: Vec<_> = contacts_list.iter().filter(|c| c.status != UserStatus::Offline).collect();
+                        if !active_contacts.is_empty() {
+                            let idx = (now_ms as usize) % active_contacts.len();
+                            let contact = active_contacts[idx];
+                            
+                            if app_state.selected_chat_id() != Some(contact.id) {
+                                let random_messages = [
+                                    "eae cara! viu a nova música do green day? (H)",
+                                    "me passa a resposta da tarefa de física? pfv",
+                                    "olha meu sub-status novo! haha (Y)",
+                                    "vc vai pro rolê no final de semana?",
+                                    "já viu os winks novos do Skypia? muito louco!",
+                                    "entra no Flogão, acabei de postar fotos novas lá!",
+                                    "mandei um depoimento pra vc no Orkut, depois lê lá rs",
+                                ];
+                                let msg_idx = (now_ms as usize / 3) % random_messages.len();
+                                let msg_text = random_messages[msg_idx];
+                                
+                                app_state.add_toast(
+                                    contact.display_name.clone(),
+                                    format!("diz: {}", msg_text),
+                                    contact.avatar_id,
+                                );
+                                play_sound("message");
+                                
+                                let contact_id = contact.id;
+                                let msg_string = msg_text.to_string();
+                                let sender_name = contact.display_name.clone();
+                                spawn(async move {
+                                    let now_str = chrono::Local::now().format("%H:%M:%S").to_string();
+                                    let msg_id = chrono::Utc::now().timestamp_millis() as usize;
+                                    let message = crate::models::Message {
+                                        id: msg_id,
+                                        sender_id: contact_id,
+                                        sender_name,
+                                        text: msg_string,
+                                        timestamp: now_str,
+                                        is_nudge: false,
+                                        font_color: "#1e395b".to_string(),
+                                        font_family: "Segoe UI".to_string(),
+                                        is_wink: None,
+                                        file_transfer: None,
+                                        is_game_invite: false,
+                                    };
+                                    let _ = crate::services::db::DatabaseService::save_message(
+                                        contact_id,
+                                        message,
+                                    ).await;
+                                });
+                            }
                         }
                     }
                     2 => {
-                        // Mariana signs in
-                        let mut was_offline = false;
-                        {
-                            let mut contacts = app_state.contacts.write();
-                            if let Some(c) = contacts.iter_mut().find(|c| c.id == 4) {
-                                if c.status == UserStatus::Offline {
+                        let contacts_list = app_state.contacts();
+                        let offline_contacts: Vec<_> = contacts_list.iter().filter(|c| c.status == UserStatus::Offline).collect();
+                        if !offline_contacts.is_empty() {
+                            let idx = (now_ms as usize) % offline_contacts.len();
+                            let contact_to_online = offline_contacts[idx];
+                            let contact_id = contact_to_online.id;
+                            let display_name = contact_to_online.display_name.clone();
+                            let avatar_id = contact_to_online.avatar_id;
+                            
+                            {
+                                let mut contacts = app_state.contacts.write();
+                                if let Some(c) = contacts.iter_mut().find(|c| c.id == contact_id) {
                                     c.status = UserStatus::Online;
-                                    c.personal_message = "Mari na área! ✨".to_string();
-                                    was_offline = true;
+                                    let sub_statuses = [
+                                        "Mari na área! ✨",
+                                        "Disponível para fofocas rs",
+                                        "Ouvindo CPM 22...",
+                                        "Só olhando 👀",
+                                        "Voltei do almoço",
+                                    ];
+                                    let sub_idx = (now_ms as usize / 5) % sub_statuses.len();
+                                    c.personal_message = sub_statuses[sub_idx].to_string();
                                 }
                             }
-                        }
-                        if was_offline {
+                            
                             app_state.add_toast(
-                                "Mariana ✨".to_string(),
+                                display_name,
                                 "acaba de entrar!".to_string(),
-                                4,
+                                avatar_id,
                             );
                             play_sound("online");
                         }
@@ -89,351 +142,65 @@ pub fn MainWindow(mut state: AppState) -> Element {
         });
     });
 
-    let _current_theme = state.theme();
-
-    // Filter contacts based on query
-    let filtered_contacts = use_memo(move || {
-        let query = search_query().to_lowercase();
-        let list = state.contacts();
-        if query.is_empty() {
-            list
-        } else {
-            list.into_iter()
-                .filter(|c| c.display_name.to_lowercase().contains(&query) || c.email.to_lowercase().contains(&query))
-                .collect()
-        }
-    });
-
-    // Partition contacts
-    let favorites = use_memo(move || {
-        filtered_contacts()
-            .into_iter()
-            .filter(|c| c.is_favorite)
-            .collect::<Vec<Contact>>()
-    });
-
-    let online_contacts = use_memo(move || {
-        filtered_contacts()
-            .into_iter()
-            .filter(|c| !c.is_favorite && c.status != UserStatus::Offline && c.status != UserStatus::Invisivel)
-            .collect::<Vec<Contact>>()
-    });
-
-    let offline_contacts = use_memo(move || {
-        filtered_contacts()
-            .into_iter()
-            .filter(|c| !c.is_favorite && (c.status == UserStatus::Offline || c.status == UserStatus::Invisivel))
-            .collect::<Vec<Contact>>()
-    });
-
-    let mut save_personal_msg = move |_| {
-        state.set_user_personal_message(temp_msg());
-        is_editing_msg.set(false);
-    };
-
     rsx! {
         div {
-            class: "w-full h-full flex flex-col select-none relative bg-bubbles flex-shrink-0 bg-gradient-to-b from-[#e6f1fc]/90 to-[#c8def5]/80",
+            class: "w-full h-full flex flex-col select-none bg-bubbles bg-gradient-to-b from-[#e6f1fc]/90 to-[#c8def5]/80 overflow-hidden",
             
-            // User Profile Section
-            div { class: "px-4 py-3 flex items-center space-x-3 bg-white/20 border-b border-white/20 relative",
-                
-                // Top Right Tools inside Profile
-                div { class: "absolute right-2 top-2 flex items-center space-x-1",
-                    button { 
-                        class: "w-5 h-5 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs",
-                        title: "Mudar cor da skin",
-                        onclick: move |_| show_theme_menu.set(!show_theme_menu()),
-                        "🎨"
-                    }
-                    button { 
-                        class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-100/40 border border-transparent hover:border-red-200/50 text-red-600 cursor-pointer text-xs",
-                        title: "Desconectar",
-                        onclick: move |_| {
-                            *state.logged_in.write() = false;
-                        },
-                        "🚪"
-                    }
-                }
+            // Header do Perfil do usuário
+            ProfileHeader { state }
 
-                // Theme selection dropdown menu
-                if show_theme_menu() {
-                    div { 
-                        class: "absolute right-2 top-8 w-40 bg-white/95 border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
-                        button { 
-                            class: "px-2 py-1.5 text-left hover:bg-sky-100 rounded transition-colors flex items-center space-x-2",
-                            onclick: move |_| {
-                                *state.theme.write() = AppTheme::AeroBlue;
-                                show_theme_menu.set(false);
-                            },
-                            div { class: "w-2.5 h-2.5 rounded bg-sky-400 border border-sky-500" }
-                            span { "Azul Aero" }
-                        }
-                        button { 
-                            class: "px-2 py-1.5 text-left hover:bg-pink-100 rounded transition-colors flex items-center space-x-2",
-                            onclick: move |_| {
-                                *state.theme.write() = AppTheme::RubyPink;
-                                show_theme_menu.set(false);
-                            },
-                            div { class: "w-2.5 h-2.5 rounded bg-pink-400 border border-pink-500" }
-                            span { "Rosa Choque" }
-                        }
-                        button { 
-                            class: "px-2 py-1.5 text-left hover:bg-emerald-100 rounded transition-colors flex items-center space-x-2",
-                            onclick: move |_| {
-                                *state.theme.write() = AppTheme::ForestGreen;
-                                show_theme_menu.set(false);
-                            },
-                            div { class: "w-2.5 h-2.5 rounded bg-emerald-400 border border-emerald-500" }
-                            span { "Verde Natureza" }
-                        }
-                        button { 
-                            class: "px-2 py-1.5 text-left hover:bg-slate-100 rounded transition-colors flex items-center space-x-2",
-                            onclick: move |_| {
-                                *state.theme.write() = AppTheme::SilverMetallic;
-                                show_theme_menu.set(false);
-                            },
-                            div { class: "w-2.5 h-2.5 rounded bg-slate-400 border border-slate-500" }
-                            span { "Prata Metálico" }
-                        }
-                    }
-                }
-
-                // Avatar Frame
-                div { 
-                    class: "relative avatar-frame bg-white flex-shrink-0 cursor-pointer shadow-md",
-                    onclick: move |_| {
-                        // Cycle avatar ID
-                        let curr = state.user_avatar_id();
-                        state.set_user_avatar((curr + 1) % 7);
-                    },
-                    {render_avatar(state.user_avatar_id(), 48)}
-                    
-                    // Status Badge overlay
-                    div { 
-                        class: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center cursor-pointer hover:scale-110 transition-transform",
-                        onclick: move |e| {
-                            e.stop_propagation();
-                            show_status_menu.set(!show_status_menu());
-                        },
-                        div { class: "w-2 h-2 rounded-full {state.user_status().color_class()} border border-black/10" }
-                    }
-                }
-
-                // Profile Info
-                div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
-                    div { class: "flex items-center justify-between",
-                        span { class: "font-bold text-sm text-[#1b324d] truncate", "{state.user_name()}" }
-                        span { class: "text-[10px] text-slate-500 font-semibold px-1 py-0.2 bg-white/50 border border-white/60 rounded", "2010" }
-                    }
-                    
-                    // Sub-status (Editable)
-                    if is_editing_msg() {
-                        input {
-                            class: "px-1.5 py-0.5 text-xs msn-input rounded w-full",
-                            value: "{temp_msg}",
-                            oninput: move |e| temp_msg.set(e.value()),
-                            onkeydown: move |e| {
-                                if e.key() == Key::Enter {
-                                    save_personal_msg(e);
-                                }
-                            },
-                            onblur: move |_| {
-                                *state.user_personal_message.write() = temp_msg();
-                                is_editing_msg.set(false);
-                            },
-                            autofocus: true,
-                        }
-                    } else {
-                        p { 
-                            class: "text-xs text-[#3a5879]/85 italic truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
-                            onclick: move |_| {
-                                temp_msg.set(state.user_personal_message());
-                                is_editing_msg.set(true);
-                            },
-                            "{state.user_personal_message()}"
-                        }
-                    }
-
-                    // Music Display
-                    if let Some(music) = state.user_music() {
-                        div { class: "flex items-center space-x-1 text-[10px] text-[#0066cc] font-medium truncate",
-                            span { "🎵" }
-                            span { class: "hover:underline cursor-pointer", "{music}" }
-                        }
-                    }
-                }
-            }
-
-            // User status selection dropdown popup
-            if show_status_menu() {
-                div { 
-                    class: "absolute left-4 top-20 w-36 bg-white/95 border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
-                    button { 
-                        class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2",
-                        onclick: move |_| {
-                            state.set_user_status(UserStatus::Online);
-                            show_status_menu.set(false);
-                        },
-                        div { class: "w-2.5 h-2.5 rounded-full bg-[#3cd070] border border-[#2fa558]" }
-                        span { "Disponível" }
-                    }
-                    button { 
-                        class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2",
-                        onclick: move |_| {
-                            state.set_user_status(UserStatus::Ocupado);
-                            show_status_menu.set(false);
-                        },
-                        div { class: "w-2.5 h-2.5 rounded-full bg-[#e81123] border border-[#b50a18]" }
-                        span { "Ocupado" }
-                    }
-                    button { 
-                        class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2",
-                        onclick: move |_| {
-                            state.set_user_status(UserStatus::Ausente);
-                            show_status_menu.set(false);
-                        },
-                        div { class: "w-2.5 h-2.5 rounded-full bg-[#ffb900] border border-[#c99200]" }
-                        span { "Ausente" }
-                    }
-                    button { 
-                        class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2",
-                        onclick: move |_| {
-                            state.set_user_status(UserStatus::Offline);
-                            show_status_menu.set(false);
-                        },
-                        div { class: "w-2.5 h-2.5 rounded-full bg-gray-400 border border-gray-500" }
-                        span { "Offline" }
-                    }
-                }
-            }
-
-            // Quick Actions / Mail bar
-            div { class: "h-7 px-3 bg-white/40 border-b border-white/20 flex items-center justify-between text-[11px] text-[#2f4b6c]/90",
-                div { class: "flex items-center space-x-3",
-                    button { class: "hover:text-sky-600 transition-colors flex items-center space-x-0.5",
-                        span { "✉" }
-                        span { "Caixa de Entrada (0)" }
-                    }
-                }
-                div { class: "flex items-center space-x-2",
-                    span { class: "hover:underline cursor-pointer", "MSN Hoje" }
-                }
-            }
-
-            // Search Bar
-            div { class: "p-2 bg-white/10 border-b border-white/10",
-                div { class: "relative w-full flex items-center",
-                    input {
-                        class: "w-full pl-7 pr-2.5 py-1 text-xs rounded border border-[#a6b9cd] msn-input placeholder-slate-400",
-                        placeholder: "Procurar um contato...",
-                        value: "{search_query}",
-                        oninput: move |e| search_query.set(e.value()),
-                    }
-                    span { class: "absolute left-2.5 text-xs text-slate-400 pointer-events-none", "🔍" }
-                }
-            }
-
-            // Contacts List Scroll Area
-            div { class: "flex-1 overflow-y-auto px-1 py-2 space-y-3 bg-white/35",
-                
-                // Group: Favorites
-                if !favorites().is_empty() {
-                    div { class: "space-y-1",
-                        div { 
-                            class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold text-[#1b324d]/85",
-                            onclick: move |_| fav_collapsed.set(!fav_collapsed()),
-                            span { class: "w-3 text-center text-[10px] text-slate-500", if fav_collapsed() { "▶" } else { "▼" } }
-                            span { "Favoritos ({favorites().len()})" }
-                        }
-                        
-                        if !fav_collapsed() {
-                            div { class: "pl-2 space-y-0.5",
-                                for contact in favorites() {
-                                    ContactRow { contact, state }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Group: Online
-                div { class: "space-y-1",
-                    div { 
-                        class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold text-[#1b324d]/85",
-                        onclick: move |_| online_collapsed.set(!online_collapsed()),
-                        span { class: "w-3 text-center text-[10px] text-slate-500", if online_collapsed() { "▶" } else { "▼" } }
-                        span { "Disponíveis ({online_contacts().len()})" }
-                    }
-                    
-                    if !online_collapsed() {
-                        div { class: "pl-2 space-y-0.5",
-                            if online_contacts().is_empty() {
-                                div { class: "text-[10px] text-slate-500/80 italic pl-5 py-1", "Nenhum contato online" }
-                            } else {
-                                for contact in online_contacts() {
-                                    ContactRow { contact, state }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Group: Offline
-                div { class: "space-y-1",
-                    div { 
-                        class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold text-[#1b324d]/85",
-                        onclick: move |_| offline_collapsed.set(!offline_collapsed()),
-                        span { class: "w-3 text-center text-[10px] text-slate-500", if offline_collapsed() { "▶" } else { "▼" } }
-                        span { "Offlines ({offline_contacts().len()})" }
-                    }
-                    
-                    if !offline_collapsed() {
-                        div { class: "pl-2 space-y-0.5",
-                            for contact in offline_contacts() {
-                                ContactRow { contact, state }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // MSN Advertisement Banner at the bottom (Nostalgic 2010 style!)
+            // Barra de Inbox e Skypia Hoje (Portal de novidades e e-mails)
             div { 
-                class: "h-[50px] w-full bg-gradient-to-r from-sky-100 to-sky-200 border-t border-sky-300 px-3 flex items-center justify-between text-[10px] shadow-inner flex-shrink-0 cursor-pointer overflow-hidden",
-                onclick: move |_| {
-                    play_sound("message");
-                },
-                div { class: "flex flex-col flex-1 text-[#2f4b6c]",
-                    span { class: "font-bold text-[#0066cc]", "Internet Explorer 8" }
-                    span { class: "text-slate-500", "Navegue com muito mais velocidade e segurança." }
+                class: "h-6 bg-white/20 border-b border-[#a6b9cd]/25 px-4 flex items-center justify-between text-[10px] text-[#2f4b6c]/90 flex-shrink-0 select-none",
+                
+                // Caixa de Entrada (Email)
+                button { 
+                    class: "hover:text-[#0066cc] font-medium flex items-center space-x-1 cursor-pointer transition-colors focus:outline-none",
+                    onclick: move |_| {
+                        state.add_toast("Hotmail".to_string(), "Abrindo sua caixa de entrada...".to_string(), 0);
+                        let _ = document::eval("window.open('https://outlook.live.com', '_blank')");
+                    },
+                    span { class: "text-xs", "✉" }
+                    span { "Caixa de Entrada (0)" }
                 }
-                div { class: "px-2 py-1 bg-gradient-to-b from-sky-400 to-sky-600 border border-sky-600 rounded text-white font-bold", "Baixar" }
+                
+                // Portal Hoje
+                button { 
+                    class: "hover:text-[#0066cc] font-medium flex items-center space-x-1 cursor-pointer transition-colors focus:outline-none",
+                    onclick: move |_| {
+                        state.add_toast("Skypia Hoje".to_string(), "Abrindo portal de novidades...".to_string(), 0);
+                        let _ = document::eval("window.open('https://msn.com', '_blank')");
+                    },
+                    span { "Skypia Hoje" }
+                }
             }
 
-            // Bottom Add Contact Toolbar
+            // Lista de Contatos com pesquisa integrada
+            ContactList { state }
+
+            // Banner dinâmico de anúncios do banco de dados
+            if let Some(banner) = state.banner_info() {
+                div { 
+                    class: "h-[50px] w-full bg-gradient-to-r from-sky-100 to-sky-200 border-t border-sky-300 px-3 flex items-center justify-between text-[11px] shadow-inner flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:brightness-105",
+                    onclick: move |_| {
+                        let _ = document::eval(&format!("window.open('{}', '_blank')", banner.link));
+                    },
+                    div { class: "flex items-center space-x-2 flex-1 text-[#2f4b6c] min-w-0",
+                        span { class: "text-base flex-shrink-0", "{banner.icon}" }
+                        div { class: "flex flex-col min-w-0 flex-1",
+                            span { class: "font-bold text-[#0066cc] truncate", "{banner.text}" }
+                            span { class: "text-[10px] text-slate-500 truncate hover:underline", "{banner.action_label}" }
+                        }
+                    }
+                }
+            }
+
+            // Rodapé com o botão Adicionar contato fixo
             div { class: "h-9 bg-white/45 border-t border-white/20 px-3 flex items-center justify-between text-xs text-[#2f4b6c]/90 flex-shrink-0",
                 button { 
-                    class: "hover:text-[#0066cc] font-semibold flex items-center space-x-1 transition-colors",
+                    class: "hover:text-[#0066cc] font-semibold flex items-center space-x-1 transition-colors cursor-pointer",
                     onclick: move |_| {
-                        // Quick add contact simulation
-                        let new_id;
-                        {
-                            let mut contacts = state.contacts.write();
-                            new_id = contacts.len() + 1;
-                            contacts.push(Contact {
-                                id: new_id,
-                                email: format!("contato{}@msn.com", new_id),
-                                display_name: format!("Novo Contato {}", new_id),
-                                status: UserStatus::Online,
-                                personal_message: "Acabei de ser adicionado!".to_string(),
-                                music_listening: None,
-                                avatar_id: 0,
-                                is_favorite: false,
-                            });
-                        }
-                        play_sound("online");
-                        state.add_toast("Contato adicionado".to_string(), format!("Novo Contato {} entrou na sua lista.", new_id), 0);
+                        state.show_add_contact_modal.set(true);
                     },
                     span { "➕" }
                     span { "Adicionar contato" }
@@ -441,66 +208,187 @@ pub fn MainWindow(mut state: AppState) -> Element {
                 span { class: "text-slate-400 text-[10px]", "v14.0.8117" }
             }
         }
-    }
-}
 
-#[component]
-fn ContactRow(contact: Contact, mut state: AppState) -> Element {
-    let mut show_tooltip = use_signal(|| false);
-
-    let handle_double_click = move |_| {
-        state.open_chat(contact.id);
-    };
-
-    rsx! {
-        div {
-            class: "flex items-center space-x-2.5 p-1 rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
-            ondoubleclick: handle_double_click,
-            onmouseenter: move |_| show_tooltip.set(true),
-            onmouseleave: move |_| show_tooltip.set(false),
-            
-            // Status Icon Buddy Dot
-            div { class: "relative flex-shrink-0",
-                div { class: "w-3 h-3 rounded-full {contact.status.color_class()} border border-black/10 shadow-sm" }
-            }
-            
-            // Small Avatar
-            div { class: "w-6 h-6 border border-slate-300/80 rounded overflow-hidden flex-shrink-0 bg-white shadow-sm",
-                {render_avatar(contact.avatar_id, 24)}
-            }
-            
-            // Name and Sub-status
-            div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
-                span { class: "font-semibold text-xs text-[#1e395b] truncate group-hover:text-sky-700", "{contact.display_name}" }
-                span { class: "text-[10px] text-slate-500 truncate italic font-normal", "{contact.personal_message}" }
-            }
-            
-            // Listening music indicator icon
-            if contact.music_listening.is_some() {
-                span { class: "text-[10px] pr-1 opacity-70", "🎵" }
-            }
-
-            // Nostalgic hover card tooltip
-            if show_tooltip() {
+        // ==========================================
+        // MODAL DE CONFIGURAÇÕES
+        // ==========================================
+        if state.show_settings_modal() {
+            div { 
+                class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4",
+                onclick: move |_| state.show_settings_modal.set(false),
                 div { 
-                    class: "absolute left-32 top-[-10px] w-64 bg-gradient-to-b from-sky-50 to-sky-100/95 border border-[#a6b9cd] rounded-lg shadow-xl z-50 p-3 flex flex-col space-y-2 text-xs text-slate-700",
-                    div { class: "flex items-start space-x-3",
-                        div { class: "avatar-frame bg-white flex-shrink-0 shadow",
-                            {render_avatar(contact.avatar_id, 44)}
-                        }
-                        div { class: "flex-1 min-w-0 flex flex-col space-y-1",
-                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{contact.display_name}" }
-                            span { class: "text-[10px] text-slate-400 select-all font-semibold", "{contact.email}" }
-                            span { class: "font-semibold text-[10px] text-slate-500", "Status: {contact.status.as_str()}" }
+                    class: "w-80 bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b] pointer-events-auto",
+                    onclick: move |e| e.stop_propagation(),
+                    
+                    div { class: "flex items-center justify-between border-b border-white/40 pb-2",
+                        span { class: "font-bold text-sm", "⚙️ Configurações do Skypia" }
+                        button { 
+                            class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
+                            onclick: move |_| state.show_settings_modal.set(false),
+                            "✕"
                         }
                     }
-                    div { class: "border-t border-slate-200/80 pt-1.5 flex flex-col space-y-1",
-                        p { class: "text-[10px] text-slate-600 italic select-text", "“{contact.personal_message}”" }
-                        if let Some(ref song) = contact.music_listening {
-                            div { class: "flex items-center space-x-1 text-[9px] text-[#0066cc] font-medium",
-                                span { "🎵" }
-                                span { "{song}" }
+                    
+                    div { class: "flex flex-col space-y-1.5",
+                        label { class: "font-bold text-slate-700", "Estilo de Decorações da Janela" }
+                        label { class: "flex items-center space-x-2 cursor-pointer",
+                            input {
+                                r#type: "checkbox",
+                                checked: state.use_custom_titlebar(),
+                                onchange: move |e| {
+                                    let val = e.value() == "true";
+                                    state.set_settings(state.interface_scale(), val, state.theme());
+                                    #[cfg(feature = "desktop")]
+                                    dioxus::desktop::use_window().set_decorations(!val);
+                                }
                             }
+                            span { "Usar barra de título Aero do app" }
+                        }
+                    }
+                    
+                    div { class: "flex flex-col space-y-1.5",
+                        label { class: "font-bold text-slate-700", "Escala da Interface" }
+                        select {
+                            class: "w-full p-1.5 border border-[#a6b9cd] rounded bg-white text-slate-700 font-medium",
+                            onchange: move |e| {
+                                let scale = e.value().parse::<f64>().unwrap_or(1.0);
+                                state.set_settings(scale, state.use_custom_titlebar(), state.theme());
+                            },
+                            option { value: "0.8", selected: state.interface_scale() == 0.8, "80% (Pequeno)" }
+                            option { value: "0.9", selected: state.interface_scale() == 0.9, "90%" }
+                            option { value: "1.0", selected: state.interface_scale() == 1.0, "100% (Padrão)" }
+                            option { value: "1.1", selected: state.interface_scale() == 1.1, "110%" }
+                            option { value: "1.2", selected: state.interface_scale() == 1.2, "120%" }
+                            option { value: "1.3", selected: state.interface_scale() == 1.3, "130%" }
+                            option { value: "1.4", selected: state.interface_scale() == 1.4, "140%" }
+                            option { value: "1.5", selected: state.interface_scale() == 1.5, "150% (Grande)" }
+                        }
+                    }
+                    
+                    div { class: "flex flex-col space-y-1.5",
+                        label { class: "font-bold text-slate-700", "Aparência (Skins)" }
+                        select {
+                            class: "w-full p-1.5 border border-[#a6b9cd] rounded bg-white text-slate-700 font-medium",
+                            onchange: move |e| {
+                                let new_theme = match e.value().as_str() {
+                                    "blue" => AppTheme::AeroBlue,
+                                    "pink" => AppTheme::RubyPink,
+                                    "green" => AppTheme::ForestGreen,
+                                    "silver" => AppTheme::SilverMetallic,
+                                    _ => AppTheme::AeroBlue,
+                                };
+                                state.set_settings(state.interface_scale(), state.use_custom_titlebar(), new_theme);
+                            },
+                            option { value: "blue", selected: state.theme() == AppTheme::AeroBlue, "Azul Aero" }
+                            option { value: "pink", selected: state.theme() == AppTheme::RubyPink, "Rosa Choque" }
+                            option { value: "green", selected: state.theme() == AppTheme::ForestGreen, "Verde Natureza" }
+                            option { value: "silver", selected: state.theme() == AppTheme::SilverMetallic, "Prata Metálico" }
+                        }
+                    }
+                    
+                    div { class: "flex justify-end pt-2 border-t border-white/40",
+                        button { 
+                            class: "px-4 py-1.5 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white border border-[#4074a8] rounded font-bold shadow hover:from-[#9bd0fa] hover:to-[#579adf] cursor-pointer transition-colors",
+                            onclick: move |_| state.show_settings_modal.set(false),
+                            "Ok"
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // MODAL DE ADICIONAR CONTATO
+        // ==========================================
+        if state.show_add_contact_modal() {
+            div { 
+                class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4",
+                onclick: move |_| state.show_add_contact_modal.set(false),
+                div { 
+                    class: "w-80 bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs text-[#1e395b] pointer-events-auto",
+                    onclick: move |e| e.stop_propagation(),
+                    
+                    div { class: "flex items-center justify-between border-b border-white/40 pb-2",
+                        span { class: "font-bold text-sm", "➕ Adicionar Novo Contato" }
+                        button { 
+                            class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
+                            onclick: move |_| state.show_add_contact_modal.set(false),
+                            "✕"
+                        }
+                    }
+                    
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "font-semibold text-slate-700", "Endereço de email:" }
+                        input {
+                            r#type: "email",
+                            class: "w-full p-1.5 border border-[#a6b9cd] rounded msn-input",
+                            placeholder: "exemplo@skypia.io",
+                            value: "{add_contact_email}",
+                            oninput: move |e| add_contact_email.set(e.value()),
+                        }
+                    }
+                    
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "font-semibold text-slate-700", "Nome de Exibição (Apelido):" }
+                        input {
+                            class: "w-full p-1.5 border border-[#a6b9cd] rounded msn-input",
+                            placeholder: "Apelido do contato",
+                            value: "{add_contact_name}",
+                            oninput: move |e| add_contact_name.set(e.value()),
+                        }
+                    }
+                    
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "font-semibold text-slate-700", "Frase Pessoal Inicial:" }
+                        input {
+                            class: "w-full p-1.5 border border-[#a6b9cd] rounded msn-input",
+                            placeholder: "Olá, sou novo no Skypia!",
+                            value: "{add_contact_pm}",
+                            oninput: move |e| add_contact_pm.set(e.value()),
+                        }
+                    }
+                    
+                    div { class: "flex flex-col space-y-1",
+                        label { class: "font-semibold text-slate-700", "Status Inicial:" }
+                        select {
+                            class: "w-full p-1.5 border border-[#a6b9cd] rounded bg-white text-slate-700 font-medium",
+                            onchange: move |e| {
+                                match e.value().as_str() {
+                                    "online" => add_contact_status.set(UserStatus::Online),
+                                    "busy" => add_contact_status.set(UserStatus::Ocupado),
+                                    "away" => add_contact_status.set(UserStatus::Ausente),
+                                    "offline" => add_contact_status.set(UserStatus::Offline),
+                                    _ => {}
+                                }
+                            },
+                            option { value: "online", "Disponível" }
+                            option { value: "busy", "Ocupado" }
+                            option { value: "away", "Ausente" }
+                            option { value: "offline", "Offline" }
+                        }
+                    }
+                    
+                    div { class: "flex justify-end space-x-2 pt-2 border-t border-white/40",
+                        button { 
+                            class: "px-3 py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold cursor-pointer transition-colors",
+                            onclick: move |_| state.show_add_contact_modal.set(false),
+                            "Cancelar"
+                        }
+                        button { 
+                            class: "px-4 py-1 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white border border-[#4074a8] rounded font-bold shadow hover:from-[#9bd0fa] hover:to-[#579adf] cursor-pointer transition-colors",
+                            onclick: move |_| {
+                                if !add_contact_email().is_empty() && !add_contact_name().is_empty() {
+                                    state.add_contact_dynamic(
+                                        add_contact_email(),
+                                        add_contact_name(),
+                                        add_contact_status(),
+                                        add_contact_pm()
+                                    );
+                                    play_sound("online");
+                                    state.show_add_contact_modal.set(false);
+                                }
+                            },
+                            "Adicionar"
                         }
                     }
                 }

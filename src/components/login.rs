@@ -46,7 +46,7 @@ pub fn Login(mut state: AppState) -> Element {
             // Add initial greeting toast
             state.add_toast(
                 "Bem-vindo de volta!".to_string(),
-                "Você acabou de entrar no MSN Messenger.".to_string(),
+                "Você acabou de entrar no Skypia Messenger.".to_string(),
                 0,
             );
         });
@@ -189,7 +189,7 @@ pub fn Login(mut state: AppState) -> Element {
                 // Footer details
                 div { 
                     class: "w-full flex items-center justify-between mt-5 pt-3 border-t border-slate-350 text-[9px] text-slate-500/80",
-                    span { "Windows Live © 2010" }
+                    span { "Skypia © 2010" }
                     a { 
                         href: "#", 
                         class: "hover:underline text-[#245284] font-semibold",

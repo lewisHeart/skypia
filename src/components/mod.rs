@@ -1,6 +1,12 @@
 pub mod login;
 pub mod main_window;
 pub mod chat_window;
+pub mod profile_header;
+pub mod contact_row;
+pub mod contact_list;
+pub mod chat_feed;
+pub mod chat_input;
+pub mod chat_sidebar;
 
 use dioxus::prelude::*;
 use crate::state::AppState;

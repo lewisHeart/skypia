@@ -122,19 +122,40 @@ body {
     outline: none;
 }
 
-/* Avatar Frame Effect */
+/* Avatar Frame Effect (MSN Status Border) */
 .avatar-frame {
     position: relative;
-    border-radius: 8px;
-    padding: 3px;
-    background: linear-gradient(135deg, #ffffff 0%, #d5e5f5 100%);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15), inset 0 1px 0 white;
-    border: 1px solid #a6b9cd;
+    border-radius: 6px;
+    padding: 0px;
+    background: transparent;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    border: 3.5px solid #7a7a7a; /* Default Offline */
+    transition: border-color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.avatar-frame-online {
+    border-color: #3cd070 !important; /* Green */
+}
+
+.avatar-frame-busy {
+    border-color: #e81123 !important; /* Red */
+}
+
+.avatar-frame-away {
+    border-color: #ffb900 !important; /* Orange/Yellow */
+}
+
+.avatar-frame-offline {
+    border-color: #7a7a7a !important; /* Gray */
 }
 
 .avatar-hover:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transform: scale(1.04);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.18);
 }
 
 /* Nudge button animations */

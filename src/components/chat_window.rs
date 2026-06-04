@@ -1,7 +1,46 @@
 use dioxus::prelude::*;
-use crate::models::render_avatar;
+use crate::models::{render_avatar, UserStatus, AppTheme};
 use crate::state::AppState;
-use crate::sound::play_sound;
+use crate::components::chat_feed::ChatFeed;
+use crate::components::chat_input::ChatInput;
+use crate::components::chat_sidebar::ChatSidebar;
+
+const WINK_STYLES: &str = r#"
+@keyframes msnKiss {
+    0% { transform: scale(0.1) rotate(0deg); opacity: 0; }
+    20% { transform: scale(1.5) rotate(-15deg); opacity: 1; }
+    40% { transform: scale(1.3) rotate(15deg); }
+    60% { transform: scale(1.6) rotate(-10deg); }
+    80% { transform: scale(1.4) rotate(0deg); opacity: 1; }
+    100% { transform: scale(2.0); opacity: 0; }
+}
+.animate-msn-kiss {
+    animation: msnKiss 3.5s forwards ease-in-out;
+}
+
+@keyframes msnHammer {
+    0% { transform: translate(0, -100px) rotate(-45deg); opacity: 0; }
+    15% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    20% { transform: scale(1.1) translate(0, 5px); }
+    25% { transform: scale(1.0) translate(0, 0); }
+    75% { opacity: 1; }
+    100% { opacity: 0; }
+}
+.animate-msn-hammer {
+    animation: msnHammer 2.5s forwards ease-out;
+}
+
+@keyframes msnPig {
+    0% { transform: translate(-100px, 100px) scale(0.5); }
+    25% { transform: translate(0, -50px) scale(1.1); }
+    50% { transform: translate(100px, 50px) scale(0.9); }
+    75% { transform: translate(0, 0) scale(1.2); }
+    100% { transform: translate(-200px, -200px) scale(1.5); opacity: 0; }
+}
+.animate-msn-pig {
+    animation: msnPig 4s forwards linear;
+}
+"#;
 
 #[component]
 pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Element {
@@ -21,147 +60,48 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
     }
     let contact = contact.unwrap();
 
-    let messages = state.chat_messages();
-    let chat_history = messages.get(&contact_id).cloned().unwrap_or_default();
-
-    let mut input_text = use_signal(|| String::new());
-    let mut selected_font = use_signal(|| "Segoe UI".to_string());
-    let mut selected_color = use_signal(|| "#000000".to_string());
     let mut is_shaking = use_signal(|| false);
-    
-    // UI Popovers
-    let mut show_emoticon_panel = use_signal(|| false);
-    let mut show_color_panel = use_signal(|| false);
-    let mut show_font_panel = use_signal(|| false);
-
-    // Parse MSN emoticon codes in message rendering
-    let format_message_text = |text: &str| -> Element {
-        let mut parsed = text.to_string();
-        parsed = parsed.replace("(H)", "😎");
-        parsed = parsed.replace("(Y)", "👍");
-        parsed = parsed.replace("(N)", "👎");
-        parsed = parsed.replace("(K)", "💋");
-        parsed = parsed.replace("(A)", "😇");
-        parsed = parsed.replace("(L)", "❤️");
-        parsed = parsed.replace("(O)", "⏰");
-        parsed = parsed.replace(":-D", "😀");
-        parsed = parsed.replace(":-)", "🙂");
-        parsed = parsed.replace(";-)", "😉");
-        parsed = parsed.replace(":-(", "😢");
-        parsed = parsed.replace(":-@", "😡");
-        
-        rsx! { span { "{parsed}" } }
-    };
-
-    // Simulated Auto-Reply Generator
-    let generate_auto_reply = move |c_id: usize| {
-        let replies = vec![
-            "blz cara! dps entra no meu flogao pra ver as fotos da festa: flogao.com.br/goth_emo_2010",
-            "pera ai, vo ali comer um trakinas e ja volto rsrs",
-            "vc viu o video do jeremias na TV? mto engraçado kkkk o cão foi quem buto pra nois bebe!",
-            "me cutuca dnv ae, gostei da tremida kkkkk",
-            "vc tem o cd do linkin park ou do slipknot pra me passar dps por bluetooth?",
-            "nossa minha net discada ta mto lenta hj, se eu cair eh pq minha mae tiro o telefone do gancho :(",
-            "add meu orkut dps! procure por 'Gabii_Sz' q se me acha (L)",
-            "mandei um winky ai p vc ver, mas acho q seu pc antigo n carrega kkkk",
-            "vamos jogar habbo hotel ou tibia hj mais tarde?",
-            "ok (Y)",
-        ];
-        
-        let now_ms = chrono::Utc::now().timestamp_millis() as usize;
-        let reply_idx = now_ms % replies.len();
-        let text = replies[reply_idx].to_string();
-        
-        let mut app_state = state;
-        spawn(async move {
-            // Typing delay
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            app_state.receive_reply(
-                c_id, 
-                text, 
-                "#e6007e".to_string(), // Nostalgic pink reply color
-                "Comic Sans MS".to_string()
-            );
-            play_sound("message");
-        });
-    };
-
-    // Trigger Nudge Shake
-    let mut perform_shake = move || {
-        is_shaking.set(true);
-        spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(420)).await;
-            is_shaking.set(false);
-        });
-    };
-
-    // Send nudge handler
-    let handle_send_nudge = move |_| {
-        state.send_nudge(contact_id);
-        play_sound("nudge");
-        perform_shake();
-        
-        // Simulates contact replying with a nudge back after 2 seconds
-        let mut app_state = state;
-        spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-            app_state.receive_nudge(contact_id);
-            play_sound("nudge");
-            
-            // Trigger window shaking again!
-            is_shaking.set(true);
-            tokio::time::sleep(std::time::Duration::from_millis(420)).await;
-            is_shaking.set(false);
-            
-            // Send text reply following nudge
-            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-            app_state.receive_reply(
-                contact_id, 
-                "Para de me tremer cara! KKKK custou pra eu arrumar meu monitor de tubo".to_string(), 
-                "#e6007e".to_string(), 
-                "Comic Sans MS".to_string()
-            );
-            play_sound("message");
-        });
-    };
-
-    // Send Message Handler
-    let mut handle_send = move || {
-        let txt = input_text();
-        if txt.trim().is_empty() {
-            return;
-        }
-        
-        state.send_message(contact_id, txt.clone(), selected_color(), selected_font());
-        input_text.set(String::new());
-        play_sound("message");
-        
-        // Trigger auto reply simulation
-        generate_auto_reply(contact_id);
-    };
-
-    // Emoticon insertion helper
-    let mut insert_emoticon = move |code: &str| {
-        let current = input_text();
-        input_text.set(format!("{}{}", current, code));
-        show_emoticon_panel.set(false);
-    };
-
-    // Shake class dynamic resolution
     let shake_class = if is_shaking() { "nudge-shake" } else { "" };
 
+    let status_color = match contact.status {
+        UserStatus::Online => "border-[#3cd070]",
+        UserStatus::Ocupado => "border-[#e81123]",
+        UserStatus::Ausente => "border-[#ffb900]",
+        UserStatus::Offline | UserStatus::Invisivel => "border-slate-400",
+    };
+
     rsx! {
+        style { "{WINK_STYLES}" }
+        
+        // Camada de animação de Winks ativa
+        if let Some(wink) = state.active_wink() {
+            div { 
+                class: "absolute inset-0 z-[150] flex flex-col items-center justify-center pointer-events-none select-none overflow-hidden rounded-lg",
+                
+                if wink == "kiss" {
+                    div { class: "absolute inset-0 bg-pink-400/20 animate-pulse" }
+                    div { class: "text-9xl animate-msn-kiss", "💋" }
+                } else if wink == "hammer" {
+                    div { class: "absolute inset-0 bg-slate-900/10" }
+                    div { class: "text-9xl animate-msn-hammer", "🔨" }
+                    div { class: "absolute w-40 h-40 border-4 border-dashed border-white/60 rounded-full animate-ping" }
+                } else if wink == "pig" {
+                    div { class: "absolute inset-0 bg-emerald-400/15" }
+                    div { class: "text-9xl animate-msn-pig", "🐷" }
+                }
+            }
+        }
+        
         div {
-            class: "w-full h-full flex flex-col select-none bg-bubbles {shake_class}",
+            class: "w-full h-full flex flex-col select-none bg-bubbles {shake_class} overflow-hidden",
             style: "background: linear-gradient(180deg, rgba(230, 241, 252, 0.9) 0%, rgba(190, 215, 240, 0.85) 100%);",
             
-
-            // Tab bar for active chats
+            // Abas para chats ativos
             if contact_id_prop.is_none() && active_chats.len() > 1 {
                 div { class: "h-8 bg-white/20 border-b border-white/10 flex items-center px-2 space-x-1 flex-shrink-0 overflow-x-auto",
                     for chat_id in active_chats {
-                        {
-                            if let Some(c) = state.contacts().into_iter().find(|c| c.id == chat_id) {
+                        if let Some(c) = state.contacts().into_iter().find(|c| c.id == chat_id) {
+                            {
                                 let is_active = chat_id == contact_id;
                                 let active_tab_style = if is_active {
                                     "bg-white/80 border-[#7ba9d4] text-[#1e395b] font-bold"
@@ -187,19 +127,16 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                                         }
                                     }
                                 }
-                            } else {
-                                rsx! {}
                             }
                         }
                     }
                 }
             }
 
-            // Top Status Panel for current contact
+            // Painel Superior de Status (Informações do contato atual)
             div { class: "p-3 flex items-center space-x-3 bg-white/10 border-b border-white/20 flex-shrink-0 justify-between",
                 div { class: "flex items-center space-x-3 min-w-0 flex-1",
                     
-                    // Botão Voltar (apenas visível em telas pequenas/mobile e se estiver integrado)
                     if contact_id_prop.is_none() {
                         button {
                             class: "md:hidden px-2 py-1 bg-white/30 hover:bg-white/50 border border-white/20 text-[#1e395b] text-[11px] rounded font-bold cursor-pointer mr-1 flex items-center space-x-0.5 flex-shrink-0 transition-colors",
@@ -212,9 +149,18 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                         }
                     }
 
-                    div { class: "avatar-frame bg-white flex-shrink-0 shadow",
+                    // Avatar do cabeçalho com moldura fixa e badge de status clássico do MSN
+                    div { 
+                        class: "relative p-[2.5px] flex-shrink-0 shadow rounded-[8px] border border-[#a1c6e7] bg-white transition-all",
                         {render_avatar(contact.avatar_id, 36)}
+                        
+                        // Status Badge overlay
+                        div { 
+                            class: "absolute -bottom-0.5 -right-0.5 w-[13px] h-[13px] rounded-full bg-white border border-[#a1c6e7] flex items-center justify-center pointer-events-none z-10 shadow-sm",
+                            div { class: "w-[7px] h-[7px] rounded-full {contact.status.color_class()} border border-black/10" }
+                        }
                     }
+                    
                     div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
                         div { class: "flex items-center space-x-2",
                             span { class: "font-bold text-sm text-[#1b324d] truncate", "{contact.display_name}" }
@@ -224,229 +170,58 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<usize>) -> Elemen
                     }
                 }
                 
-                // Botão de desvincular chat (apenas no modo integrado)
                 if contact_id_prop.is_none() {
                     button {
                         class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors flex-shrink-0",
                         title: "Desvincular conversa",
                         onclick: move |_| {
                             state.detach_chat(contact_id);
-                            
-                            // Cria o VirtualDom da nova janela
                             let dom = VirtualDom::new_with_props(
                                 DetachedChatWindow,
                                 DetachedChatWindowProps { contact_id }
                             );
                             
-                            // Abre a nova janela nativa de desktop de forma assíncrona
+                            #[cfg(feature = "desktop")]
                             spawn(async move {
                                 let _ = dioxus::desktop::window().new_window(
                                     dom,
-                                    dioxus::desktop::Config::default()
+                                    dioxus::desktop::Config::default().with_menu(None)
                                 ).await;
                             });
+                            #[cfg(not(feature = "desktop"))]
+                            {
+                                let _ = dom;
+                            }
                         },
                         "↗"
                     }
                 }
             }
 
-            // Main chat layout (History, Toolbar, Inputs on left; Avatars on right)
-            div { class: "flex-1 flex min-h-0",
+            // Layout Principal do Chat
+            div { class: "flex-1 flex min-h-0 w-full",
                 
-                // Left Column: Chat area
-                div { class: "flex-1 flex flex-col sm:border-r border-white/20 min-w-0",
+                // Coluna Esquerda: Histórico e Input de texto
+                div { class: "flex-1 flex flex-col sm:border-r border-white/20 min-w-0 h-full",
+                    // Histórico do Chat (ChatFeed)
+                    ChatFeed { contact_id, state }
                     
-                    // Messages History Log
-                    div { 
-                        class: "flex-1 overflow-y-auto p-4 space-y-3 bg-white/40",
-                        
-                        if chat_history.is_empty() {
-                            div { class: "h-full flex items-center justify-center text-slate-400 text-xs italic",
-                                "Inicie uma conversa nostálgica com {contact.display_name}!"
-                            }
-                        } else {
-                            for msg in chat_history {
-                                {
-                                    let name_color = if msg.sender_id == 0 { "text-[#0066cc]" } else { "text-[#e6007e]" };
-                                    
-                                    rsx! {
-                                        div { class: "flex flex-col space-y-0.5 text-xs text-slate-800 select-text",
-                                            if msg.is_nudge {
-                                                div { class: "py-1.5 px-3 bg-red-100/70 border border-red-200 rounded text-red-700 font-bold flex items-center space-x-2 my-1 animate-pulse shadow-sm",
-                                                    span { "🔔" }
-                                                    span { "{msg.text}" }
-                                                    span { class: "text-[9px] text-red-500 font-normal ml-auto", "{msg.timestamp}" }
-                                                }
-                                            } else {
-                                                div { class: "flex items-baseline space-x-1.5",
-                                                    span { class: "font-bold {name_color}", "{msg.sender_name}" }
-                                                    span { class: "text-[9px] text-slate-400 font-normal", "[{msg.timestamp}] diz:" }
-                                                }
-                                                p {
-                                                    class: "pl-2 select-text",
-                                                    style: "font-family: {msg.font_family}; color: {msg.font_color}; font-size: 13px;",
-                                                    {format_message_text(&msg.text)}
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Text Formatting & Action Toolbar
-                    div { class: "h-8 bg-white/50 border-t border-b border-white/20 px-3 flex items-center justify-between text-xs text-[#2f4b6c] flex-shrink-0 relative",
-                        div { class: "flex items-center space-x-3.5",
-                            // Font selector
-                            button { 
-                                class: "hover:text-[#0066cc] cursor-pointer flex items-center space-x-0.5",
-                                onclick: move |_| {
-                                    show_font_panel.set(!show_font_panel());
-                                    show_color_panel.set(false);
-                                    show_emoticon_panel.set(false);
-                                },
-                                span { "A" }
-                                span { class: "text-[8px]", "▼" }
-                            }
-                            
-                            // Color selector
-                            button { 
-                                class: "hover:text-[#0066cc] cursor-pointer flex items-center space-x-0.5",
-                                onclick: move |_| {
-                                    show_color_panel.set(!show_color_panel());
-                                    show_font_panel.set(false);
-                                    show_emoticon_panel.set(false);
-                                },
-                                div { class: "w-3 h-3 border border-slate-400 rounded-sm bg-gradient-to-r from-red-500 via-green-500 to-blue-500" }
-                                span { class: "text-[8px]", "▼" }
-                            }
-
-                            // Emoticons
-                            button { 
-                                class: "hover:text-[#0066cc] cursor-pointer flex items-center space-x-0.5",
-                                onclick: move |_| {
-                                    show_emoticon_panel.set(!show_emoticon_panel());
-                                    show_font_panel.set(false);
-                                    show_color_panel.set(false);
-                                },
-                                span { "☺" }
-                                span { class: "text-[8px]", "▼" }
-                            }
-
-                            // Chamar atenção (Nudge)
-                            button { 
-                                class: "px-2 py-0.5 rounded hover:bg-slate-200 border border-slate-300 text-[10px] font-bold bg-white/70 shadow-sm text-red-600 flex items-center space-x-1 cursor-pointer nudge-btn-hover active:scale-95 transition-transform",
-                                title: "Chamar a Atenção",
-                                onclick: handle_send_nudge,
-                                span { "🔔" }
-                                span { "Chamar Atenção" }
-                            }
-                        }
-
-                        // Floating Font Selector Panel
-                        if show_font_panel() {
-                            div { class: "absolute left-2 bottom-9 w-36 bg-white border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs",
-                                for font_name in &["Segoe UI", "Comic Sans MS", "Arial", "Courier New"] {
-                                    button {
-                                        class: "px-2 py-1 text-left hover:bg-sky-100 rounded transition-colors",
-                                        style: "font-family: {font_name};",
-                                        onclick: move |_| {
-                                            selected_font.set(font_name.to_string());
-                                            show_font_panel.set(false);
-                                        },
-                                        "{font_name}"
-                                    }
-                                }
-                            }
-                        }
-
-                        // Floating Color Selector Panel
-                        if show_color_panel() {
-                            div { class: "absolute left-8 bottom-9 w-32 bg-white border border-slate-300 rounded shadow-lg z-50 p-2 grid grid-cols-4 gap-1.5",
-                                for color in &["#000000", "#0066cc", "#e6007e", "#2e6930", "#e81123", "#ffb900", "#7a7a7a", "#8e24aa"] {
-                                    div {
-                                        class: "w-5 h-5 rounded cursor-pointer border border-slate-300 hover:scale-110 hover:shadow transition-transform",
-                                        style: "background-color: {color};",
-                                        onclick: move |_| {
-                                            selected_color.set(color.to_string());
-                                            show_color_panel.set(false);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Floating Emoticon Panel
-                        if show_emoticon_panel() {
-                            div { class: "absolute left-16 bottom-9 w-44 bg-white border border-slate-300 rounded shadow-lg z-50 p-2 grid grid-cols-4 gap-2 text-base",
-                                for (code, icon) in &[
-                                    ("(H)", "😎"), ("(Y)", "👍"), ("(N)", "👎"), ("(K)", "💋"),
-                                    ("(A)", "😇"), ("(L)", "❤️"), ("(O)", "⏰"), (":-D", "😀"),
-                                    (":-)", "🙂"), (";-)", "😉"), (":-(", "😢"), (":-@", "😡")
-                                ] {
-                                    button {
-                                        class: "hover:bg-slate-100 p-1 rounded flex items-center justify-center transition-colors cursor-pointer",
-                                        title: code,
-                                        onclick: move |_| insert_emoticon(code),
-                                        "{icon}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Chat message input area
-                    div { class: "h-20 bg-white border-t border-white/20 p-2 flex space-x-2 flex-shrink-0",
-                        textarea {
-                            class: "flex-1 resize-none p-1.5 text-xs msn-input rounded",
-                            style: "font-family: {selected_font()}; color: {selected_color()};",
-                            placeholder: "Digite sua mensagem aqui...",
-                            value: "{input_text}",
-                            oninput: move |e| input_text.set(e.value()),
-                            onkeydown: move |e| {
-                                if e.key() == Key::Enter && !e.modifiers().shift() {
-                                    e.prevent_default();
-                                    handle_send();
-                                }
-                            }
-                        }
-                        
-                        button {
-                            class: "w-16 h-full bg-gradient-to-b from-[#8fc1e9] via-[#5c98d6] to-[#4585c5] hover:from-[#9bd0fa] hover:via-[#70abeb] hover:to-[#579adf] text-white border border-[#4074a8] rounded font-bold text-xs shadow cursor-pointer flex items-center justify-center active:scale-95 transition-transform",
-                            onclick: move |_| handle_send(),
-                            "Enviar"
+                    // Barra de formatação e Entrada de mensagem (ChatInput)
+                    ChatInput {
+                        contact_id,
+                        state,
+                        on_nudge: move |_| {
+                            is_shaking.set(true);
+                            spawn(async move {
+                                tokio::time::sleep(std::time::Duration::from_millis(420)).await;
+                                is_shaking.set(false);
+                            });
                         }
                     }
                 }
-
-                // Right Column: Avatars display panel (nostalgic layouts!)
-                div { class: "hidden sm:flex w-28 flex-col items-center justify-between p-3 bg-white/10 flex-shrink-0",
-                    
-                    // Contact's avatar frame
-                    div { class: "flex flex-col items-center space-y-1.5",
-                        div { class: "avatar-frame bg-white shadow-md relative",
-                            {render_avatar(contact.avatar_id, 64)}
-                            // Overlay status dot
-                            div { class: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow-sm",
-                                div { class: "w-2.5 h-2.5 rounded-full {contact.status.color_class()} border border-black/10" }
-                            }
-                        }
-                        span { class: "text-[10px] text-slate-500 font-bold max-w-[85px] truncate text-center", "{contact.display_name}" }
-                    }
-
-                    // User's own avatar frame
-                    div { class: "flex flex-col items-center space-y-1.5",
-                        div { class: "avatar-frame bg-white shadow-md relative",
-                            {render_avatar(state.user_avatar_id(), 64)}
-                            div { class: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow-sm",
-                                div { class: "w-2.5 h-2.5 rounded-full {state.user_status().color_class()} border border-black/10" }
-                            }
-                        }
-                        span { class: "text-[10px] text-slate-500 font-bold max-w-[85px] truncate text-center", "Você" }
-                    }
-                }
+                
+                // Coluna Direita: Avatars grandes de perfil ou Jogo da Velha (ChatSidebar)
+                ChatSidebar { contact_id, state }
             }
         }
     }
@@ -459,91 +234,261 @@ pub struct DetachedChatWindowProps {
 
 #[component]
 pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
-    let mut app_state = use_context_provider(|| AppState::new());
-    let desktop = dioxus::desktop::use_window();
-    
-    // Garante login e seleção local
-    *app_state.logged_in.write() = true;
-    *app_state.selected_chat_id.write() = Some(props.contact_id);
-    
-    // Abre o chat localmente no estado da nova janela
-    app_state.open_chat(props.contact_id);
-
-    // Carrega os dados iniciais assincronamente
-    use_effect(move || {
-        let mut state = app_state;
-        state.load_initial_data();
-    });
-
-    // Sincronização periódica das mensagens com o banco de dados compartilhado
-    use_effect(move || {
-        let mut state = app_state;
-        let c_id = props.contact_id;
-        let desktop_clone = desktop.clone();
-        spawn(async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                
-                // Se o chat for acoplado (removido do banco compartilhado de destacados), fecha esta janela
-                if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
-                    if !detached.contains(&c_id) {
-                        desktop_clone.close();
-                        break;
-                    }
-                }
-                
-                // Recarrega contatos
-                if let Ok(contacts) = crate::services::db::DatabaseService::load_contacts().await {
-                    *state.contacts.write() = contacts;
-                }
-                
-                // Recarrega mensagens
-                if let Ok(msgs) = crate::services::db::DatabaseService::load_messages(c_id).await {
-                    let mut chat_msgs = state.chat_messages.write();
-                    chat_msgs.insert(c_id, msgs);
-                }
-            }
-        });
-    });
-
-    let theme = app_state.theme();
-
-    rsx! {
-        document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
-        document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
+    #[cfg(feature = "desktop")]
+    {
+        let mut app_state = use_context_provider(|| AppState::new());
+        let desktop = dioxus::desktop::use_window();
         
-        div { 
-            class: "w-screen h-screen overflow-hidden flex bg-gradient-to-br {theme.bg_gradient()} relative font-segoe select-none",
-            
-            // Subtle theme background bubbles
-            div { class: "absolute inset-0 bg-bubbles pointer-events-none opacity-25 z-0" }
+        // Garante login e seleção local
+        *app_state.logged_in.write() = true;
+        *app_state.selected_chat_id.write() = Some(props.contact_id);
+        
+        // Abre o chat localmente no estado da nova janela
+        app_state.open_chat(props.contact_id);
 
-            div { class: "w-full h-full flex flex-col pointer-events-auto z-10",
-                
-                // Barra de Controle personalizada para Acoplar de volta
-                div { 
-                    class: "h-9 bg-gradient-to-r from-[#8fc1e9] via-[#5c98d6] to-[#4585c5] px-3 flex items-center justify-between text-white font-bold text-xs select-none border-b border-[#4074a8]/50",
-                    div { class: "flex items-center space-x-1.5",
-                        span { "💬" }
-                        span { "Conversa Desvinculada" }
+        use_effect(move || {
+            let mut state = app_state;
+            state.load_initial_data();
+        });
+
+        // Sincronização periódica das mensagens com o banco de dados compartilhado
+        use_effect(move || {
+            let mut state = app_state;
+            let c_id = props.contact_id;
+            let desktop_clone = desktop.clone();
+            spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    
+                    // Se o chat for acoplado, fecha esta janela
+                    if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
+                        if !detached.contains(&c_id) {
+                            desktop_clone.close();
+                            break;
+                        }
                     }
-                    button {
-                        class: "px-2 h-6 flex items-center justify-center bg-white/20 hover:bg-white/35 rounded text-[10px] text-white border border-white/20 cursor-pointer transition-all space-x-1",
-                        title: "Vincular de volta à janela principal do MSN",
-                        onclick: move |_| {
-                            spawn(async move {
-                                let _ = crate::services::db::DatabaseService::attach_chat(props.contact_id).await;
-                            });
-                        },
-                        span { "↙" }
-                        span { "Acoplar" }
+                    
+                    // Recarrega contatos se mudou
+                    if let Ok(contacts) = crate::services::db::DatabaseService::load_contacts().await {
+                        let current = state.contacts.read().clone();
+                        if current != contacts {
+                            *state.contacts.write() = contacts;
+                        }
+                    }
+                    
+                    // Recarrega mensagens se mudou
+                    if let Ok(msgs) = crate::services::db::DatabaseService::load_messages(c_id).await {
+                        let current = state.chat_messages.read().get(&c_id).cloned().unwrap_or_default();
+                        if current != msgs {
+                            let mut chat_msgs = state.chat_messages.write();
+                            chat_msgs.insert(c_id, msgs);
+                        }
                     }
                 }
+            });
+        });
+
+        let theme = app_state.theme();
+        let contact = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);
+        let contact_name = contact.map(|c| c.display_name).unwrap_or_else(|| "Contato".to_string());
+
+        rsx! {
+            document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
+            document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
+            
+            div { 
+                class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-br {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
                 
-                div { class: "flex-1 min-h-0 min-w-0",
-                    ChatWindow { state: app_state, contact_id_prop: Some(props.contact_id) }
+                // Bordas e Cantos para Redimensionamento Nativo da Janela Flutuante (Escala 100%!)
+                if app_state.use_custom_titlebar() {
+                    // Borda Superior
+                    div {
+                        class: "absolute top-0 left-1.5 right-1.5 h-1.5 cursor-ns-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::North);
+                        }
+                    }
+                    // Borda Inferior
+                    div {
+                        class: "absolute bottom-0 left-1.5 right-1.5 h-1.5 cursor-ns-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::South);
+                        }
+                    }
+                    // Borda Esquerda
+                    div {
+                        class: "absolute top-1.5 bottom-1.5 left-0 w-1.5 cursor-ew-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::West);
+                        }
+                    }
+                    // Borda Direita
+                    div {
+                        class: "absolute top-1.5 bottom-1.5 right-0 w-1.5 cursor-ew-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::East);
+                        }
+                    }
+                    // Canto Superior Esquerdo
+                    div {
+                        class: "absolute top-0 left-0 w-2.5 h-2.5 cursor-nwse-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::NorthWest);
+                        }
+                    }
+                    // Canto Superior Direito
+                    div {
+                        class: "absolute top-0 right-0 w-2.5 h-2.5 cursor-nesw-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::NorthEast);
+                        }
+                    }
+                    // Canto Inferior Esquerdo
+                    div {
+                        class: "absolute bottom-0 left-0 w-2.5 h-2.5 cursor-nesw-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::SouthWest);
+                        }
+                    }
+                    // Canto Inferior Direito
+                    div {
+                        class: "absolute bottom-0 right-0 w-2.5 h-2.5 cursor-nwse-resize z-[999] opacity-0",
+                        onmousedown: move |e| {
+                            e.stop_propagation();
+                            let _ = dioxus::desktop::use_window().drag_resize_window(dioxus::desktop::tao::window::ResizeDirection::SouthEast);
+                        }
+                    }
+                }
+
+                
+                // Subtle theme background bubbles
+                div { class: "absolute inset-0 bg-bubbles pointer-events-none opacity-25 z-0" }
+
+                div { class: "w-full h-full flex flex-col pointer-events-auto z-10",
+                    
+                    // Barra de título Aero personalizada para janela desvinculada
+                    if app_state.use_custom_titlebar() {
+                        div { 
+                            class: "w-full h-8 bg-gradient-to-b {theme.titlebar_gradient()} flex items-center justify-between z-50 flex-shrink-0 select-none border-b {theme.titlebar_border()} px-3 relative rounded-t-2xl shadow-sm cursor-default",
+                            style: "-webkit-app-region: drag;",
+                            onmousedown: move |_| {
+                                #[cfg(feature = "desktop")]
+                                let _ = dioxus::desktop::use_window().drag_window();
+                            },
+                            
+                            div { class: "flex items-center space-x-1.5 font-bold text-xs pointer-events-none {theme.titlebar_text()} select-none",
+                                span { class: "text-base", "💬" }
+                                span { "Conversa com {contact_name}" }
+                            }
+                            
+                            // Window control buttons
+                            div { 
+                                class: "flex items-center space-x-2.5",
+                                style: "-webkit-app-region: no-drag;",
+                                onmousedown: move |e| e.stop_propagation(),
+                                
+                                button {
+                                    class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:text-sky-600 shadow-sm cursor-pointer transition-colors focus:outline-none",
+                                    title: "Vincular de volta à janela principal do Skypia",
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        spawn(async move {
+                                            let _ = crate::services::db::DatabaseService::attach_chat(props.contact_id).await;
+                                        });
+                                    },
+                                    span { class: "mr-1 text-xs", "↙" }
+                                    span { "Acoplar" }
+                                }
+                                button {
+                                    class: "w-6 h-[22px] flex items-center justify-center rounded hover:bg-black/5 text-slate-600 cursor-pointer transition-colors font-bold text-xs focus:outline-none",
+                                    title: "Minimizar",
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        #[cfg(feature = "desktop")]
+                                        dioxus::desktop::use_window().set_minimized(true);
+                                    },
+                                    "⎯"
+                                }
+                                button {
+                                    class: "w-6 h-[22px] flex items-center justify-center rounded hover:bg-black/5 text-slate-600 cursor-pointer transition-colors text-[9px] focus:outline-none",
+                                    title: "Maximizar",
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        #[cfg(feature = "desktop")]
+                                        {
+                                            let win = dioxus::desktop::use_window();
+                                            win.set_maximized(!win.is_maximized());
+                                        }
+                                    },
+                                    "⬜"
+                                }
+                                button { 
+                                    class: "h-[22px] px-3.5 bg-white border border-[#f2d3ce] rounded font-bold text-xs text-[#8c2222] shadow-sm cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white flex items-center justify-center focus:outline-none",
+                                    title: "Fechar",
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        #[cfg(feature = "desktop")]
+                                        dioxus::desktop::use_window().close();
+                                    },
+                                    "X"
+                                }
+                            }
+                        }
+                    } else {
+                        // Barra de Controle simplificada caso use decorações do sistema nativo
+                        div { 
+                            class: "h-8 bg-gradient-to-b {theme.titlebar_gradient()} px-3 flex items-center justify-between text-[#1b324d] font-bold text-xs select-none border-b {theme.titlebar_border()}",
+                            div { class: "flex items-center space-x-1.5 {theme.titlebar_text()}",
+                                span { "💬" }
+                                span { "Conversa com {contact_name}" }
+                            }
+                            button {
+                                class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:text-sky-600 shadow-sm cursor-pointer transition-colors focus:outline-none",
+                                title: "Vincular de volta à janela principal do Skypia",
+                                onclick: move |e| {
+                                    e.stop_propagation();
+                                    spawn(async move {
+                                        let _ = crate::services::db::DatabaseService::attach_chat(props.contact_id).await;
+                                    });
+                                },
+                                span { class: "mr-1 text-xs", "↙" }
+                                span { "Acoplar" }
+                            }
+                        }
+                    }
+                    
+                    // Área do chat propriamente dita (Escalonada!)
+                    div { 
+                        class: "flex-1 min-h-0 w-full relative",
+                        
+                        div {
+                            class: "absolute inset-0 overflow-hidden",
+                            
+                            div {
+                                class: "w-full h-full relative",
+                                style: "transform: scale({app_state.interface_scale()}); transform-origin: top left; width: {100.0 / app_state.interface_scale()}%; height: {100.0 / app_state.interface_scale()}%;",
+                                
+                                ChatWindow { state: app_state, contact_id_prop: Some(props.contact_id) }
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = props;
+        rsx! {
+            div { class: "p-4 text-xs text-slate-500", "Recurso disponível apenas no Desktop." }
         }
     }
 }
