@@ -1,16 +1,16 @@
-use dioxus::prelude::*;
+use crate::models::{render_avatar, AppTheme, UserStatus};
 use crate::state::AppState;
-use crate::models::{UserStatus, AppTheme, render_avatar};
+use dioxus::prelude::*;
 
 #[component]
 pub fn ProfileHeader(mut state: AppState) -> Element {
     // Sinais locais de controle de edição e menus dropdown
     let mut is_editing_name = use_signal(|| false);
     let mut temp_name = use_signal(|| state.user_name());
-    
+
     let mut is_editing_msg = use_signal(|| false);
     let mut temp_msg = use_signal(|| state.user_personal_message());
-    
+
     let mut show_status_menu = use_signal(|| false);
     let mut show_theme_menu = use_signal(|| false);
     let mut music_search_query = use_signal(|| String::new());
@@ -20,27 +20,25 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
         is_editing_msg.set(false);
     };
 
-
-
     rsx! {
         // User Profile Section
         div { class: "px-4 py-3 flex items-center space-x-3 bg-white/20 border-b border-white/20 relative",
-            
+
             // Top Right Tools inside Profile
             div { class: "absolute right-2 top-2 flex items-center space-x-1",
-                button { 
+                button {
                     class: "w-5 h-5 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors",
                     title: "Configurações",
                     onclick: move |_| state.show_settings_modal.set(true),
                     "⚙️"
                 }
-                button { 
+                button {
                     class: "w-5 h-5 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors",
                     title: "Mudar cor da skin",
                     onclick: move |_| show_theme_menu.set(!show_theme_menu()),
                     "🎨"
                 }
-                button { 
+                button {
                     class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-100/40 border border-transparent hover:border-red-200/50 text-red-600 cursor-pointer text-xs transition-colors",
                     title: "Desconectar",
                     onclick: move |_| {
@@ -52,9 +50,9 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
 
             // Theme selection dropdown menu
             if show_theme_menu() {
-                div { 
+                div {
                     class: "absolute right-2 top-8 w-40 bg-white border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
-                    button { 
+                    button {
                         class: "px-2 py-1.5 text-left hover:bg-sky-100 rounded transition-colors flex items-center space-x-2 cursor-pointer",
                         onclick: move |_| {
                             state.set_settings(state.interface_scale(), state.use_custom_titlebar(), AppTheme::AeroBlue);
@@ -63,7 +61,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         div { class: "w-2.5 h-2.5 rounded bg-sky-400 border border-sky-500" }
                         span { "Azul Aero" }
                     }
-                    button { 
+                    button {
                         class: "px-2 py-1.5 text-left hover:bg-pink-100 rounded transition-colors flex items-center space-x-2 cursor-pointer",
                         onclick: move |_| {
                             state.set_settings(state.interface_scale(), state.use_custom_titlebar(), AppTheme::RubyPink);
@@ -72,7 +70,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         div { class: "w-2.5 h-2.5 rounded bg-pink-400 border border-pink-500" }
                         span { "Rosa Choque" }
                     }
-                    button { 
+                    button {
                         class: "px-2 py-1.5 text-left hover:bg-emerald-100 rounded transition-colors flex items-center space-x-2 cursor-pointer",
                         onclick: move |_| {
                             state.set_settings(state.interface_scale(), state.use_custom_titlebar(), AppTheme::ForestGreen);
@@ -81,7 +79,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         div { class: "w-2.5 h-2.5 rounded bg-emerald-400 border border-emerald-500" }
                         span { "Verde Natureza" }
                     }
-                    button { 
+                    button {
                         class: "px-2 py-1.5 text-left hover:bg-slate-100 rounded transition-colors flex items-center space-x-2 cursor-pointer",
                         onclick: move |_| {
                             state.set_settings(state.interface_scale(), state.use_custom_titlebar(), AppTheme::SilverMetallic);
@@ -94,7 +92,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
             }
 
             // Avatar Frame with Fixed MSN Frame and Status Badge Overlay
-            div { 
+            div {
                 class: "relative p-[3px] flex-shrink-0 cursor-pointer shadow rounded-[10px] border border-[#a1c6e7] bg-white transition-all",
                 onclick: move |_| {
                     // Cycle avatar ID
@@ -102,9 +100,9 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     state.set_user_avatar((curr + 1) % 7);
                 },
                 {render_avatar(state.user_avatar_id(), 48)}
-                
+
                 // Status Badge overlay
-                div { 
+                div {
                     class: "absolute -bottom-0.5 -right-0.5 w-[15px] h-[15px] rounded-full bg-white border border-[#a1c6e7] flex items-center justify-center cursor-pointer hover:scale-110 transition-transform z-10 shadow-sm",
                     onclick: move |e| {
                         e.stop_propagation();
@@ -135,18 +133,17 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             autofocus: true,
                         }
                     } else {
-                        span { 
+                        span {
                             class: "font-bold text-sm text-[#1b324d] truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
                             onclick: move |_| {
                                 temp_name.set(state.user_name());
                                 is_editing_name.set(true);
                             },
-                            "{state.user_name()}" 
+                            "{state.user_name()}"
                         }
                     }
-                    span { class: "text-[10px] text-slate-500 font-semibold px-1 py-0.2 bg-white/50 border border-white/60 rounded flex-shrink-0 ml-1", "2010" }
                 }
-                
+
                 // Sub-status (Editable Phrase)
                 if is_editing_msg() {
                     input {
@@ -165,7 +162,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         autofocus: true,
                     }
                 } else {
-                    p { 
+                    p {
                         class: "text-xs text-[#3a5879]/85 italic truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
                         onclick: move |_| {
                             temp_msg.set(state.user_personal_message());
@@ -176,7 +173,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 }
 
                 // Music Display
-                div { 
+                div {
                     class: "flex items-center space-x-1 text-[10px] text-[#0066cc] font-medium truncate cursor-pointer hover:underline",
                     onclick: move |_| state.show_music_player_modal.set(true),
                     span { "🎵" }
@@ -191,9 +188,9 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
 
         // User status selection dropdown popup
         if show_status_menu() {
-            div { 
+            div {
                 class: "absolute left-4 top-20 w-36 bg-white/95 border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
-                button { 
+                button {
                     class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
                     onclick: move |_| {
                         state.set_user_status(UserStatus::Online);
@@ -202,7 +199,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     div { class: "w-2.5 h-2.5 rounded-full bg-[#3cd070] border border-[#2fa558]" }
                     span { "Disponível" }
                 }
-                button { 
+                button {
                     class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
                     onclick: move |_| {
                         state.set_user_status(UserStatus::Ocupado);
@@ -211,7 +208,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     div { class: "w-2.5 h-2.5 rounded-full bg-[#e81123] border border-[#b50a18]" }
                     span { "Ocupado" }
                 }
-                button { 
+                button {
                     class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
                     onclick: move |_| {
                         state.set_user_status(UserStatus::Ausente);
@@ -220,7 +217,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     div { class: "w-2.5 h-2.5 rounded-full bg-[#ffb900] border border-[#c99200]" }
                     span { "Ausente" }
                 }
-                button { 
+                button {
                     class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
                     onclick: move |_| {
                         state.set_user_status(UserStatus::Offline);
@@ -236,25 +233,25 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
         // MUSIC PLAYER MODAL (Orkut/MSN Style)
         // ==========================================
         if state.show_music_player_modal() {
-            div { 
+            div {
                 class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 pointer-events-auto",
                 onclick: move |_| state.show_music_player_modal.set(false),
-                div { 
+                div {
                     class: "w-80 bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b] pointer-events-auto",
                     onclick: move |e| e.stop_propagation(),
-                    
+
                     div { class: "flex items-center justify-between border-b border-white/40 pb-2",
                         span { class: "font-bold text-sm", "🎵 O que estou ouvindo?" }
-                        button { 
+                        button {
                             class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
                             onclick: move |_| state.show_music_player_modal.set(false),
                             "✕"
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1.5",
                         label { class: "font-bold text-slate-700", "Digite uma música personalizada" }
-                        input { 
+                        input {
                             class: "px-2 py-1.5 msn-input rounded text-xs",
                             placeholder: "Ex: Paramore - Decode",
                             value: "{music_search_query}",
@@ -267,7 +264,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             }
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1",
                         span { class: "font-bold text-slate-500 mb-1", "Hits Nostálgicos de 2010" }
                         for hit in [
@@ -280,7 +277,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             "Lady Gaga - Bad Romance",
                             "Justin Bieber - Baby"
                         ] {
-                            button { 
+                            button {
                                 class: "px-2 py-1.5 text-left hover:bg-sky-200/50 rounded transition-colors text-[#0066cc] hover:underline cursor-pointer",
                                 onclick: move |_| {
                                     state.set_user_music(Some(hit.to_string()));
@@ -290,9 +287,9 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             }
                         }
                     }
-                    
+
                     div { class: "flex space-x-2 pt-2 border-t border-white/20",
-                        button { 
+                        button {
                             class: "flex-1 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 rounded font-bold cursor-pointer transition-colors text-center",
                             onclick: move |_| {
                                 state.set_user_music(None);
@@ -300,7 +297,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             },
                             "Desativar Música"
                         }
-                        button { 
+                        button {
                             class: "flex-1 py-1.5 bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white rounded font-bold shadow-md cursor-pointer transition-all text-center",
                             onclick: move |_| {
                                 if !music_search_query().is_empty() {

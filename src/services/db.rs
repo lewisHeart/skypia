@@ -1,384 +1,683 @@
-use crate::models::{Contact, Message, UserStatus, BannerInfo, FileTransferState, AppTheme};
-use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use crate::models::{AppTheme, BannerInfo, Contact, FileTransferState, Message, UserStatus};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::{Row, SqlitePool};
+use std::str::FromStr;
 use std::sync::OnceLock;
 
-static DB: OnceLock<Mutex<MockDatabase>> = OnceLock::new();
+static POOL: OnceLock<SqlitePool> = OnceLock::new();
 
-fn get_db() -> &'static Mutex<MockDatabase> {
-    DB.get_or_init(|| Mutex::new(MockDatabase::new()))
-}
-
-fn trigger_save(db: &MockDatabase) {
-    if let Ok(data) = serde_json::to_string_pretty(db) {
-        tokio::spawn(async move {
-            let _ = tokio::fs::write("skypia_db.json", data).await;
-        });
-    }
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct MockDatabase {
-    contacts: Vec<Contact>,
-    messages: HashMap<usize, Vec<Message>>,
-    user_name: String,
-    user_status: UserStatus,
-    personal_message: String,
-    user_music: Option<String>,
-    avatar_id: usize,
-    detached_chats: HashSet<usize>,
-    interface_scale: f64,
-    use_custom_titlebar: bool,
-    theme: AppTheme,
-}
-
-impl MockDatabase {
-    fn new() -> Self {
-        // Tenta carregar os dados persistidos do arquivo JSON
-        if let Ok(content) = std::fs::read_to_string("skypia_db.json") {
-            if let Ok(db) = serde_json::from_str::<MockDatabase>(&content) {
-                return db;
-            }
-        }
-
-        // Se o arquivo não existir ou for inválido, cria o estado inicial padrão
-        let db = Self::default_mock();
-        // Salva o estado inicial no disco
-        if let Ok(data) = serde_json::to_string_pretty(&db) {
-            let _ = std::fs::write("skypia_db.json", data);
-        }
-        db
-    }
-
-    fn default_mock() -> Self {
-        let contacts = vec![
-            Contact {
-                id: 1,
-                email: "lucas_heavy@hotmail.com".to_string(),
-                display_name: "Lucas [Emo Core]".to_string(),
-                status: UserStatus::Online,
-                personal_message: "Sei que o amanhã trará esperança... 🎧 NX Zero".to_string(),
-                music_listening: Some("NX Zero - Cedo Ou Tarde".to_string()),
-                avatar_id: 1,
-                is_favorite: true,
-            },
-            Contact {
-                id: 2,
-                email: "gabi_sz@live.com".to_string(),
-                display_name: "Gabii *_* (ausente)".to_string(),
-                status: UserStatus::Ausente,
-                personal_message: "Estudando para a prova de física... nao perturbe".to_string(),
-                music_listening: None,
-                avatar_id: 2,
-                is_favorite: true,
-            },
-            Contact {
-                id: 3,
-                email: "felipe.games@skypia.io".to_string(),
-                display_name: "Felipe [Jogando CS 1.6]".to_string(),
-                status: UserStatus::Ocupado,
-                personal_message: "Dando HS no de_dust2! Sem convite p/ call".to_string(),
-                music_listening: None,
-                avatar_id: 3,
-                is_favorite: false,
-            },
-            Contact {
-                id: 4,
-                email: "mari_ballet@gmail.com".to_string(),
-                display_name: "Mariana ✨".to_string(),
-                status: UserStatus::Offline,
-                personal_message: "Offline é mais legal... tchau!".to_string(),
-                music_listening: None,
-                avatar_id: 4,
-                is_favorite: false,
-            },
-            Contact {
-                id: 5,
-                email: "thiago_rock@hotmail.com".to_string(),
-                display_name: "Thiago [Linkin Park fan]".to_string(),
-                status: UserStatus::Online,
-                personal_message: "In the end, it doesn't even matter...".to_string(),
-                music_listening: Some("Linkin Park - In The End".to_string()),
-                avatar_id: 5,
-                is_favorite: false,
-            },
-            Contact {
-                id: 6,
-                email: "aninha_loves@skypia.io".to_string(),
-                display_name: "Ana Carolina ♥".to_string(),
-                status: UserStatus::Offline,
-                personal_message: "Sorria, mesmo sem motivos!".to_string(),
-                music_listening: None,
-                avatar_id: 6,
-                is_favorite: false,
-            },
-        ];
-
-        let mut messages = HashMap::new();
-        messages.insert(1, vec![
-            Message {
-                id: 1,
-                sender_id: 1,
-                sender_name: "Lucas [Emo Core]".to_string(),
-                text: "Eae cara! blz?".to_string(),
-                timestamp: "02:10:15".to_string(),
-                is_nudge: false,
-                font_color: "#e6007e".to_string(),
-                font_family: "Comic Sans MS".to_string(),
-                is_wink: None,
-                file_transfer: None,
-                is_game_invite: false,
-            },
-            Message {
-                id: 2,
-                sender_id: 0,
-                sender_name: "Você".to_string(),
-                text: "Fala Lucas! Tudo ótimo por aqui. E contigo?".to_string(),
-                timestamp: "02:11:00".to_string(),
-                is_nudge: false,
-                font_color: "#0066cc".to_string(),
-                font_family: "Segoe UI".to_string(),
-                is_wink: None,
-                file_transfer: None,
-                is_game_invite: false,
-            },
-            Message {
-                id: 3,
-                sender_id: 1,
-                sender_name: "Lucas [Emo Core]".to_string(),
-                text: "Tranquilo, escutando o novo cd do NX Zero, mto bom (Y)".to_string(),
-                timestamp: "02:11:32".to_string(),
-                is_nudge: false,
-                font_color: "#e6007e".to_string(),
-                font_family: "Comic Sans MS".to_string(),
-                is_wink: None,
-                file_transfer: None,
-                is_game_invite: false,
-            },
-        ]);
-
-        messages.insert(2, vec![
-            Message {
-                id: 4,
-                sender_id: 2,
-                sender_name: "Gabii *_* (ausente)".to_string(),
-                text: "Oi, quando voltar a gente se fala!".to_string(),
-                timestamp: "23:45:10".to_string(),
-                is_nudge: false,
-                font_color: "#bb00cc".to_string(),
-                font_family: "Arial".to_string(),
-                is_wink: None,
-                file_transfer: None,
-                is_game_invite: false,
-            },
-        ]);
-
-        Self {
-            contacts,
-            messages,
-            user_name: "Wellington Skypia".to_string(),
-            user_status: UserStatus::Online,
-            personal_message: "Codando meu próprio clone do Skypia em Dioxus! (H)".to_string(),
-            user_music: Some("Coldplay - Viva La Vida".to_string()),
-            avatar_id: 0,
-            detached_chats: HashSet::new(),
-            interface_scale: 1.0,
-            use_custom_titlebar: true,
-            theme: AppTheme::AeroBlue,
-        }
-    }
+fn get_pool() -> &'static SqlitePool {
+    POOL.get().expect("Database pool not initialized. Call DatabaseService::init_pool() first.")
 }
 
 pub struct DatabaseService;
 
 impl DatabaseService {
-    // Carrega nome do usuário
+    /// Inicializa o pool de conexões SQLite e roda migrations + seed.
+    /// Deve ser chamado UMA VEZ na inicialização do app.
+    pub async fn init_pool() -> Result<(), String> {
+        let db_path = "skypia.db";
+
+        let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", db_path))
+            .map_err(|e| e.to_string())?
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect_with(options)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // Roda migrations (cria tabelas)
+        Self::run_migrations(&pool).await?;
+
+        // Seed de dados iniciais se tabelas estão vazias
+        Self::seed_initial_data(&pool).await?;
+
+        POOL.set(pool).map_err(|_| "Pool already initialized".to_string())?;
+        Ok(())
+    }
+
+    async fn run_migrations(pool: &SqlitePool) -> Result<(), String> {
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_profile (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                name TEXT NOT NULL DEFAULT 'Wellington Skypia',
+                email TEXT NOT NULL DEFAULT 'wk.scbd@skypia.io',
+                status TEXT NOT NULL DEFAULT 'Online',
+                personal_message TEXT NOT NULL DEFAULT '',
+                music TEXT,
+                avatar_id INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS settings (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                interface_scale REAL NOT NULL DEFAULT 1.0,
+                use_custom_titlebar INTEGER NOT NULL DEFAULT 1,
+                theme TEXT NOT NULL DEFAULT 'AeroBlue'
+            );
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        // SQLite não suporta múltiplos statements em um único query facilmente via sqlx,
+        // então rodamos cada tabela separadamente
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS contacts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Offline',
+                personal_message TEXT NOT NULL DEFAULT '',
+                music_listening TEXT,
+                avatar_id INTEGER NOT NULL DEFAULT 0,
+                is_favorite INTEGER NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                contact_id INTEGER NOT NULL,
+                sender_id INTEGER NOT NULL,
+                sender_name TEXT NOT NULL,
+                text TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                is_nudge INTEGER NOT NULL DEFAULT 0,
+                font_color TEXT NOT NULL DEFAULT '#1e395b',
+                font_family TEXT NOT NULL DEFAULT 'Segoe UI',
+                is_wink TEXT,
+                file_transfer TEXT,
+                is_game_invite INTEGER NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS detached_chats (contact_id INTEGER PRIMARY KEY)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS banners (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL,
+                action_label TEXT NOT NULL,
+                link TEXT NOT NULL,
+                icon TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS recommended_songs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok(())
+    }
+
+    async fn seed_initial_data(pool: &SqlitePool) -> Result<(), String> {
+        // Seed user_profile se não existe
+        let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profile")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if user_count == 0 {
+            sqlx::query(
+                "INSERT INTO user_profile (id, name, email, status, personal_message, music, avatar_id) VALUES (1, ?, ?, 'Online', 'Tô cagando', 'Linkin Park - In The End', 0)",
+            )
+            .bind("Wellington Skypia")
+            .bind("wk.scbd@skypia.io")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+
+        // Seed settings se não existe
+        let settings_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM settings")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if settings_count == 0 {
+            sqlx::query("INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme) VALUES (1, 1.0, 1, 'AeroBlue')")
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Seed contatos se tabela vazia
+        let contact_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM contacts")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if contact_count == 0 {
+            let seed_contacts = vec![
+                ("lucas_heavy@hotmail.com", "Lucas [Emo Core]", "Online", "Sei que o amanhã trará esperança... 🎧 NX Zero", Some("NX Zero - Cedo Ou Tarde"), 1, true),
+                ("gabi_sz@live.com", "Gabii *_* (ausente)", "Ausente", "Estudando para a prova de física... nao perturbe", None, 2, true),
+                ("felipe.games@skypia.io", "Felipe [Jogando CS 1.6]", "Ocupado", "Dando HS no de_dust2! Sem convite p/ call", None, 3, false),
+                ("mari_ballet@gmail.com", "Mariana ✨", "Offline", "Offline é mais legal... tchau!", None, 4, false),
+                ("thiago_rock@hotmail.com", "Thiago [Linkin Park fan]", "Online", "In the end, it doesn't even matter...", Some("Linkin Park - In The End"), 5, false),
+                ("aninha_loves@skypia.io", "Ana Carolina ♥", "Offline", "Sorria, mesmo sem motivos!", None, 6, false),
+            ];
+
+            for (email, name, status, pm, music, avatar, fav) in seed_contacts {
+                sqlx::query(
+                    "INSERT INTO contacts (email, display_name, status, personal_message, music_listening, avatar_id, is_favorite) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(email)
+                .bind(name)
+                .bind(status)
+                .bind(pm)
+                .bind(music)
+                .bind(avatar as i64)
+                .bind(fav as i32)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            }
+        }
+
+        // Seed mensagens se tabela vazia
+        let msg_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM messages")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if msg_count == 0 {
+            let seed_msgs: Vec<(i64, i64, &str, &str, &str, &str, &str)> = vec![
+                (1, 1, "Lucas [Emo Core]", "Eae cara! blz?", "02:10:15", "#e6007e", "Comic Sans MS"),
+                (1, 0, "Você", "Fala Lucas! Tudo ótimo por aqui. E contigo?", "02:11:00", "#0066cc", "Segoe UI"),
+                (1, 1, "Lucas [Emo Core]", "Tranquilo, escutando o novo cd do NX Zero, mto bom (Y)", "02:11:32", "#e6007e", "Comic Sans MS"),
+                (2, 2, "Gabii *_* (ausente)", "Oi, quando voltar a gente se fala!", "23:45:10", "#bb00cc", "Arial"),
+            ];
+
+            for (contact_id, sender_id, sender_name, text, ts, color, font) in seed_msgs {
+                sqlx::query(
+                    "INSERT INTO messages (contact_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_game_invite) VALUES (?, ?, ?, ?, ?, 0, ?, ?, 0)",
+                )
+                .bind(contact_id)
+                .bind(sender_id)
+                .bind(sender_name)
+                .bind(text)
+                .bind(ts)
+                .bind(color)
+                .bind(font)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            }
+        }
+
+        // Seed banners se tabela vazia
+        let banner_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM banners")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if banner_count == 0 {
+            let banners = vec![
+                ("Navegue na web com muito mais velocidade e segurança!", "Instalar Skypia Browser", "https://skypia.io/browser", "🌐"),
+                ("Ouça as melhores músicas retrô com alta fidelidade!", "Skypia Music Premium", "https://skypia.io/music", "🎵"),
+                ("Seus e-mails e arquivos protegidos em um só lugar.", "Acessar Skypia Mail", "https://skypia.io/mail", "📧"),
+                ("Espaço gratuito ilimitado para suas fotos e dados na nuvem.", "Conhecer Skypia Drive", "https://skypia.io/drive", "💾"),
+            ];
+
+            for (text, action, link, icon) in banners {
+                sqlx::query("INSERT INTO banners (text, action_label, link, icon) VALUES (?, ?, ?, ?)")
+                    .bind(text)
+                    .bind(action)
+                    .bind(link)
+                    .bind(icon)
+                    .execute(pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        // Seed recommended songs se tabela vazia
+        let song_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM recommended_songs")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if song_count == 0 {
+            let songs = vec![
+                "NX Zero - Cedo Ou Tarde",
+                "Coldplay - Viva La Vida",
+                "Linkin Park - In The End",
+                "Green Day - Boulevard of Broken Dreams",
+                "Blink-182 - I Miss You",
+                "Evanescence - Bring Me To Life",
+                "Simple Plan - Welcome to My Life",
+                "Fresno - Alguém Que Te Faz Sorrir",
+                "Paramore - Decode",
+                "Pitty - Admirável Chip Novo",
+            ];
+
+            for title in songs {
+                sqlx::query("INSERT INTO recommended_songs (title) VALUES (?)")
+                    .bind(title)
+                    .execute(pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        Ok(())
+    }
+
+    // ─── User Profile ───
+
     pub async fn load_user_name() -> Result<String, String> {
-        let db = get_db().lock().map_err(|e| e.to_string())?;
-        Ok(db.user_name.clone())
+        let pool = get_pool();
+        let name: String = sqlx::query_scalar("SELECT name FROM user_profile WHERE id = 1")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(name)
     }
 
-    // Carrega música no perfil do usuário
-    pub async fn load_user_music() -> Result<Option<String>, String> {
-        let db = get_db().lock().map_err(|e| e.to_string())?;
-        Ok(db.user_music.clone())
-    }
-
-    // Carrega contatos
-    pub async fn load_contacts() -> Result<Vec<Contact>, String> {
-        let db = get_db().lock().map_err(|e| e.to_string())?;
-        Ok(db.contacts.clone())
-    }
-
-    // Carrega histórico de mensagens de um contato
-    pub async fn load_messages(contact_id: usize) -> Result<Vec<Message>, String> {
-        let db = get_db().lock().map_err(|e| e.to_string())?;
-        Ok(db.messages.get(&contact_id).cloned().unwrap_or_default())
-    }
-
-    // Salva uma mensagem no histórico
-    pub async fn save_message(contact_id: usize, message: Message) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.messages.entry(contact_id).or_default().push(message);
-        trigger_save(&db);
-        Ok(())
-    }
-
-    // Atualiza nome do usuário
     pub async fn save_user_name(name: String) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.user_name = name;
-        trigger_save(&db);
+        let pool = get_pool();
+        sqlx::query("UPDATE user_profile SET name = ? WHERE id = 1")
+            .bind(&name)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    // Atualiza música no perfil do usuário
+    pub async fn load_user_music() -> Result<Option<String>, String> {
+        let pool = get_pool();
+        let music: Option<String> =
+            sqlx::query_scalar("SELECT music FROM user_profile WHERE id = 1")
+                .fetch_one(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+        Ok(music)
+    }
+
     pub async fn save_user_music(music: Option<String>) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.user_music = music;
-        trigger_save(&db);
+        let pool = get_pool();
+        sqlx::query("UPDATE user_profile SET music = ? WHERE id = 1")
+            .bind(&music)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    // Atualiza mensagem pessoal do usuário logado
-    pub async fn save_personal_message(msg: String) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.personal_message = msg;
-        trigger_save(&db);
-        Ok(())
-    }
-
-    // Atualiza status do usuário
     pub async fn save_user_status(status: UserStatus) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.user_status = status;
-        trigger_save(&db);
+        let pool = get_pool();
+        sqlx::query("UPDATE user_profile SET status = ? WHERE id = 1")
+            .bind(status_to_str(&status))
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    // Atualiza avatar do usuário
     pub async fn save_user_avatar(avatar_id: usize) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.avatar_id = avatar_id;
-        trigger_save(&db);
+        let pool = get_pool();
+        sqlx::query("UPDATE user_profile SET avatar_id = ? WHERE id = 1")
+            .bind(avatar_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    // Adiciona contato
-    pub async fn add_contact(email: String, display_name: String, status: UserStatus, personal_message: String) -> Result<Contact, String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        let next_id = db.contacts.len() + 1;
-        let c = Contact {
-            id: next_id,
+    pub async fn save_personal_message(msg: String) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE user_profile SET personal_message = ? WHERE id = 1")
+            .bind(&msg)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    // ─── Contacts ───
+
+    pub async fn load_contacts() -> Result<Vec<Contact>, String> {
+        let pool = get_pool();
+        let rows = sqlx::query(
+            "SELECT id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite FROM contacts ORDER BY id",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let contacts = rows
+            .iter()
+            .map(|row| {
+                let id: i64 = row.get("id");
+                let status_str: String = row.get("status");
+                let is_fav: i32 = row.get("is_favorite");
+                let avatar: i64 = row.get("avatar_id");
+
+                Contact {
+                    id: id as usize,
+                    email: row.get("email"),
+                    display_name: row.get("display_name"),
+                    status: str_to_status(&status_str),
+                    personal_message: row.get("personal_message"),
+                    music_listening: row.get("music_listening"),
+                    avatar_id: avatar as usize,
+                    is_favorite: is_fav != 0,
+                }
+            })
+            .collect();
+
+        Ok(contacts)
+    }
+
+    pub async fn add_contact(
+        email: String,
+        display_name: String,
+        status: UserStatus,
+        personal_message: String,
+    ) -> Result<Contact, String> {
+        let pool = get_pool();
+
+        let result = sqlx::query(
+            "INSERT INTO contacts (email, display_name, status, personal_message, music_listening, avatar_id, is_favorite) VALUES (?, ?, ?, ?, NULL, ?, 0)",
+        )
+        .bind(&email)
+        .bind(&display_name)
+        .bind(status_to_str(&status))
+        .bind(&personal_message)
+        .bind(0_i64)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let new_id = result.last_insert_rowid() as usize;
+        let avatar_id = new_id % 7;
+
+        // Atualiza avatar baseado no ID
+        sqlx::query("UPDATE contacts SET avatar_id = ? WHERE id = ?")
+            .bind(avatar_id as i64)
+            .bind(new_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(Contact {
+            id: new_id,
             email,
             display_name,
             status,
             personal_message,
             music_listening: None,
-            avatar_id: (next_id % 7),
+            avatar_id,
             is_favorite: false,
-        };
-        db.contacts.push(c.clone());
-        trigger_save(&db);
-        Ok(c)
+        })
     }
 
-    // Atualiza favorito de um contato
-    pub async fn save_contact_favorite(contact_id: usize, is_favorite: bool) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        if let Some(c) = db.contacts.iter_mut().find(|c| c.id == contact_id) {
-            c.is_favorite = is_favorite;
-        }
-        trigger_save(&db);
+    pub async fn save_contact_favorite(
+        contact_id: usize,
+        is_favorite: bool,
+    ) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE contacts SET is_favorite = ? WHERE id = ?")
+            .bind(is_favorite as i32)
+            .bind(contact_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    // Gerenciamento de Janelas de Chat nativas desvinculadas
+    // ─── Messages ───
+
+    pub async fn load_messages(contact_id: usize) -> Result<Vec<Message>, String> {
+        let pool = get_pool();
+        let rows = sqlx::query(
+            "SELECT id, contact_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_wink, file_transfer, is_game_invite FROM messages WHERE contact_id = ? ORDER BY id",
+        )
+        .bind(contact_id as i64)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let messages = rows
+            .iter()
+            .map(|row| {
+                let id: i64 = row.get("id");
+                let sender_id: i64 = row.get("sender_id");
+                let is_nudge: i32 = row.get("is_nudge");
+                let is_game_invite: i32 = row.get("is_game_invite");
+                let is_wink: Option<String> = row.get("is_wink");
+                let file_transfer_str: Option<String> = row.get("file_transfer");
+
+                let file_transfer = file_transfer_str.and_then(|s| {
+                    serde_json::from_str::<FileTransferState>(&s).ok()
+                });
+
+                Message {
+                    id: id as usize,
+                    sender_id: sender_id as usize,
+                    sender_name: row.get("sender_name"),
+                    text: row.get("text"),
+                    timestamp: row.get("timestamp"),
+                    is_nudge: is_nudge != 0,
+                    font_color: row.get("font_color"),
+                    font_family: row.get("font_family"),
+                    is_wink,
+                    file_transfer,
+                    is_game_invite: is_game_invite != 0,
+                }
+            })
+            .collect();
+
+        Ok(messages)
+    }
+
+    pub async fn save_message(contact_id: usize, message: Message) -> Result<(), String> {
+        let pool = get_pool();
+
+        let file_transfer_str = message
+            .file_transfer
+            .as_ref()
+            .and_then(|ft| serde_json::to_string(ft).ok());
+
+        sqlx::query(
+            "INSERT INTO messages (contact_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_wink, file_transfer, is_game_invite) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(contact_id as i64)
+        .bind(message.sender_id as i64)
+        .bind(&message.sender_name)
+        .bind(&message.text)
+        .bind(&message.timestamp)
+        .bind(message.is_nudge as i32)
+        .bind(&message.font_color)
+        .bind(&message.font_family)
+        .bind(&message.is_wink)
+        .bind(&file_transfer_str)
+        .bind(message.is_game_invite as i32)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok(())
+    }
+
+    // ─── Settings ───
+
+    pub async fn load_settings() -> Result<(f64, bool, AppTheme), String> {
+        let pool = get_pool();
+        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme FROM settings WHERE id = 1")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let scale: f64 = row.get("interface_scale");
+        let custom_bar: i32 = row.get("use_custom_titlebar");
+        let theme_str: String = row.get("theme");
+
+        Ok((scale, custom_bar != 0, str_to_theme(&theme_str)))
+    }
+
+    pub async fn save_settings(
+        scale: f64,
+        custom_bar: bool,
+        theme: AppTheme,
+    ) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ? WHERE id = 1")
+            .bind(scale)
+            .bind(custom_bar as i32)
+            .bind(theme_to_str(&theme))
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    // ─── Detached Chats ───
+
     pub async fn detach_chat(contact_id: usize) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.detached_chats.insert(contact_id);
-        trigger_save(&db);
+        let pool = get_pool();
+        sqlx::query("INSERT OR IGNORE INTO detached_chats (contact_id) VALUES (?)")
+            .bind(contact_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
     pub async fn attach_chat(contact_id: usize) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.detached_chats.remove(&contact_id);
-        trigger_save(&db);
+        let pool = get_pool();
+        sqlx::query("DELETE FROM detached_chats WHERE contact_id = ?")
+            .bind(contact_id as i64)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
     pub async fn get_detached_chats() -> Result<Vec<usize>, String> {
-        let db = get_db().lock().map_err(|e| e.to_string())?;
-        Ok(db.detached_chats.iter().copied().collect())
+        let pool = get_pool();
+        let rows = sqlx::query("SELECT contact_id FROM detached_chats")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(rows.iter().map(|r| {
+            let id: i64 = r.get("contact_id");
+            id as usize
+        }).collect())
     }
 
-    // Carrega configurações gerais (escala, barra personalizada, tema)
-    pub async fn load_settings() -> Result<(f64, bool, AppTheme), String> {
-        let db = get_db().lock().map_err(|e| e.to_string())?;
-        Ok((db.interface_scale, db.use_custom_titlebar, db.theme))
-    }
-
-    // Salva configurações gerais
-    pub async fn save_settings(scale: f64, custom_bar: bool, theme: AppTheme) -> Result<(), String> {
-        let mut db = get_db().lock().map_err(|e| e.to_string())?;
-        db.interface_scale = scale;
-        db.use_custom_titlebar = custom_bar;
-        db.theme = theme;
-        trigger_save(&db);
-        Ok(())
-    }
+    // ─── Banners ───
 
     pub async fn get_banner_info() -> Result<BannerInfo, String> {
-        let banners = vec![
-            BannerInfo {
-                text: "Navegue na web com muito mais velocidade e segurança!".to_string(),
-                action_label: "Instalar Skypia Browser".to_string(),
-                link: "https://skypia.io/browser".to_string(),
-                icon: "🌐".to_string(),
-            },
-            BannerInfo {
-                text: "Ouça as melhores músicas retrô com alta fidelidade!".to_string(),
-                action_label: "Skypia Music Premium".to_string(),
-                link: "https://skypia.io/music".to_string(),
-                icon: "🎵".to_string(),
-            },
-            BannerInfo {
-                text: "Seus e-mails e arquivos protegidos em um só lugar.".to_string(),
-                action_label: "Acessar Skypia Mail".to_string(),
-                link: "https://skypia.io/mail".to_string(),
-                icon: "📧".to_string(),
-            },
-            BannerInfo {
-                text: "Espaço gratuito ilimitado para suas fotos e dados na nuvem.".to_string(),
-                action_label: "Conhecer Skypia Drive".to_string(),
-                link: "https://skypia.io/drive".to_string(),
-                icon: "💾".to_string(),
-            },
-        ];
-        
-        // Rotaciona a cada 15 segundos baseado no tempo atual
-        use std::time::SystemTime;
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
+        let pool = get_pool();
+        let rows = sqlx::query("SELECT text, action_label, link, icon FROM banners ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if rows.is_empty() {
+            return Err("Nenhum banner cadastrado".to_string());
+        }
+
+        // Rotaciona baseado no tempo atual
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let idx = (now / 15) as usize % banners.len();
-        Ok(banners[idx].clone())
+        let idx = (now / 15) as usize % rows.len();
+        let row = &rows[idx];
+
+        Ok(BannerInfo {
+            text: row.get("text"),
+            action_label: row.get("action_label"),
+            link: row.get("link"),
+            icon: row.get("icon"),
+        })
     }
 
+    // ─── Recommended Songs ───
+
     pub async fn get_recommended_songs() -> Result<Vec<String>, String> {
-        Ok(vec![
-            "NX Zero - Cedo Ou Tarde".to_string(),
-            "Coldplay - Viva La Vida".to_string(),
-            "Linkin Park - In The End".to_string(),
-            "Green Day - Boulevard of Broken Dreams".to_string(),
-            "Blink-182 - I Miss You".to_string(),
-            "Evanescence - Bring Me To Life".to_string(),
-            "Simple Plan - Welcome to My Life".to_string(),
-            "Fresno - Alguém Que Te Faz Sorrir".to_string(),
-            "Paramore - Decode".to_string(),
-            "Pitty - Admirável Chip Novo".to_string(),
-        ])
+        let pool = get_pool();
+        let rows = sqlx::query("SELECT title FROM recommended_songs ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(rows.iter().map(|r| r.get("title")).collect())
+    }
+}
+
+// ─── Helpers de conversão ───
+
+fn status_to_str(status: &UserStatus) -> &'static str {
+    match status {
+        UserStatus::Online => "Online",
+        UserStatus::Ocupado => "Ocupado",
+        UserStatus::Ausente => "Ausente",
+        UserStatus::Invisivel => "Invisivel",
+        UserStatus::Offline => "Offline",
+    }
+}
+
+fn str_to_status(s: &str) -> UserStatus {
+    match s {
+        "Online" => UserStatus::Online,
+        "Ocupado" => UserStatus::Ocupado,
+        "Ausente" => UserStatus::Ausente,
+        "Invisivel" => UserStatus::Invisivel,
+        _ => UserStatus::Offline,
+    }
+}
+
+fn theme_to_str(theme: &AppTheme) -> &'static str {
+    match theme {
+        AppTheme::AeroBlue => "AeroBlue",
+        AppTheme::RubyPink => "RubyPink",
+        AppTheme::ForestGreen => "ForestGreen",
+        AppTheme::SilverMetallic => "SilverMetallic",
+    }
+}
+
+fn str_to_theme(s: &str) -> AppTheme {
+    match s {
+        "RubyPink" => AppTheme::RubyPink,
+        "ForestGreen" => AppTheme::ForestGreen,
+        "SilverMetallic" => AppTheme::SilverMetallic,
+        _ => AppTheme::AeroBlue,
     }
 }

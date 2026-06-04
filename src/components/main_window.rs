@@ -1,9 +1,9 @@
-use dioxus::prelude::*;
-use crate::models::{UserStatus, AppTheme};
-use crate::state::AppState;
-use crate::sound::play_sound;
-use crate::components::profile_header::ProfileHeader;
 use crate::components::contact_list::ContactList;
+use crate::components::profile_header::ProfileHeader;
+use crate::models::{AppTheme, UserStatus};
+use crate::sound::play_sound;
+use crate::state::AppState;
+use dioxus::prelude::*;
 
 #[component]
 pub fn MainWindow(mut state: AppState) -> Element {
@@ -13,159 +13,32 @@ pub fn MainWindow(mut state: AppState) -> Element {
     let mut add_contact_pm = use_signal(|| String::new());
     let mut add_contact_status = use_signal(|| UserStatus::Online);
 
-    // Simulação em segundo plano de atividade de contatos (totalmente dinâmica puxando do banco JSON)
-    use_effect(move || {
-        let mut app_state = state;
-        spawn(async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(18)).await;
-                
-                if !app_state.logged_in() {
-                    continue;
-                }
 
-                let now_ms = chrono::Utc::now().timestamp_millis();
-                let action = (now_ms % 3) as usize;
-                
-                match action {
-                    0 => {
-                        let contacts_list = app_state.contacts();
-                        let active_contacts: Vec<_> = contacts_list.iter().filter(|c| c.status != UserStatus::Offline).collect();
-                        if !active_contacts.is_empty() {
-                            let idx = (now_ms as usize) % active_contacts.len();
-                            let target_contact = active_contacts[idx];
-                            let contact_id = target_contact.id;
-                            
-                            let mut contacts = app_state.contacts.write();
-                            if let Some(c) = contacts.iter_mut().find(|c| c.id == contact_id) {
-                                if c.status == UserStatus::Ocupado {
-                                    c.status = UserStatus::Online;
-                                    c.personal_message = "Voltei! CS 1.6 fechado (Y)".to_string();
-                                } else {
-                                    c.status = UserStatus::Ocupado;
-                                    c.personal_message = "Dando HS no de_dust2!".to_string();
-                                }
-                            }
-                        }
-                    }
-                    1 => {
-                        let contacts_list = app_state.contacts();
-                        let active_contacts: Vec<_> = contacts_list.iter().filter(|c| c.status != UserStatus::Offline).collect();
-                        if !active_contacts.is_empty() {
-                            let idx = (now_ms as usize) % active_contacts.len();
-                            let contact = active_contacts[idx];
-                            
-                            if app_state.selected_chat_id() != Some(contact.id) {
-                                let random_messages = [
-                                    "eae cara! viu a nova música do green day? (H)",
-                                    "me passa a resposta da tarefa de física? pfv",
-                                    "olha meu sub-status novo! haha (Y)",
-                                    "vc vai pro rolê no final de semana?",
-                                    "já viu os winks novos do Skypia? muito louco!",
-                                    "entra no Flogão, acabei de postar fotos novas lá!",
-                                    "mandei um depoimento pra vc no Orkut, depois lê lá rs",
-                                ];
-                                let msg_idx = (now_ms as usize / 3) % random_messages.len();
-                                let msg_text = random_messages[msg_idx];
-                                
-                                app_state.add_toast(
-                                    contact.display_name.clone(),
-                                    format!("diz: {}", msg_text),
-                                    contact.avatar_id,
-                                );
-                                play_sound("message");
-                                
-                                let contact_id = contact.id;
-                                let msg_string = msg_text.to_string();
-                                let sender_name = contact.display_name.clone();
-                                spawn(async move {
-                                    let now_str = chrono::Local::now().format("%H:%M:%S").to_string();
-                                    let msg_id = chrono::Utc::now().timestamp_millis() as usize;
-                                    let message = crate::models::Message {
-                                        id: msg_id,
-                                        sender_id: contact_id,
-                                        sender_name,
-                                        text: msg_string,
-                                        timestamp: now_str,
-                                        is_nudge: false,
-                                        font_color: "#1e395b".to_string(),
-                                        font_family: "Segoe UI".to_string(),
-                                        is_wink: None,
-                                        file_transfer: None,
-                                        is_game_invite: false,
-                                    };
-                                    let _ = crate::services::db::DatabaseService::save_message(
-                                        contact_id,
-                                        message,
-                                    ).await;
-                                });
-                            }
-                        }
-                    }
-                    2 => {
-                        let contacts_list = app_state.contacts();
-                        let offline_contacts: Vec<_> = contacts_list.iter().filter(|c| c.status == UserStatus::Offline).collect();
-                        if !offline_contacts.is_empty() {
-                            let idx = (now_ms as usize) % offline_contacts.len();
-                            let contact_to_online = offline_contacts[idx];
-                            let contact_id = contact_to_online.id;
-                            let display_name = contact_to_online.display_name.clone();
-                            let avatar_id = contact_to_online.avatar_id;
-                            
-                            {
-                                let mut contacts = app_state.contacts.write();
-                                if let Some(c) = contacts.iter_mut().find(|c| c.id == contact_id) {
-                                    c.status = UserStatus::Online;
-                                    let sub_statuses = [
-                                        "Mari na área! ✨",
-                                        "Disponível para fofocas rs",
-                                        "Ouvindo CPM 22...",
-                                        "Só olhando 👀",
-                                        "Voltei do almoço",
-                                    ];
-                                    let sub_idx = (now_ms as usize / 5) % sub_statuses.len();
-                                    c.personal_message = sub_statuses[sub_idx].to_string();
-                                }
-                            }
-                            
-                            app_state.add_toast(
-                                display_name,
-                                "acaba de entrar!".to_string(),
-                                avatar_id,
-                            );
-                            play_sound("online");
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
-    });
 
     rsx! {
         div {
             class: "w-full h-full flex flex-col select-none bg-bubbles bg-gradient-to-b from-[#e6f1fc]/90 to-[#c8def5]/80 overflow-hidden",
-            
+
             // Header do Perfil do usuário
             ProfileHeader { state }
 
             // Barra de Inbox e Skypia Hoje (Portal de novidades e e-mails)
-            div { 
+            div {
                 class: "h-6 bg-white/20 border-b border-[#a6b9cd]/25 px-4 flex items-center justify-between text-[10px] text-[#2f4b6c]/90 flex-shrink-0 select-none",
-                
+
                 // Caixa de Entrada (Email)
-                button { 
+                button {
                     class: "hover:text-[#0066cc] font-medium flex items-center space-x-1 cursor-pointer transition-colors focus:outline-none",
                     onclick: move |_| {
                         state.add_toast("Hotmail".to_string(), "Abrindo sua caixa de entrada...".to_string(), 0);
                         let _ = document::eval("window.open('https://outlook.live.com', '_blank')");
                     },
                     span { class: "text-xs", "✉" }
-                    span { "Caixa de Entrada (0)" }
+                    span { "testando" }
                 }
-                
+
                 // Portal Hoje
-                button { 
+                button {
                     class: "hover:text-[#0066cc] font-medium flex items-center space-x-1 cursor-pointer transition-colors focus:outline-none",
                     onclick: move |_| {
                         state.add_toast("Skypia Hoje".to_string(), "Abrindo portal de novidades...".to_string(), 0);
@@ -180,7 +53,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
 
             // Banner dinâmico de anúncios do banco de dados
             if let Some(banner) = state.banner_info() {
-                div { 
+                div {
                     class: "h-[50px] w-full bg-gradient-to-r from-sky-100 to-sky-200 border-t border-sky-300 px-3 flex items-center justify-between text-[11px] shadow-inner flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:brightness-105",
                     onclick: move |_| {
                         let _ = document::eval(&format!("window.open('{}', '_blank')", banner.link));
@@ -197,7 +70,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
 
             // Rodapé com o botão Adicionar contato fixo
             div { class: "h-9 bg-white/45 border-t border-white/20 px-3 flex items-center justify-between text-xs text-[#2f4b6c]/90 flex-shrink-0",
-                button { 
+                button {
                     class: "hover:text-[#0066cc] font-semibold flex items-center space-x-1 transition-colors cursor-pointer",
                     onclick: move |_| {
                         state.show_add_contact_modal.set(true);
@@ -205,7 +78,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                     span { "➕" }
                     span { "Adicionar contato" }
                 }
-                span { class: "text-slate-400 text-[10px]", "v14.0.8117" }
+                span { class: "text-slate-400 text-[10px]", "v0.0.1" }
             }
         }
 
@@ -213,22 +86,22 @@ pub fn MainWindow(mut state: AppState) -> Element {
         // MODAL DE CONFIGURAÇÕES
         // ==========================================
         if state.show_settings_modal() {
-            div { 
+            div {
                 class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4",
                 onclick: move |_| state.show_settings_modal.set(false),
-                div { 
+                div {
                     class: "w-80 bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b] pointer-events-auto",
                     onclick: move |e| e.stop_propagation(),
-                    
+
                     div { class: "flex items-center justify-between border-b border-white/40 pb-2",
                         span { class: "font-bold text-sm", "⚙️ Configurações do Skypia" }
-                        button { 
+                        button {
                             class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
                             onclick: move |_| state.show_settings_modal.set(false),
                             "✕"
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1.5",
                         label { class: "font-bold text-slate-700", "Estilo de Decorações da Janela" }
                         label { class: "flex items-center space-x-2 cursor-pointer",
@@ -245,7 +118,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                             span { "Usar barra de título Aero do app" }
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1.5",
                         label { class: "font-bold text-slate-700", "Escala da Interface" }
                         select {
@@ -264,7 +137,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                             option { value: "1.5", selected: state.interface_scale() == 1.5, "150% (Grande)" }
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1.5",
                         label { class: "font-bold text-slate-700", "Aparência (Skins)" }
                         select {
@@ -285,9 +158,9 @@ pub fn MainWindow(mut state: AppState) -> Element {
                             option { value: "silver", selected: state.theme() == AppTheme::SilverMetallic, "Prata Metálico" }
                         }
                     }
-                    
+
                     div { class: "flex justify-end pt-2 border-t border-white/40",
-                        button { 
+                        button {
                             class: "px-4 py-1.5 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white border border-[#4074a8] rounded font-bold shadow hover:from-[#9bd0fa] hover:to-[#579adf] cursor-pointer transition-colors",
                             onclick: move |_| state.show_settings_modal.set(false),
                             "Ok"
@@ -301,22 +174,22 @@ pub fn MainWindow(mut state: AppState) -> Element {
         // MODAL DE ADICIONAR CONTATO
         // ==========================================
         if state.show_add_contact_modal() {
-            div { 
+            div {
                 class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4",
                 onclick: move |_| state.show_add_contact_modal.set(false),
-                div { 
+                div {
                     class: "w-80 bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs text-[#1e395b] pointer-events-auto",
                     onclick: move |e| e.stop_propagation(),
-                    
+
                     div { class: "flex items-center justify-between border-b border-white/40 pb-2",
                         span { class: "font-bold text-sm", "➕ Adicionar Novo Contato" }
-                        button { 
+                        button {
                             class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
                             onclick: move |_| state.show_add_contact_modal.set(false),
                             "✕"
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1",
                         label { class: "font-semibold text-slate-700", "Endereço de email:" }
                         input {
@@ -327,7 +200,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                             oninput: move |e| add_contact_email.set(e.value()),
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1",
                         label { class: "font-semibold text-slate-700", "Nome de Exibição (Apelido):" }
                         input {
@@ -337,7 +210,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                             oninput: move |e| add_contact_name.set(e.value()),
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1",
                         label { class: "font-semibold text-slate-700", "Frase Pessoal Inicial:" }
                         input {
@@ -347,7 +220,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                             oninput: move |e| add_contact_pm.set(e.value()),
                         }
                     }
-                    
+
                     div { class: "flex flex-col space-y-1",
                         label { class: "font-semibold text-slate-700", "Status Inicial:" }
                         select {
@@ -367,14 +240,14 @@ pub fn MainWindow(mut state: AppState) -> Element {
                             option { value: "offline", "Offline" }
                         }
                     }
-                    
+
                     div { class: "flex justify-end space-x-2 pt-2 border-t border-white/40",
-                        button { 
+                        button {
                             class: "px-3 py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold cursor-pointer transition-colors",
                             onclick: move |_| state.show_add_contact_modal.set(false),
                             "Cancelar"
                         }
-                        button { 
+                        button {
                             class: "px-4 py-1 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white border border-[#4074a8] rounded font-bold shadow hover:from-[#9bd0fa] hover:to-[#579adf] cursor-pointer transition-colors",
                             onclick: move |_| {
                                 if !add_contact_email().is_empty() && !add_contact_name().is_empty() {

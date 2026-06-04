@@ -251,14 +251,13 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
             state.load_initial_data();
         });
 
-        // Sincronização periódica das mensagens com o banco de dados compartilhado
+        // Verificação periódica para fechar janela se o chat for acoplado de volta
         use_effect(move || {
-            let mut state = app_state;
             let c_id = props.contact_id;
             let desktop_clone = desktop.clone();
             spawn(async move {
                 loop {
-                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
                     
                     // Se o chat for acoplado, fecha esta janela
                     if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
@@ -267,26 +266,10 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                             break;
                         }
                     }
-                    
-                    // Recarrega contatos se mudou
-                    if let Ok(contacts) = crate::services::db::DatabaseService::load_contacts().await {
-                        let current = state.contacts.read().clone();
-                        if current != contacts {
-                            *state.contacts.write() = contacts;
-                        }
-                    }
-                    
-                    // Recarrega mensagens se mudou
-                    if let Ok(msgs) = crate::services::db::DatabaseService::load_messages(c_id).await {
-                        let current = state.chat_messages.read().get(&c_id).cloned().unwrap_or_default();
-                        if current != msgs {
-                            let mut chat_msgs = state.chat_messages.write();
-                            chat_msgs.insert(c_id, msgs);
-                        }
-                    }
                 }
             });
         });
+
 
         let theme = app_state.theme();
         let contact = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);

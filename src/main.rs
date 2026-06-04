@@ -5,7 +5,7 @@ use crate::components::main_window::MainWindow;
 use crate::components::chat_window::ChatWindow;
 use crate::components::ToastList;
 use crate::models::{UserStatus, AppTheme};
-use crate::sound::play_sound;
+
 
 mod models;
 mod state;
@@ -18,6 +18,17 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
+    // Inicializa o pool SQLite (cria tabelas + seed) antes do Dioxus
+    {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+        rt.block_on(async {
+            if let Err(e) = crate::services::db::DatabaseService::init_pool().await {
+                eprintln!("Erro ao inicializar banco de dados: {}", e);
+                std::process::exit(1);
+            }
+        });
+    }
+
     #[cfg(feature = "desktop")]
     {
         dioxus::LaunchBuilder::desktop()
@@ -29,6 +40,7 @@ fn main() {
         dioxus::launch(App);
     }
 }
+
 
 #[component]
 fn App() -> Element {
@@ -52,42 +64,14 @@ fn App() -> Element {
         }
     });
 
-    // Carregamento dinâmico de dados quando logado e sincronização periódica do banco compartilhado (acelerado para 200ms)
+    // Carregamento dinâmico de dados quando logado
     use_effect(move || {
         if logged_in {
             let mut state = app_state;
             state.load_initial_data();
-            
-            // Loop periódico ultra rápido de 200ms para verificar atualizações no banco compartilhado
-            spawn(async move {
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-                    
-                    // 1. Sincroniza chats destacados
-                    state.sync_detached_chats();
-                    
-                    // 2. Sincroniza contatos se mudou
-                    if let Ok(contacts) = crate::services::db::DatabaseService::load_contacts().await {
-                        let current = state.contacts.read().clone();
-                        if current != contacts {
-                            *state.contacts.write() = contacts;
-                        }
-                    }
-                    
-                    // 3. Sincroniza mensagens do chat ativo atual se houver e se mudou
-                    if let Some(selected_id) = state.selected_chat_id() {
-                        if let Ok(msgs) = crate::services::db::DatabaseService::load_messages(selected_id).await {
-                            let current = state.chat_messages.read().get(&selected_id).cloned().unwrap_or_default();
-                            if current != msgs {
-                                let mut chat_msgs = state.chat_messages.write();
-                                chat_msgs.insert(selected_id, msgs);
-                            }
-                        }
-                    }
-                }
-            });
         }
     });
+
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }

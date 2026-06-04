@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use crate::models::{
+    AppTheme, BannerInfo, Contact, FileTransferState, Message, TicTacToe, TicTacToeCell, UserStatus,
+};
 use dioxus::prelude::*;
-use crate::models::{Contact, Message, UserStatus, AppTheme, BannerInfo, FileTransferState, TicTacToe, TicTacToeCell};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Toast {
@@ -20,9 +22,9 @@ pub struct AppState {
     pub user_personal_message: Signal<String>,
     pub user_music: Signal<Option<String>>,
     pub user_avatar_id: Signal<usize>,
-    
+
     pub contacts: Signal<Vec<Contact>>,
-    pub active_chats: Signal<Vec<usize>>, // contact_ids
+    pub active_chats: Signal<Vec<usize>>,        // contact_ids
     pub selected_chat_id: Signal<Option<usize>>, // selected contact_id
     pub chat_messages: Signal<HashMap<usize, Vec<Message>>>,
     pub toasts: Signal<Vec<Toast>>,
@@ -30,9 +32,9 @@ pub struct AppState {
     pub toast_counter: Signal<usize>,
     pub message_counter: Signal<usize>,
     pub detached_chats: Signal<Vec<usize>>, // contact_ids desvinculados em janelas nativas
-    pub use_custom_titlebar: Signal<bool>, // barra de título personalizada ativa
-    pub interface_scale: Signal<f64>, // fator de escala (zoom) do aplicativo
-    
+    pub use_custom_titlebar: Signal<bool>,  // barra de título personalizada ativa
+    pub interface_scale: Signal<f64>,       // fator de escala (zoom) do aplicativo
+
     // Novos estados para Skypia completo e dinâmico
     pub banner_info: Signal<Option<BannerInfo>>,
     pub active_wink: Signal<Option<String>>, // wink sendo executado na tela ("kiss", "hammer", "pig")
@@ -51,10 +53,10 @@ impl AppState {
             user_name: Signal::new("Wellington Skypia".to_string()),
             user_email: Signal::new("wk.scbd@skypia.io".to_string()),
             user_status: Signal::new(UserStatus::Online),
-            user_personal_message: Signal::new("Codando meu próprio clone do Skypia em Dioxus! (H)".to_string()),
-            user_music: Signal::new(Some("Coldplay - Viva La Vida".to_string())),
+            user_personal_message: Signal::new("Tô cagando".to_string()),
+            user_music: Signal::new(Some("Linkin Park - In The End".to_string())),
             user_avatar_id: Signal::new(0),
-            
+
             contacts: Signal::new(Vec::new()),
             active_chats: Signal::new(Vec::new()),
             selected_chat_id: Signal::new(None),
@@ -66,7 +68,7 @@ impl AppState {
             detached_chats: Signal::new(Vec::new()),
             use_custom_titlebar: Signal::new(true),
             interface_scale: Signal::new(1.0),
-            
+
             banner_info: Signal::new(None),
             active_wink: Signal::new(None),
             game_states: Signal::new(HashMap::new()),
@@ -90,18 +92,21 @@ impl AppState {
         let mut scale_sig = self.interface_scale;
         let mut custom_bar_sig = self.use_custom_titlebar;
         let mut theme_sig = self.theme;
-        
+
         spawn(async move {
-            if let Ok((scale, custom_bar, theme)) = crate::services::db::DatabaseService::load_settings().await {
+            if let Ok((scale, custom_bar, theme)) =
+                crate::services::db::DatabaseService::load_settings().await
+            {
                 *scale_sig.write() = scale;
                 *custom_bar_sig.write() = custom_bar;
                 *theme_sig.write() = theme;
             }
 
-            if let Ok(loaded_contacts) = crate::services::db::DatabaseService::load_contacts().await {
+            if let Ok(loaded_contacts) = crate::services::db::DatabaseService::load_contacts().await
+            {
                 *contacts_sig.write() = loaded_contacts;
             }
-            
+
             if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
                 *detached_sig.write() = detached;
             }
@@ -121,27 +126,17 @@ impl AppState {
             if let Ok(banner) = crate::services::db::DatabaseService::get_banner_info().await {
                 *banner_sig.write() = Some(banner);
             }
-            
-            // Loop periódico para rotacionar o banner dinamicamente a cada 12 segundos
-            let mut banner_loop_sig = banner_sig;
-            spawn(async move {
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(12)).await;
-                    if let Ok(banner) = crate::services::db::DatabaseService::get_banner_info().await {
-                        let current_banner = banner_loop_sig.read().clone();
-                        if current_banner.as_ref() != Some(&banner) {
-                            *banner_loop_sig.write() = Some(banner);
-                        }
-                    }
-                }
-            });
-            
+
+
+
             // Carrega mensagens de contatos iniciais
             let mut all_messages = HashMap::new();
             let mut max_msg_id = 0;
-            
+
             for contact_id in &[1, 2] {
-                if let Ok(msgs) = crate::services::db::DatabaseService::load_messages(*contact_id).await {
+                if let Ok(msgs) =
+                    crate::services::db::DatabaseService::load_messages(*contact_id).await
+                {
                     for m in &msgs {
                         if m.id > max_msg_id {
                             max_msg_id = m.id;
@@ -150,7 +145,7 @@ impl AppState {
                     all_messages.insert(*contact_id, msgs);
                 }
             }
-            
+
             *chat_messages_sig.write() = all_messages;
             if max_msg_id > 0 {
                 *message_counter_sig.write() = max_msg_id + 1;
@@ -163,19 +158,20 @@ impl AppState {
         let mut detached_sig = self.detached_chats;
         let mut selected_chat_sig = self.selected_chat_id;
         let active = self.active_chats();
-        
+
         spawn(async move {
             if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
                 let old_detached = detached_sig.read().clone();
                 if old_detached != detached {
                     *detached_sig.write() = detached.clone();
-                    
+
                     // Se o chat selecionado atualmente na janela integrada foi desvinculado por outra ação,
                     // removemos a seleção na janela principal para mostrar a tela de boas-vindas.
                     let current_selected = (selected_chat_sig)();
                     if let Some(sel_id) = current_selected {
                         if detached.contains(&sel_id) {
-                            *selected_chat_sig.write() = active.iter().copied().find(|id| !detached.contains(id));
+                            *selected_chat_sig.write() =
+                                active.iter().copied().find(|id| !detached.contains(id));
                         }
                     }
                 }
@@ -224,14 +220,14 @@ impl AppState {
     pub fn add_toast(&mut self, title: String, message: String, avatar_id: usize) {
         let id = self.toast_counter();
         *self.toast_counter.write() += 1;
-        
+
         let toast = Toast {
             id,
             title,
             message,
             avatar_id,
         };
-        
+
         self.toasts.write().push(toast);
     }
 
@@ -245,21 +241,23 @@ impl AppState {
             contact.is_favorite = !contact.is_favorite;
             let is_fav = contact.is_favorite;
             spawn(async move {
-                let _ = crate::services::db::DatabaseService::save_contact_favorite(contact_id, is_fav).await;
+                let _ =
+                    crate::services::db::DatabaseService::save_contact_favorite(contact_id, is_fav)
+                        .await;
             });
         }
     }
 
     pub fn open_chat(&mut self, contact_id: usize) {
         let is_detached = self.detached_chats().contains(&contact_id);
-        
+
         {
             let mut chats = self.active_chats.write();
             if !chats.contains(&contact_id) {
                 chats.push(contact_id);
             }
         }
-        
+
         // Se o chat estiver desvinculado em uma janela nativa, dar duplo clique
         // na barra lateral reata o chat e acopla de volta na janela principal!
         if is_detached {
@@ -275,23 +273,30 @@ impl AppState {
             let _ = crate::services::db::DatabaseService::attach_chat(contact_id).await;
         });
         self.detached_chats.write().retain(|&id| id != contact_id);
-        
+
         let is_selected = (self.selected_chat_id)() == Some(contact_id);
-        
+
         {
             let mut chats = self.active_chats.write();
             chats.retain(|&id| id != contact_id);
         }
-        
+
         if is_selected {
             // Apenas seleciona o próximo chat que NÃO esteja desvinculado
             let detached = self.detached_chats();
             let chats = self.active_chats();
-            *self.selected_chat_id.write() = chats.iter().copied().find(|id| !detached.contains(&id));
+            *self.selected_chat_id.write() =
+                chats.iter().copied().find(|id| !detached.contains(&id));
         }
     }
 
-    pub fn send_message(&mut self, contact_id: usize, text: String, font_color: String, font_family: String) {
+    pub fn send_message(
+        &mut self,
+        contact_id: usize,
+        text: String,
+        font_color: String,
+        font_family: String,
+    ) {
         if text.trim().is_empty() {
             return;
         }
@@ -317,7 +322,10 @@ impl AppState {
         };
 
         let mut messages = self.chat_messages.write();
-        messages.entry(contact_id).or_insert_with(Vec::new).push(new_msg.clone());
+        messages
+            .entry(contact_id)
+            .or_insert_with(Vec::new)
+            .push(new_msg.clone());
 
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_message(contact_id, new_msg).await;
@@ -346,7 +354,10 @@ impl AppState {
         };
 
         let mut messages = self.chat_messages.write();
-        messages.entry(contact_id).or_insert_with(Vec::new).push(nudge_msg.clone());
+        messages
+            .entry(contact_id)
+            .or_insert_with(Vec::new)
+            .push(nudge_msg.clone());
 
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_message(contact_id, nudge_msg).await;
@@ -382,7 +393,10 @@ impl AppState {
 
         {
             let mut messages = self.chat_messages.write();
-            messages.entry(contact_id).or_insert_with(Vec::new).push(nudge_msg.clone());
+            messages
+                .entry(contact_id)
+                .or_insert_with(Vec::new)
+                .push(nudge_msg.clone());
         }
 
         // Se o chat não estiver desvinculado, abre e seleciona na tela principal
@@ -393,7 +407,13 @@ impl AppState {
         });
     }
 
-    pub fn receive_reply(&mut self, contact_id: usize, text: String, font_color: String, font_family: String) {
+    pub fn receive_reply(
+        &mut self,
+        contact_id: usize,
+        text: String,
+        font_color: String,
+        font_family: String,
+    ) {
         let contact_name = if let Some(c) = self.contacts().iter().find(|c| c.id == contact_id) {
             c.display_name.clone()
         } else {
@@ -421,7 +441,10 @@ impl AppState {
         };
 
         let mut messages = self.chat_messages.write();
-        messages.entry(contact_id).or_insert_with(Vec::new).push(new_msg.clone());
+        messages
+            .entry(contact_id)
+            .or_insert_with(Vec::new)
+            .push(new_msg.clone());
 
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_message(contact_id, new_msg).await;
@@ -439,12 +462,13 @@ impl AppState {
         if !self.detached_chats().contains(&contact_id) {
             self.detached_chats.write().push(contact_id);
         }
-        
+
         // Se este era o chat selecionado na janela principal, limpa a seleção para exibir o placeholder de boas-vindas
         if (self.selected_chat_id)() == Some(contact_id) {
             let active = self.active_chats();
             let detached = self.detached_chats();
-            *self.selected_chat_id.write() = active.iter().copied().find(|id| !detached.contains(&id));
+            *self.selected_chat_id.write() =
+                active.iter().copied().find(|id| !detached.contains(&id));
         }
     }
 
@@ -460,17 +484,30 @@ impl AppState {
     }
 
     // Adiciona contato dinâmico de verdade
-    pub fn add_contact_dynamic(&mut self, email: String, display_name: String, status: UserStatus, personal_message: String) {
+    pub fn add_contact_dynamic(
+        &mut self,
+        email: String,
+        display_name: String,
+        status: UserStatus,
+        personal_message: String,
+    ) {
         let mut list = self.contacts;
         let mut state_clone = *self;
-        
+
         spawn(async move {
-            if let Ok(c) = crate::services::db::DatabaseService::add_contact(email, display_name, status, personal_message).await {
+            if let Ok(c) = crate::services::db::DatabaseService::add_contact(
+                email,
+                display_name,
+                status,
+                personal_message,
+            )
+            .await
+            {
                 list.write().push(c.clone());
                 state_clone.add_toast(
                     "Contato Adicionado".to_string(),
                     format!("{} acaba de ser adicionado.", c.display_name),
-                    c.avatar_id
+                    c.avatar_id,
                 );
             }
         });
@@ -558,7 +595,8 @@ impl AppState {
         *self.use_custom_titlebar.write() = custom_bar;
         *self.theme.write() = theme;
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(scale, custom_bar, theme).await;
+            let _ =
+                crate::services::db::DatabaseService::save_settings(scale, custom_bar, theme).await;
         });
     }
 
@@ -593,18 +631,21 @@ impl AppState {
     pub fn send_wink(&mut self, contact_id: usize, wink_name: String) {
         let msg_id = self.message_counter();
         *self.message_counter.write() += 1;
-        
+
         let now = chrono::Local::now().format("%H:%M:%S").to_string();
         let new_wink_msg = Message {
             id: msg_id,
             sender_id: 0,
             sender_name: self.user_name(),
-            text: format!("Você enviou uma Piscadela: {}.", match wink_name.as_str() {
-                "kiss" => "Beijo de Batom",
-                "hammer" => "Martelada na Tela",
-                "pig" => "Porco Dançarino",
-                _ => "Piscadela",
-            }),
+            text: format!(
+                "Você enviou uma Piscadela: {}.",
+                match wink_name.as_str() {
+                    "kiss" => "Beijo de Batom",
+                    "hammer" => "Martelada na Tela",
+                    "pig" => "Porco Dançarino",
+                    _ => "Piscadela",
+                }
+            ),
             timestamp: now.clone(),
             is_nudge: false,
             font_color: "#0066cc".to_string(),
@@ -625,70 +666,25 @@ impl AppState {
                 *app_state.active_wink.write() = None;
             }
         });
-        
+
         // Envia mensagem
-        self.chat_messages.write().entry(contact_id).or_default().push(new_wink_msg.clone());
+        self.chat_messages
+            .write()
+            .entry(contact_id)
+            .or_default()
+            .push(new_wink_msg.clone());
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_message(contact_id, new_wink_msg).await;
+            let _ =
+                crate::services::db::DatabaseService::save_message(contact_id, new_wink_msg).await;
         });
 
-        // Simula recebimento de Wink do contato após 6 segundos
-        let mut app_state_reply = *self;
-        spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(6000)).await;
-            let reply_wink = if wink_name == "kiss" { "hammer" } else { "kiss" };
-            
-            let r_msg_id = app_state_reply.message_counter();
-            *app_state_reply.message_counter.write() += 1;
-            let r_now = chrono::Local::now().format("%H:%M:%S").to_string();
-            
-            let contact_name = if let Some(c) = app_state_reply.contacts().iter().find(|c| c.id == contact_id) {
-                c.display_name.clone()
-            } else {
-                "Contato".to_string()
-            };
-
-            let reply_msg = Message {
-                id: r_msg_id,
-                sender_id: contact_id,
-                sender_name: contact_name.clone(),
-                text: format!("{} enviou uma Piscadela: {}.", contact_name, match reply_wink {
-                    "kiss" => "Beijo de Batom",
-                    "hammer" => "Martelada na Tela",
-                    "pig" => "Porco Dançarino",
-                    _ => "Piscadela",
-                }),
-                timestamp: r_now,
-                is_nudge: false,
-                font_color: "#e6007e".to_string(),
-                font_family: "Comic Sans MS".to_string(),
-                is_wink: Some(reply_wink.to_string()),
-                file_transfer: None,
-                is_game_invite: false,
-            };
-
-            // Dispara Wink local recebido
-            *app_state_reply.active_wink.write() = Some(reply_wink.to_string());
-            let reply_wink_str = reply_wink.to_string();
-            let mut app_state_reply_inner = app_state_reply;
-            spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
-                let current = app_state_reply_inner.active_wink.read().clone();
-                if current.as_ref() == Some(&reply_wink_str) {
-                    *app_state_reply_inner.active_wink.write() = None;
-                }
-            });
-
-            app_state_reply.chat_messages.write().entry(contact_id).or_default().push(reply_msg.clone());
-            let _ = crate::services::db::DatabaseService::save_message(contact_id, reply_msg).await;
-        });
     }
 
     pub fn send_file_transfer(&mut self, contact_id: usize, filename: String) {
         let msg_id = self.message_counter();
         *self.message_counter.write() += 1;
         let now = chrono::Local::now().format("%H:%M:%S").to_string();
-        
+
         let new_msg = Message {
             id: msg_id,
             sender_id: 0,
@@ -703,14 +699,13 @@ impl AppState {
             is_game_invite: false,
         };
 
-        self.chat_messages.write().entry(contact_id).or_default().push(new_msg.clone());
-        
-        // Simulação do robô aceitando após 1.5 segundos
-        let mut app_state = *self;
-        spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            app_state.accept_file_transfer(contact_id, msg_id);
-        });
+        self.chat_messages
+            .write()
+            .entry(contact_id)
+            .or_default()
+            .push(new_msg.clone());
+
+
     }
 
     pub fn accept_file_transfer(&mut self, contact_id: usize, msg_id: usize) {
@@ -720,9 +715,14 @@ impl AppState {
             if let Some(msg) = list.iter_mut().find(|m| m.id == msg_id) {
                 if let Some(FileTransferState::Waiting) = msg.file_transfer {
                     msg.file_transfer = Some(FileTransferState::Downloading(0));
-                    
+
                     // Inicia o progresso
-                    let filename = msg.text.split('\'').nth(1).unwrap_or("foto.jpg").to_string();
+                    let filename = msg
+                        .text
+                        .split('\'')
+                        .nth(1)
+                        .unwrap_or("foto.jpg")
+                        .to_string();
                     spawn(async move {
                         for progress in (1..=10).map(|x| x * 10) {
                             tokio::time::sleep(std::time::Duration::from_millis(250)).await;
@@ -730,10 +730,15 @@ impl AppState {
                             if let Some(l) = msgs_write.get_mut(&contact_id) {
                                 if let Some(m) = l.iter_mut().find(|m| m.id == msg_id) {
                                     if progress == 100 {
-                                        m.file_transfer = Some(FileTransferState::Completed(filename.clone()));
-                                        m.text = format!("Transferência do arquivo '{}' concluída.", filename);
+                                        m.file_transfer =
+                                            Some(FileTransferState::Completed(filename.clone()));
+                                        m.text = format!(
+                                            "Transferência do arquivo '{}' concluída.",
+                                            filename
+                                        );
                                     } else {
-                                        m.file_transfer = Some(FileTransferState::Downloading(progress));
+                                        m.file_transfer =
+                                            Some(FileTransferState::Downloading(progress));
                                     }
                                 }
                             }
@@ -757,10 +762,10 @@ impl AppState {
     pub fn start_game(&mut self, contact_id: usize) {
         let msg_id = self.message_counter();
         let u_name = self.user_name();
-        
+
         let mut games = self.game_states.write();
         games.insert(contact_id, TicTacToe::new());
-        
+
         *self.message_counter.write() += 1;
         let now = chrono::Local::now().format("%H:%M:%S").to_string();
         let new_msg = Message {
@@ -776,73 +781,63 @@ impl AppState {
             file_transfer: None,
             is_game_invite: true,
         };
-        self.chat_messages.write().entry(contact_id).or_default().push(new_msg);
+        self.chat_messages
+            .write()
+            .entry(contact_id)
+            .or_default()
+            .push(new_msg);
     }
 
     pub fn make_game_move(&mut self, contact_id: usize, cell_idx: usize) {
-        let mut state_clone = *self;
+
         let mut games = self.game_states.write();
         if let Some(game) = games.get_mut(&contact_id) {
-            if !game.active || game.board[cell_idx] != TicTacToeCell::Empty || game.turn != TicTacToeCell::X {
+            if !game.active
+                || game.board[cell_idx] != TicTacToeCell::Empty
+                || game.turn != TicTacToeCell::X
+            {
                 return;
             }
-            
+
             game.board[cell_idx] = TicTacToeCell::X;
-            
+
             if check_game_over(game) {
                 return;
             }
-            
+
             game.turn = TicTacToeCell::O;
-            spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(800)).await;
-                let mut games_write = state_clone.game_states.write();
-                if let Some(game_write) = games_write.get_mut(&contact_id) {
-                    if game_write.turn == TicTacToeCell::O && game_write.active {
-                        let mut play_idx = None;
-                        for i in 0..9 {
-                            if game_write.board[i] == TicTacToeCell::Empty {
-                                play_idx = Some(i);
-                                break;
-                            }
-                        }
-                        
-                        if let Some(idx) = play_idx {
-                            game_write.board[idx] = TicTacToeCell::O;
-                            if !check_game_over(game_write) {
-                                game_write.turn = TicTacToeCell::X;
-                            }
-                        }
-                    }
-                }
-            });
         }
     }
 }
 
 fn check_game_over(game: &mut TicTacToe) -> bool {
     let win_patterns = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8],
-        [0, 3, 6], [1, 4, 7], [2, 5, 8],
-        [0, 4, 8], [2, 4, 6],
+        [0, 1, 2],
+        [3, 4, 5],
+        [6, 7, 8],
+        [0, 3, 6],
+        [1, 4, 7],
+        [2, 5, 8],
+        [0, 4, 8],
+        [2, 4, 6],
     ];
-    
+
     for p in &win_patterns {
         if game.board[p[0]] != TicTacToeCell::Empty
             && game.board[p[0]] == game.board[p[1]]
-            && game.board[p[0]] == game.board[p[2]] 
+            && game.board[p[0]] == game.board[p[2]]
         {
             game.winner = Some(game.board[p[0]]);
             game.active = false;
             return true;
         }
     }
-    
+
     if game.board.iter().all(|c| *c != TicTacToeCell::Empty) {
         game.is_draw = true;
         game.active = false;
         return true;
     }
-    
+
     false
 }

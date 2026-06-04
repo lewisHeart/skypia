@@ -27,41 +27,6 @@ pub fn ChatInput(
     }
     let contact = contact.unwrap();
 
-    // Simulated Auto-Reply Generator
-    let generate_auto_reply = move || {
-        let replies = vec![
-            "blz cara! dps entra no meu flogao pra ver as fotos da festa: flogao.com.br/goth_emo_2010",
-            "pera ai, vo ali comer um trakinas e ja volto rsrs",
-            "vc viu o video do jeremias na TV? mto engraçado kkkk o cão foi quem buto pra nois bebe!",
-            "me cutuca dnv ae, gostei da tremida kkkkk",
-            "vc tem o cd do linkin park ou do slipknot pra me passar dps por bluetooth?",
-            "nossa minha net discada ta mto lenta hj, se eu cair eh pq minha mae tiro o telefone do gancho :(",
-            "add meu orkut dps! procure por 'Gabii_Sz' q se me acha (L)",
-            "mandei um winky ai p vc ver, mas acho q seu pc antigo n carrega kkkk",
-            "vamos jogar habbo hotel ou tibia hj mais tarde?",
-            "ok (Y)",
-        ];
-        
-        let now_ms = chrono::Utc::now().timestamp_millis() as usize;
-        let reply_idx = now_ms % replies.len();
-        let text = replies[reply_idx].to_string();
-        
-        let mut app_state = state;
-        let mut is_typing_sig = is_typing;
-        spawn(async move {
-            is_typing_sig.set(true);
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            is_typing_sig.set(false);
-            app_state.receive_reply(
-                contact_id, 
-                text, 
-                "#e6007e".to_string(), 
-                "Comic Sans MS".to_string()
-            );
-            play_sound("message");
-        });
-    };
-
     // Send Message Handler
     let mut handle_send = move || {
         let txt = input_text();
@@ -72,12 +37,6 @@ pub fn ChatInput(
         state.send_message(contact_id, txt.clone(), selected_color(), selected_font());
         input_text.set(String::new());
         play_sound("message");
-        
-        // Auto reply simulation after 2 seconds
-        let now_ms = chrono::Utc::now().timestamp_millis();
-        if now_ms % 2 == 0 {
-            generate_auto_reply();
-        }
     };
 
     // Send nudge handler
@@ -85,28 +44,8 @@ pub fn ChatInput(
         state.send_nudge(contact_id);
         play_sound("nudge");
         on_nudge.call(());
-        
-        let mut app_state = state;
-        let mut is_typing_sig = is_typing;
-        spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-            app_state.receive_nudge(contact_id);
-            play_sound("nudge");
-            on_nudge.call(());
-            
-            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-            is_typing_sig.set(true);
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            is_typing_sig.set(false);
-            app_state.receive_reply(
-                contact_id, 
-                "Para de me tremer cara! KKKK custou pra eu arrumar meu monitor de tubo".to_string(), 
-                "#e6007e".to_string(), 
-                "Comic Sans MS".to_string()
-            );
-            play_sound("message");
-        });
     };
+
 
     // Helper to insert emoticons at text cursor
     let mut insert_emoticon = move |code: &str| {

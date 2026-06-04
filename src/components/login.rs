@@ -1,7 +1,7 @@
-use dioxus::prelude::*;
 use crate::models::UserStatus;
-use crate::state::AppState;
 use crate::sound::play_sound;
+use crate::state::AppState;
+use dioxus::prelude::*;
 
 #[component]
 pub fn Login(mut state: AppState) -> Element {
@@ -15,20 +15,18 @@ pub fn Login(mut state: AppState) -> Element {
         if state.signing_in() {
             return;
         }
-        
+
         *state.signing_in.write() = true;
-        
+
         // Simulate network login delay (nostalgic spinning animation)
         spawn(async move {
             tokio::time::sleep(std::time::Duration::from_millis(2200)).await;
-            
+
             state.set_user_status(selected_status());
             *state.user_email.write() = email();
             // Extrapolate name from email
             if let Some(name_part) = email().split('@').next() {
-                let formatted = name_part
-                    .replace('.', " ")
-                    .replace('_', " ");
+                let formatted = name_part.replace('.', " ").replace('_', " ");
                 let capitalized = formatted
                     .split_whitespace()
                     .map(|w| format!("{}{}", &w[..1].to_uppercase(), &w[1..]))
@@ -36,13 +34,13 @@ pub fn Login(mut state: AppState) -> Element {
                     .join(" ");
                 *state.user_name.write() = capitalized;
             }
-            
+
             *state.signing_in.write() = false;
             *state.logged_in.write() = true;
-            
+
             // Play MSN sign-in sound
             play_sound("online");
-            
+
             // Add initial greeting toast
             state.add_toast(
                 "Bem-vindo de volta!".to_string(),
@@ -56,10 +54,10 @@ pub fn Login(mut state: AppState) -> Element {
         div {
             class: "w-full h-full flex flex-col items-center justify-center select-none bg-bubbles relative p-4",
             style: "background: linear-gradient(180deg, rgba(230, 241, 252, 0.95) 0%, rgba(200, 222, 245, 0.9) 100%);",
-            
+
             div {
                 class: "w-full max-w-[340px] flex flex-col items-center p-6 rounded-lg aero-glass bg-white/20 border border-white/40 shadow-lg",
-                
+
                 // Rotating Avatar or Loading Animation
                 div { class: "h-28 flex items-center justify-center relative mb-4",
                     if state.signing_in() {
@@ -97,7 +95,7 @@ pub fn Login(mut state: AppState) -> Element {
                     div { class: "w-full text-center space-y-3 mt-2",
                         p { class: "text-xs text-[#1e395b] font-semibold animate-pulse", "Entrando..." }
                         div { class: "w-40 h-2 bg-white/80 border border-[#a6b9cd] rounded-full mx-auto overflow-hidden shadow-inner",
-                            div { 
+                            div {
                                 class: "h-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-400 rounded-full animate-pulse",
                                 style: "width: 75%; transition: width 1s ease;"
                             }
@@ -185,13 +183,13 @@ pub fn Login(mut state: AppState) -> Element {
                         }
                     }
                 }
-                
+
                 // Footer details
-                div { 
+                div {
                     class: "w-full flex items-center justify-between mt-5 pt-3 border-t border-slate-350 text-[9px] text-slate-500/80",
-                    span { "Skypia © 2010" }
-                    a { 
-                        href: "#", 
+                    span { "Skypia © 2026" }
+                    a {
+                        href: "#",
                         class: "hover:underline text-[#245284] font-semibold",
                         "Recuperar senha"
                     }
