@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn AvatarPicker(mut state: AppState) -> Element {
+    let theme = state.theme();
     let is_uploading = use_signal(|| false);
     let upload_error = use_signal(|| Option::<String>::None);
 
@@ -13,15 +14,15 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
             onclick: move |_| state.show_avatar_picker.set(false),
 
             div {
-                class: "w-[400px] bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                class: "w-[400px] bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
                 onclick: move |e| e.stop_propagation(),
 
                 // Header
-                div { class: "px-4 py-3 flex items-center justify-between border-b border-white/40 bg-white/20",
+                div { class: "px-4 py-3 flex items-center justify-between border-b {theme.titlebar_border()} bg-white/20",
                     div { class: "flex items-center space-x-2",
                         span { class: "text-lg", "🖼️" }
                         div {
-                            h2 { class: "font-bold text-sm text-[#1b324d]", "Escolher avatar" }
+                            h2 { class: "font-bold text-sm {theme.titlebar_text()}", "Escolher avatar" }
                             p { class: "text-[10px] text-slate-500", "Selecione um avatar ou envie uma foto" }
                         }
                     }
@@ -45,7 +46,7 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
 
                     // Seção 1: GIFs Clássicos do MSN
                     div { class: "flex flex-col space-y-2 border-b border-white/20 pb-4",
-                        p { class: "text-xs font-bold text-[#1b324d]", "Escolha uma imagem predefinida" }
+                        p { class: "text-xs font-bold {theme.titlebar_text()}", "Escolha uma imagem predefinida" }
                         div { class: "grid grid-cols-4 gap-2",
                             for &(name, rel_path, mime) in &[
                                 ("Margarida", "daisy.png", "image/png"),
@@ -58,7 +59,7 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                 ("Outono", "fall.gif", "image/gif"),
                             ] {
                                 button {
-                                    class: "relative aspect-square rounded-lg border border-slate-350 bg-white/60 p-1 hover:border-[#5c98d6] hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group overflow-hidden shadow-sm",
+                                    class: "relative aspect-square rounded-lg border {theme.titlebar_border()} bg-white/60 p-1 hover:border-[#5c98d6] hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group overflow-hidden shadow-sm",
                                     disabled: is_uploading(),
                                     onclick: move |_| {
                                         let mut state = state;
@@ -132,7 +133,7 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
 
                     // Seção 2: Upload de foto real
                     div { class: "flex flex-col space-y-2",
-                        p { class: "text-xs font-bold text-[#1b324d]", "Enviar foto própria" }
+                        p { class: "text-xs font-bold {theme.titlebar_text()}", "Enviar foto própria" }
 
                         if state.auth_token().is_none() {
                             div { class: "px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700",
@@ -152,14 +153,14 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                         {crate::models::render_avatar(state.user_avatar_url().as_deref(), 48)}
                                     }
                                     div {
-                                        p { class: "text-xs font-semibold text-[#1b324d]", "Foto atual" }
+                                        p { class: "text-xs font-semibold {theme.titlebar_text()}", "Foto atual" }
                                         p { class: "text-[10px] text-slate-500", "Envie uma nova para substituir" }
                                     }
                                 }
                             }
 
                             // Botão de upload via sistema de arquivos nativo
-                            div { class: "flex flex-col items-center p-4 border-2 border-dashed border-[#7ba9d4]/50 rounded-xl bg-white/20 hover:bg-white/40 transition-all cursor-pointer group",
+                            div { class: "flex flex-col items-center p-4 border-2 border-dashed {theme.modal_border()}/50 rounded-xl bg-white/20 hover:bg-white/40 transition-all cursor-pointer group",
                                 onclick: move |_| {
                                     let mut state = state;
                                     let mut uploading = is_uploading;
@@ -208,7 +209,7 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                     });
                                 },
                                 span { class: "text-2xl mb-1 group-hover:scale-110 transition-transform", "📷" }
-                                p { class: "text-xs font-semibold text-[#1b324d]", "Clique para selecionar uma foto" }
+                                p { class: "text-xs font-semibold {theme.titlebar_text()}", "Clique para selecionar uma foto" }
                                 p { class: "text-[10px] text-slate-500", "JPG, PNG, GIF ou WebP • máx 5MB" }
                             }
                         }

@@ -4,7 +4,6 @@ use crate::components::auth::login::Login;
 use crate::components::main::main_window::MainWindow;
 use crate::components::chat::chat_window::ChatWindow;
 use crate::components::ToastList;
-use crate::models::{UserStatus, AppTheme};
 
 
 mod models;
@@ -85,11 +84,6 @@ fn App() -> Element {
     let theme = app_state.theme();
     
     
-    // Sinais locais para controle da barra de título e opções
-    let mut show_about = use_signal(|| false);
-    let mut show_options_menu = use_signal(|| false);
-    let mut show_theme_menu = use_signal(|| false);
-
     // Sincroniza decorações da janela nativa
     use_effect(move || {
         #[cfg(feature = "desktop")]
@@ -162,8 +156,6 @@ fn App() -> Element {
                 }
             },
             onclick: move |_| {
-                show_options_menu.set(false);
-                show_theme_menu.set(false);
                 if logged_in {
                     app_state.record_activity();
                 }
@@ -257,39 +249,18 @@ fn App() -> Element {
                     
                     // Icon and Title
                     div { class: "flex items-center space-x-1.5 font-bold text-xs pointer-events-none {theme.titlebar_text()} select-none",
-                        span { class: "text-base", "👥" }
+                        img {
+                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/busts-in-silhouette.webp",
+                            class: "w-4 h-4 object-contain pointer-events-none"
+                        }
                         span { "Skypia Messenger" }
                     }
                     
-                    // Controls (🎨, ☰, X)
+                    // Controls (X)
                     div { 
                         class: "flex items-center space-x-2.5",
                         style: "-webkit-app-region: no-drag;",
                         onmousedown: move |e| e.stop_propagation(),
-                        
-                        // Theme Select Trigger Button
-                        button { 
-                            class: "w-6 h-[22px] flex items-center justify-center rounded hover:bg-black/5 text-slate-600 cursor-pointer transition-colors text-sm focus:outline-none",
-                            title: "Mudar cor da skin",
-                            onclick: move |e| {
-                                e.stop_propagation();
-                                show_theme_menu.set(!show_theme_menu());
-                                show_options_menu.set(false);
-                            },
-                            "🎨"
-                        }
-
-                        // Options Menu Toggle Button
-                        button { 
-                            class: "w-6 h-[22px] flex items-center justify-center rounded hover:bg-black/5 {theme.titlebar_text()} cursor-pointer transition-colors font-bold text-sm focus:outline-none",
-                            title: "Opções",
-                            onclick: move |e| {
-                                e.stop_propagation();
-                                show_options_menu.set(!show_options_menu());
-                                show_theme_menu.set(false);
-                            },
-                            "☰"
-                        }
                         
                         // Close [X] Button (Matches user screenshot exactly)
                         button { 
@@ -301,240 +272,6 @@ fn App() -> Element {
                                 dioxus::desktop::use_window().close();
                             },
                             "X"
-                        }
-                    }
-
-                    // Dropdown: Theme selector
-                    if show_theme_menu() {
-                        div { 
-                            class: "absolute right-20 top-[33px] w-40 bg-white border border-slate-300 rounded shadow-lg z-[999] p-1 flex flex-col text-xs text-slate-700 font-normal",
-                            style: "-webkit-app-region: no-drag;",
-                            onmousedown: move |e| e.stop_propagation(),
-                            for (theme_opt, label, color_class) in &[
-                                (AppTheme::AeroBlue, "Azul Aero", "bg-sky-400 border-sky-500"),
-                                (AppTheme::RubyPink, "Rosa Choque", "bg-pink-400 border-pink-500"),
-                                (AppTheme::ForestGreen, "Verde Natureza", "bg-emerald-400 border-emerald-500"),
-                                (AppTheme::SilverMetallic, "Prata Metálico", "bg-slate-400 border-slate-500")
-                            ] {
-                                button { 
-                                    class: "px-2 py-1.5 text-left hover:bg-sky-100 rounded transition-colors flex items-center space-x-2 cursor-pointer",
-                                    onclick: move |_| {
-                                        app_state.set_settings(app_state.interface_scale(), app_state.use_custom_titlebar(), *theme_opt);
-                                        show_theme_menu.set(false);
-                                    },
-                                    div { class: "w-2.5 h-2.5 rounded {color_class} border" }
-                                    span { "{label}" }
-                                }
-                            }
-                        }
-                    }
-
-                    // Dropdown: Options Menu
-                    if show_options_menu() {
-                        div { 
-                            class: "absolute right-12 top-[33px] w-44 bg-white border border-slate-300 rounded shadow-xl z-[999] p-1 flex flex-col text-xs text-slate-700 font-normal",
-                            style: "-webkit-app-region: no-drag;",
-                            onmousedown: move |e| e.stop_propagation(),
-                            
-                            div { class: "px-2 py-1 text-slate-400 font-bold text-[9px] uppercase tracking-wider", "Status" }
-                            for status in &[UserStatus::Online, UserStatus::Ocupado, UserStatus::Ausente, UserStatus::Invisivel, UserStatus::Offline] {
-                                button { 
-                                    class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                    onclick: move |_| {
-                                        app_state.set_user_status(*status);
-                                        show_options_menu.set(false);
-                                    },
-                                    div { class: "w-2 h-2 rounded-full {status.color_class()}" }
-                                    span { "{status.as_str()}" }
-                                }
-                            }
-                            div { class: "h-[1px] bg-slate-200 my-1" }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.show_music_player_modal.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "🎵" }
-                                span { "Definir Música..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.open_my_profile();
-                                    show_options_menu.set(false);
-                                },
-                                span { "👤" }
-                                span { "Meu Perfil..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.show_settings_modal.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "⚙️" }
-                                span { "Configurações..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.show_add_contact_modal.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "👥" }
-                                span { "Adicionar contato..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    show_about.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "ℹ️" }
-                                span { "Sobre o Skypia..." }
-                            }
-                            div { class: "h-[1px] bg-slate-200 my-1" }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-red-50 text-red-600 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.logout();
-                                    show_options_menu.set(false);
-                                },
-                                span { "🚪" }
-                                span { "Desconectar" }
-                            }
-                        }
-                    }
-                }
-            } else if logged_in {
-                // Se decorações do sistema estão habilitadas, renderiza uma barra superior discreta para Acessar Menu de Opções
-                div { 
-                    class: "w-full h-8 bg-gradient-to-b {theme.titlebar_gradient()} flex items-center justify-between z-50 flex-shrink-0 select-none border-b {theme.titlebar_border()} px-3 relative",
-                    div { class: "flex items-center space-x-1.5 font-bold text-xs {theme.titlebar_text()} pointer-events-none",
-                        span { "👥" }
-                        span { "Skypia Messenger" }
-                    }
-                    div { class: "flex items-center space-x-2.5",
-                        button { 
-                            class: "w-6 h-6 flex items-center justify-center rounded hover:bg-black/5 text-slate-600 cursor-pointer transition-colors text-sm focus:outline-none",
-                            title: "Mudar cor da skin",
-                            onclick: move |e| {
-                                e.stop_propagation();
-                                show_theme_menu.set(!show_theme_menu());
-                                show_options_menu.set(false);
-                            },
-                            "🎨"
-                        }
-                        button { 
-                            class: "w-6 h-6 flex items-center justify-center rounded hover:bg-black/5 {theme.titlebar_text()} cursor-pointer transition-colors font-bold text-sm focus:outline-none",
-                            title: "Opções",
-                            onclick: move |e| {
-                                e.stop_propagation();
-                                show_options_menu.set(!show_options_menu());
-                                show_theme_menu.set(false);
-                            },
-                            "☰"
-                        }
-                    }
-
-                    // Dropdowns em decorações nativas
-                    if show_theme_menu() {
-                        div { 
-                            class: "absolute right-12 top-8 w-40 bg-white border border-slate-300 rounded shadow-lg z-[999] p-1 flex flex-col text-xs text-slate-700 font-normal",
-                            onmousedown: move |e| e.stop_propagation(),
-                            for (theme_opt, label, color_class) in &[
-                                (AppTheme::AeroBlue, "Azul Aero", "bg-sky-400 border-sky-500"),
-                                (AppTheme::RubyPink, "Rosa Choque", "bg-pink-400 border-pink-500"),
-                                (AppTheme::ForestGreen, "Verde Natureza", "bg-emerald-400 border-emerald-500"),
-                                (AppTheme::SilverMetallic, "Prata Metálico", "bg-slate-400 border-slate-500")
-                            ] {
-                                button { 
-                                    class: "px-2 py-1.5 text-left hover:bg-sky-100 rounded transition-colors flex items-center space-x-2 cursor-pointer",
-                                    onclick: move |_| {
-                                        app_state.set_settings(app_state.interface_scale(), app_state.use_custom_titlebar(), *theme_opt);
-                                        show_theme_menu.set(false);
-                                    },
-                                    div { class: "w-2.5 h-2.5 rounded {color_class} border" }
-                                    span { "{label}" }
-                                }
-                            }
-                        }
-                    }
-
-                    if show_options_menu() {
-                        div { 
-                            class: "absolute right-4 top-8 w-44 bg-white border border-slate-300 rounded shadow-xl z-[999] p-1 flex flex-col text-xs text-slate-700 font-normal",
-                            onmousedown: move |e| e.stop_propagation(),
-                            
-                            div { class: "px-2 py-1 text-slate-400 font-bold text-[9px] uppercase tracking-wider", "Status" }
-                            for status in &[UserStatus::Online, UserStatus::Ocupado, UserStatus::Ausente, UserStatus::Invisivel, UserStatus::Offline] {
-                                button { 
-                                    class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                    onclick: move |_| {
-                                        app_state.set_user_status(*status);
-                                        show_options_menu.set(false);
-                                    },
-                                    div { class: "w-2 h-2 rounded-full {status.color_class()}" }
-                                    span { "{status.as_str()}" }
-                                }
-                            }
-                            div { class: "h-[1px] bg-slate-200 my-1" }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.show_music_player_modal.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "🎵" }
-                                span { "Definir Música..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.open_my_profile();
-                                    show_options_menu.set(false);
-                                },
-                                span { "👤" }
-                                span { "Meu Perfil..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.show_settings_modal.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "⚙️" }
-                                span { "Configurações..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.show_add_contact_modal.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "👥" }
-                                span { "Adicionar contato..." }
-                            }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    show_about.set(true);
-                                    show_options_menu.set(false);
-                                },
-                                span { "ℹ️" }
-                                span { "Sobre o Skypia..." }
-                            }
-                            div { class: "h-[1px] bg-slate-200 my-1" }
-                            button { 
-                                class: "px-2 py-1.5 hover:bg-red-50 text-red-600 rounded text-left flex items-center space-x-2 cursor-pointer",
-                                onclick: move |_| {
-                                    app_state.logout();
-                                    show_options_menu.set(false);
-                                },
-                                span { "🚪" }
-                                span { "Desconectar" }
-                            }
                         }
                     }
                 }
@@ -604,11 +341,11 @@ fn App() -> Element {
                     div { 
                         class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9998] flex items-center justify-center p-4 pointer-events-auto",
                         div { 
-                            class: "w-[360px] bg-gradient-to-b from-[#f2f7fc] to-[#d8e8f7] border-2 border-[#5c98d6] rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b] pointer-events-auto",
+                            class: "w-[360px] bg-gradient-to-b {theme.modal_gradient()} border-2 {theme.modal_border()} rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
                             
                             // Cabeçalho clássico
-                            div { class: "flex items-center justify-between border-b border-[#a8c9eb] pb-2",
-                                span { class: "font-bold text-sm flex items-center space-x-1.5",
+                            div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
+                                span { class: "font-bold text-sm flex items-center space-x-1.5 {theme.titlebar_text()}",
                                     span { "👤" }
                                     span { "Solicitação de Amizade" }
                                 }
@@ -620,13 +357,13 @@ fn App() -> Element {
                                     "{first_req.display_name} ({first_req.email}) deseja adicionar você à lista de contatos."
                                 }
                                 
-                                div { class: "bg-white/60 border border-[#a8c9eb] p-3 rounded text-[11px] leading-relaxed text-slate-600 space-y-2",
+                                div { class: "bg-white/60 border {theme.titlebar_border()} p-3 rounded text-[11px] leading-relaxed text-slate-600 space-y-2",
                                     p { "Ao aceitar, você poderá ver o status dele, trocar mensagens em tempo real e compartilhar winks e nudges!" }
                                 }
                             }
                             
                             // Botões de Ação
-                            div { class: "flex items-center justify-end space-x-2 pt-2 border-t border-[#a8c9eb]/50",
+                            div { class: "flex items-center justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/50",
                                 button { 
                                     class: "px-4 py-1.5 bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                     onclick: move |_| {
@@ -651,36 +388,45 @@ fn App() -> Element {
         }
         
         // About Skypia Modal Dialog
-        if show_about() {
+        if app_state.show_about() {
             div { 
                 class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 pointer-events-auto",
-                onclick: move |_| show_about.set(false),
+                onclick: move |_| app_state.show_about.set(false),
                 div { 
-                    class: "w-80 bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b] pointer-events-auto",
+                    class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
                     onclick: move |e| e.stop_propagation(),
                     
-                    div { class: "flex items-center justify-between border-b border-white/40 pb-2",
-                        span { class: "font-bold text-sm", "ℹ️ Sobre o Skypia" }
+                    div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
+                        div { class: "flex items-center space-x-1.5 font-bold text-sm {theme.titlebar_text()}",
+                            img {
+                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/information.webp",
+                                class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                            }
+                            span { "Sobre o Skypia" }
+                        }
                         button { 
                             class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
-                            onclick: move |_| show_about.set(false),
+                            onclick: move |_| app_state.show_about.set(false),
                             "✕"
                         }
                     }
                     
                     div { class: "flex flex-col items-center text-center space-y-2 py-2",
-                        span { class: "text-3xl", "🦋" }
+                        img {
+                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/butterfly.webp",
+                            class: "w-10 h-10 object-contain pointer-events-none"
+                        }
                         span { class: "font-bold text-sm", "Skypia Messenger v14.0" }
                         span { class: "text-[10px] text-slate-500", "Copyright © 2026 Skypia Corp. Todos os direitos reservados." }
                     }
                     
-                    p { class: "text-[11px] leading-relaxed text-slate-600 bg-white/40 p-2.5 rounded border border-white/30 text-center",
+                    p { class: "text-[11px] leading-relaxed text-slate-600 bg-white/40 p-2.5 rounded border {theme.titlebar_border()}/30 text-center",
                         "O Skypia é o clone definitivo do MSN Messenger, recriado em Rust com Dioxus 0.7 e TailwindCSS para uma experiência premium de alta fidelidade visual Aero Glass."
                     }
                     
                     button { 
-                        class: "w-full py-1.5 bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white rounded font-bold shadow-md cursor-pointer transition-all",
-                        onclick: move |_| show_about.set(false),
+                        class: "w-full py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all",
+                        onclick: move |_| app_state.show_about.set(false),
                         "Ok"
                     }
                 }

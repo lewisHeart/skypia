@@ -44,6 +44,7 @@ const WINK_STYLES: &str = r#"
 
 #[component]
 pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Element {
+    let theme = state.theme();
     let active_chats = state.active_chats();
     let resolved_contact_id = match contact_id_prop.clone() {
         Some(id) => id,
@@ -55,14 +56,45 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
 
     let contact_id = resolved_contact_id;
     let contact = state.contacts().into_iter().find(|c| c.id == contact_id);
-    if contact.is_none() {
+    let group = (state.group_chats)().into_iter().find(|g| g.id == contact_id);
+
+    if contact.is_none() && group.is_none() {
         return rsx! {};
     }
-    let contact = contact.unwrap();
-    let display_name_to_show = contact.nickname.clone().unwrap_or(contact.display_name.clone());
 
-    let mut is_shaking = use_signal(|| false);
-    let shake_class = if is_shaking() { "nudge-shake" } else { "" };
+    let is_group = group.is_some();
+    let display_name_to_show = if let Some(ref g) = group {
+        g.name.clone().unwrap_or_else(|| "Grupo sem nome".to_string())
+    } else {
+        let c = contact.as_ref().unwrap();
+        c.nickname.clone().unwrap_or_else(|| c.display_name.clone())
+    };
+
+    let status_text = if let Some(ref g) = group {
+        format!("Grupo: {} participantes", g.members.len())
+    } else {
+        contact.as_ref().unwrap().status.as_str().to_string()
+    };
+    
+    let personal_message_text = if let Some(ref g) = group {
+        let member_names = g.members.iter()
+            .map(|m| m.nickname.clone().unwrap_or_else(|| m.display_name.clone()))
+            .collect::<Vec<String>>()
+            .join(", ");
+        format!("Membros: {}", member_names)
+    } else {
+        contact.as_ref().unwrap().personal_message.clone()
+    };
+
+    let status_color_class = if is_group {
+        "bg-sky-600"
+    } else {
+        contact.as_ref().unwrap().status.color_class()
+    };
+
+    let active_nudge = state.active_nudge();
+    let is_nudge_active = active_nudge.as_ref() == Some(&contact_id);
+    let shake_class = if is_nudge_active { "animate-nudge-shake" } else { "" };
 
 
     rsx! {
@@ -89,19 +121,19 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
         
         div {
             class: "w-full h-full flex flex-col select-none bg-bubbles {shake_class} overflow-hidden",
-            style: "background: linear-gradient(180deg, rgba(230, 241, 252, 0.9) 0%, rgba(190, 215, 240, 0.85) 100%);",
+            style: "background: {theme.bg_chat()};",
             
             // Abas para chats ativos
             if contact_id_prop.is_none() && active_chats.len() > 1 {
-                div { class: "h-8 bg-white/20 border-b border-white/10 flex items-center px-2 space-x-1 flex-shrink-0 overflow-x-auto",
+                div { class: "h-8 bg-white/20 border-b {theme.titlebar_border()} flex items-center px-2 space-x-1 flex-shrink-0 overflow-x-auto",
                     for chat_id in active_chats {
                         if let Some(c) = state.contacts().into_iter().find(|c| c.id == chat_id) {
                             {
                                 let is_active = chat_id == contact_id;
                                 let active_tab_style = if is_active {
-                                    "bg-white/80 border-[#7ba9d4] text-[#1e395b] font-bold"
+                                    format!("bg-white/80 {theme_border} {theme_text} font-bold", theme_border = theme.glass_border_color(), theme_text = theme.titlebar_text())
                                 } else {
-                                    "bg-white/30 border-transparent text-[#2f4b6c]/80 hover:bg-white/50"
+                                    format!("bg-white/30 border-transparent {theme_text}/80 hover:bg-white/50", theme_text = theme.titlebar_text())
                                 };
                                 let name_to_show = c.nickname.clone().unwrap_or(c.display_name.clone());
                                 let chat_id_select = chat_id.clone();
@@ -132,12 +164,12 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
             }
 
             // Painel Superior de Status (Informações do contato atual)
-            div { class: "p-3 flex items-center space-x-3 bg-white/10 border-b border-white/20 flex-shrink-0 justify-between",
+            div { class: "p-3 flex items-center space-x-3 bg-white/10 border-b {theme.titlebar_border()} flex-shrink-0 justify-between",
                 div { class: "flex items-center space-x-3 min-w-0 flex-1",
                     
                     if contact_id_prop.is_none() {
                         button {
-                            class: "md:hidden px-2 py-1 bg-white/30 hover:bg-white/50 border border-white/20 text-[#1e395b] text-[11px] rounded font-bold cursor-pointer mr-1 flex items-center space-x-0.5 flex-shrink-0 transition-colors",
+                            class: "md:hidden px-2 py-1 bg-white/30 hover:bg-white/50 border border-white/20 {theme.titlebar_text()} text-[11px] rounded font-bold cursor-pointer mr-1 flex items-center space-x-0.5 flex-shrink-0 transition-colors",
                             title: "Voltar para Lista de Contatos",
                             onclick: move |_| {
                                 *state.selected_chat_id.write() = None;
@@ -148,20 +180,32 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                     }
 
                     // Avatar do cabeçalho com moldura de status clássica do MSN
-                    div { 
-                        class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border {contact.status.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
-                        div {
-                            class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
-                            {render_avatar(contact.avatar_url.as_deref(), 36)}
+                    if is_group {
+                        div { 
+                            class: "flex-shrink-0 w-9 h-9 rounded bg-sky-200 border border-sky-350 shadow flex items-center justify-center text-lg font-bold text-sky-800 transition-all",
+                            "👥"
+                        }
+                    } else {
+                        {
+                            let c = contact.as_ref().unwrap();
+                            rsx! {
+                                div { 
+                                    class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border {c.status.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
+                                    div {
+                                        class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
+                                        {render_avatar(c.avatar_url.as_deref(), 36)}
+                                    }
+                                }
+                            }
                         }
                     }
                     
                     div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
                         div { class: "flex items-center space-x-2",
-                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{display_name_to_show}" }
-                            span { class: "text-[10px] px-1 py-0.1 {contact.status.color_class()} text-white rounded font-medium", "{contact.status.as_str()}" }
+                            span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{display_name_to_show}" }
+                            span { class: "text-[10px] px-1 py-0.1 {status_color_class} text-white rounded font-medium", "{status_text}" }
                         }
-                        p { class: "text-xs text-[#3a5879]/85 italic truncate", "“{contact.personal_message}”" }
+                        p { class: "text-xs {theme.titlebar_text()}/85 italic truncate", "“{personal_message_text}”" }
                     }
                 }
                 
@@ -170,7 +214,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                         let contact_id_detach = contact_id.clone();
                         rsx! {
                             button {
-                                class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors flex-shrink-0",
+                                class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 {theme.titlebar_text()} cursor-pointer text-xs transition-colors flex-shrink-0",
                                 title: "Desvincular conversa",
                                 onclick: move |_| {
                                     state.detach_chat(contact_id_detach.clone());
@@ -207,7 +251,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                     ChatFeed { contact_id: contact_id.clone(), state }
                     
                     // Barra de formatação e Entrada de mensagem (ChatInput) ou aviso amarelo
-                    if contact.relation_status == "Pendente" {
+                    if !is_group && contact.as_ref().map(|c| c.relation_status == "Pendente").unwrap_or(false) {
                         div { class: "h-20 bg-[#fffec8] border-t border-[#d8d080] p-4 flex flex-col justify-center items-center text-center text-xs text-[#5c5010] space-y-1 select-text flex-shrink-0",
                             span { class: "text-base", "⚠️" }
                             p { class: "font-semibold", "Esta solicitação de contato ainda não foi aceita." }
@@ -217,13 +261,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                         ChatInput {
                             contact_id: contact_id.clone(),
                             state,
-                            on_nudge: move |_| {
-                                is_shaking.set(true);
-                                spawn(async move {
-                                    tokio::time::sleep(std::time::Duration::from_millis(420)).await;
-                                    is_shaking.set(false);
-                                });
-                            }
+                            on_nudge: move |_| {}
                         }
                     }
                 }
@@ -288,17 +326,30 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
             desktop_dec.set_decorations(!use_custom);
         });
 
-        // Verificação periódica para fechar janela se o chat for acoplado de volta
+        // Verificação periódica para fechar janela se o chat for acoplado de volta e para atualizar o tema
         let c_id = props.contact_id.clone();
         let desktop_close = desktop.clone();
         use_effect(move || {
             let cid = c_id.clone();
             let desktop_clone = desktop_close.clone();
+            let mut state = app_state;
             spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
                     
-                    // Se o chat for acoplado, fecha esta janela
+                    // 1. Sincroniza o tema e densidade com o banco de dados em tempo real
+                    if let Ok((_scale, _custom_bar, db_theme, _chat_mode, db_density)) =
+                        crate::services::db::DatabaseService::load_settings().await
+                    {
+                        if db_theme != state.theme() {
+                            *state.theme.write() = db_theme;
+                        }
+                        if db_density != state.contact_density() {
+                            *state.contact_density.write() = db_density;
+                        }
+                    }
+                    
+                    // 2. Se o chat for acoplado, fecha esta janela
                     if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
                         if !detached.contains(&cid) {
                             desktop_clone.close();
@@ -312,8 +363,15 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
 
         let theme = app_state.theme();
         let contact_opt = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);
+        let group_opt = (app_state.group_chats)().into_iter().find(|g| g.id == props.contact_id);
         
-        if contact_opt.is_none() {
+        println!("[DEBUG DETACHED] props.contact_id = {}", props.contact_id);
+        println!("[DEBUG DETACHED] contacts count = {}", app_state.contacts().len());
+        println!("[DEBUG DETACHED] group_chats count = {}", (app_state.group_chats)().len());
+        println!("[DEBUG DETACHED] contact_opt found? {}", contact_opt.is_some());
+        println!("[DEBUG DETACHED] group_opt found? {}", group_opt.is_some());
+        
+        if contact_opt.is_none() && group_opt.is_none() {
             return rsx! {
                 document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
                 document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
@@ -325,8 +383,11 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
             };
         }
         
-        let contact = contact_opt.unwrap();
-        let contact_name = contact.nickname.clone().unwrap_or(contact.display_name.clone());
+        let contact_name = if let Some(ref c) = contact_opt {
+            c.nickname.clone().unwrap_or_else(|| c.display_name.clone())
+        } else {
+            group_opt.as_ref().unwrap().name.clone().unwrap_or_else(|| "Grupo sem nome".to_string())
+        };
 
         rsx! {
             document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
@@ -431,7 +492,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                                 onmousedown: move |e| e.stop_propagation(),
                                 
                                 button {
-                                    class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:text-sky-600 shadow-sm cursor-pointer transition-colors focus:outline-none",
+                                    class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:underline hover:border-slate-400 shadow-sm cursor-pointer transition-colors focus:outline-none",
                                     title: "Vincular de volta à janela principal do Skypia",
                                     onclick: {
                                         let cid = props.contact_id.clone();
@@ -490,7 +551,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                                 span { "Conversa com {contact_name}" }
                             }
                             button {
-                                class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:text-sky-600 shadow-sm cursor-pointer transition-colors focus:outline-none",
+                                class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:underline hover:border-slate-400 shadow-sm cursor-pointer transition-colors focus:outline-none",
                                 title: "Vincular de volta à janela principal do Skypia",
                                 onclick: {
                                     let cid = props.contact_id.clone();

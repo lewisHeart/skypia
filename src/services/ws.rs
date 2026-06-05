@@ -155,6 +155,12 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if msg.sender_id != "0" {
                 crate::sound::play_sound("message");
 
+                let is_selected = state.selected_chat_id() == Some(conv_id.clone());
+                let is_detached = state.detached_chats().contains(&conv_id);
+                if !is_selected || is_detached {
+                    state.increment_unread(&conv_id);
+                }
+
                 {
                     // Garante que o chat esteja nas abas ativas
                     let mut active = state.active_chats.write();
@@ -180,6 +186,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             personal_message,
             music,
             avatar_url,
+            display_name,
         } => {
             let user_status = match status.as_str() {
                 "Online" => UserStatus::Online,
@@ -188,6 +195,23 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 "Invisivel" => UserStatus::Invisivel,
                 _ => UserStatus::Offline,
             };
+
+            // Self-broadcast: atualiza o perfil do próprio usuário quando recebido do servidor
+            if Some(user_id.clone()) == state.server_user_id() {
+                // Atualiza avatar do próprio usuário
+                if let Some(ref url) = avatar_url {
+                    *state.user_avatar_url.write() = Some(url.clone());
+                }
+                // Atualiza display_name do próprio usuário
+                if !display_name.is_empty() {
+                    *state.user_name.write() = display_name.clone();
+                }
+                // Atualiza status, mensagem pessoal e música
+                *state.user_status.write() = user_status;
+                *state.user_personal_message.write() = personal_message.clone();
+                *state.user_music.write() = music.clone();
+                return;
+            }
 
             let mut should_play_online = false;
             let mut name = String::new();
@@ -204,6 +228,9 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     c.music_listening = music;
                     if avatar_url.is_some() {
                         c.avatar_url = avatar_url.clone();
+                    }
+                    if !display_name.is_empty() {
+                        c.display_name = display_name;
                     }
                     name = c.display_name.clone();
                     pm = c.personal_message.clone();
@@ -227,17 +254,20 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             sender_id,
             sender_name,
         } => {
-            if sender_id != "0" {
-                // Toca som do nudge
-                crate::sound::play_sound("nudge");
+            let self_id = state.server_user_id();
+            let is_from_self = Some(sender_id.clone()) == self_id;
 
-                // Ativa animação de tremor no AppState para essa conversa
-                // Se a conversa não estiver aberta, seleciona e abre
-                state.open_chat(conversation_id.clone());
+            // Executa o recebimento do nudge (chacoalhar e tocar o som)
+            state.receive_nudge(conversation_id.clone());
+
+            if !is_from_self {
+                let is_selected = state.selected_chat_id() == Some(conversation_id.clone());
+                let is_detached = state.detached_chats().contains(&conversation_id);
+                if !is_selected || is_detached {
+                    state.increment_unread(&conversation_id);
+                }
 
                 let avatar_url = state.contacts().iter().find(|c| c.id == conversation_id).and_then(|c| c.avatar_url.clone());
-
-                // Exibe notificação toast
                 state.add_toast(sender_name, "enviou um Chamar a Atenção!".to_string(), avatar_url);
             }
         }
@@ -316,6 +346,71 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             );
 
             state.load_initial_data();
+        }
+        WsEvent::ContactAdded { contact } => {
+            let status_enum = match contact.status.as_str() {
+                "Online" => UserStatus::Online,
+                "Ocupado" => UserStatus::Ocupado,
+                "Ausente" => UserStatus::Ausente,
+                "Invisivel" => UserStatus::Invisivel,
+                _ => UserStatus::Offline,
+            };
+            let new_contact = crate::models::Contact {
+                id: contact.id.clone(),
+                email: contact.email.clone(),
+                display_name: contact.display_name.clone(),
+                status: status_enum,
+                personal_message: contact.personal_message.clone(),
+                music_listening: contact.music.clone(),
+                avatar_url: contact.avatar_url.clone(),
+                is_favorite: false,
+                relation_status: contact.relation_status.unwrap_or_else(|| "Pendente".to_string()),
+                nickname: contact.nickname,
+            };
+
+            {
+                let mut list = state.contacts.write();
+                if let Some(existing) = list.iter_mut().find(|c| c.email == new_contact.email) {
+                    *existing = new_contact.clone();
+                } else {
+                    list.push(new_contact.clone());
+                }
+            }
+
+            state.add_toast(
+                "Contato Adicionado".to_string(),
+                format!("{} foi adicionado.", new_contact.display_name),
+                new_contact.avatar_url,
+            );
+        }
+        WsEvent::ContactBlocked { contact_id, blocked } => {
+            state.add_toast(
+                if blocked { "Contato Bloqueado".to_string() } else { "Contato Desbloqueado".to_string() },
+                if blocked { "Você bloqueou o contato.".to_string() } else { "Você desbloqueou o contato.".to_string() },
+                None,
+            );
+            // Recarrega dados para refletir mudança
+            state.load_initial_data();
+        }
+        WsEvent::ContactRemoved { contact_id } => {
+            {
+                let mut pending = state.pending_requests.write();
+                pending.retain(|c| c.id != contact_id);
+            }
+            state.add_toast(
+                "Solicitação Recusada".to_string(),
+                "A solicitação de amizade foi removida.".to_string(),
+                None,
+            );
+        }
+        WsEvent::NicknameUpdated { contact_id, nickname } => {
+            let mut list = state.contacts.write();
+            if let Some(c) = list.iter_mut().find(|c| c.id == contact_id) {
+                c.nickname = nickname;
+            }
+        }
+        WsEvent::Error { message } => {
+            state.add_toast("Erro".to_string(), message, None);
         }
     }
 }

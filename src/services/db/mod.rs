@@ -118,7 +118,8 @@ impl DatabaseService {
                 interface_scale REAL NOT NULL DEFAULT 1.0,
                 use_custom_titlebar INTEGER NOT NULL DEFAULT 1,
                 theme TEXT NOT NULL DEFAULT 'AeroBlue',
-                chat_mode TEXT NOT NULL DEFAULT 'integrated'
+                chat_mode TEXT NOT NULL DEFAULT 'integrated',
+                contact_density TEXT NOT NULL DEFAULT 'medium'
             );
             "#,
         )
@@ -258,6 +259,10 @@ impl DatabaseService {
             .await;
 
         let _ = sqlx::query("ALTER TABLE settings ADD COLUMN chat_mode TEXT NOT NULL DEFAULT 'integrated'")
+            .execute(pool)
+            .await;
+ 
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN contact_density TEXT NOT NULL DEFAULT 'medium'")
             .execute(pool)
             .await;
 

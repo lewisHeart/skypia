@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn ProfileModal(mut state: AppState) -> Element {
+    let theme = state.theme();
     let contact_opt = state.profile_modal_contact_id().and_then(|id| {
         state.contacts().iter().find(|c| c.id == id).cloned()
     });
@@ -45,19 +46,19 @@ pub fn ProfileModal(mut state: AppState) -> Element {
             onclick: move |_| state.show_profile_modal.set(false),
 
             div {
-                class: "w-[380px] bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                class: "w-[380px] bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
                 onclick: move |e| e.stop_propagation(),
 
                 // Header
-                div { class: "px-4 py-3 flex items-center justify-between border-b border-white/40 bg-white/20",
+                div { class: "px-4 py-3 flex items-center justify-between border-b {theme.titlebar_border()} bg-white/20",
                     div { class: "flex items-center space-x-2",
                         span { class: "text-lg", "👤" }
                         div {
                             if is_own_profile {
-                                h2 { class: "font-bold text-sm text-[#1b324d]", "Meu Perfil Pessoal" }
+                                h2 { class: "font-bold text-sm {theme.titlebar_text()}", "Meu Perfil Pessoal" }
                                 p { class: "text-[10px] text-slate-500", "Veja e edite suas informações do Skypia" }
                             } else if let Some(ref contact) = contact_opt {
-                                h2 { class: "font-bold text-sm text-[#1b324d]", "Perfil de {contact.display_name}" }
+                                h2 { class: "font-bold text-sm {theme.titlebar_text()}", "Perfil de {contact.display_name}" }
                                 p { class: "text-[10px] text-slate-500", "Informações do seu contato no Skypia" }
                             }
                         }
@@ -70,7 +71,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                 }
 
                 // Conteúdo
-                div { class: "p-4 flex flex-col space-y-4 text-xs text-[#1e395b]",
+                div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
                     
                     if is_own_profile && error_msg().is_some() {
                         div { class: "px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-[11px] text-red-700 flex items-center space-x-2 animate-pulse",
@@ -110,14 +111,14 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                         
                         div { class: "flex-1 min-w-0 flex flex-col space-y-1.5",
                             if is_own_profile {
-                                span { class: "font-bold text-sm text-[#1b324d] truncate", "{state.user_name()}" }
+                                span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{state.user_name()}" }
                                 span { class: "text-[10px] text-slate-500 truncate select-all", "{state.user_email()}" }
                                 div { class: "flex items-center space-x-1.5",
                                     div { class: "w-2.5 h-2.5 rounded-full {state.user_status().color_class()} border border-black/10 shadow-sm" }
                                     span { class: "font-semibold text-[10px] text-slate-600", "{state.user_status().as_str()}" }
                                 }
                             } else if let Some(ref contact) = contact_opt {
-                                span { class: "font-bold text-sm text-[#1b324d] truncate", "{contact.display_name}" }
+                                span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{contact.display_name}" }
                                 span { class: "text-[10px] text-slate-500 truncate select-all", "{contact.email}" }
                                 div { class: "flex items-center space-x-1.5",
                                     div { class: "w-2.5 h-2.5 rounded-full {contact.status.color_class()} border border-black/10 shadow-sm" }
@@ -132,9 +133,9 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                         if is_own_profile {
                             // Nome de Exibição
                             div { class: "flex flex-col space-y-1",
-                                label { class: "font-bold text-[#2f4b6c]", "Nome de Exibição (Apelido):" }
+                                label { class: "font-bold {theme.titlebar_text()}", "Nome de Exibição (Apelido):" }
                                 input {
-                                    class: "w-full p-2 border border-[#a6b9cd] rounded msn-input bg-white text-xs text-slate-800 focus:outline-none focus:border-[#5c98d6]",
+                                    class: "w-full p-2 border {theme.titlebar_border()} rounded msn-input bg-white text-xs text-slate-800 focus:outline-none",
                                     placeholder: "Digite seu nome...",
                                     value: "{temp_name}",
                                     oninput: move |e| temp_name.set(e.value()),
@@ -143,9 +144,9 @@ pub fn ProfileModal(mut state: AppState) -> Element {
 
                             // Frase Pessoal
                             div { class: "flex flex-col space-y-1",
-                                label { class: "font-bold text-[#2f4b6c]", "Frase Pessoal:" }
+                                label { class: "font-bold {theme.titlebar_text()}", "Frase Pessoal:" }
                                 input {
-                                    class: "w-full p-2 border border-[#a6b9cd] rounded msn-input bg-white text-xs text-slate-800 focus:outline-none focus:border-[#5c98d6]",
+                                    class: "w-full p-2 border {theme.titlebar_border()} rounded msn-input bg-white text-xs text-slate-800 focus:outline-none",
                                     placeholder: "O que você está pensando?",
                                     value: "{temp_msg}",
                                     oninput: move |e| temp_msg.set(e.value()),
@@ -154,11 +155,11 @@ pub fn ProfileModal(mut state: AppState) -> Element {
 
                             // Música
                             div { class: "flex flex-col space-y-1",
-                                label { class: "font-bold text-[#2f4b6c]", "Música Ouvindo:" }
-                                div { class: "flex items-center justify-between p-2 bg-sky-50/50 border border-sky-100 rounded text-[11px] text-[#0066cc] font-medium",
+                                label { class: "font-bold {theme.titlebar_text()}", "Música Ouvindo:" }
+                                div { class: "flex items-center justify-between p-2 bg-white/50 border {theme.titlebar_border()} rounded text-[11px] {theme.titlebar_text()} font-medium",
                                     span { "🎵 {state.user_music().unwrap_or_else(|| \"Nenhuma música definida\".to_string())}" }
                                     button {
-                                        class: "text-[10px] text-[#0066cc] hover:underline cursor-pointer font-bold focus:outline-none",
+                                        class: "text-[10px] {theme.titlebar_text()} hover:underline cursor-pointer font-bold focus:outline-none",
                                         onclick: move |_| {
                                             state.show_profile_modal.set(false);
                                             state.show_music_player_modal.set(true);
@@ -170,7 +171,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                         } else if let Some(ref contact) = contact_opt {
                             // Detalhes do contato estáticos
                             div { class: "flex flex-col space-y-1",
-                                label { class: "font-bold text-[#2f4b6c]", "Nome de Exibição / Apelido:" }
+                                label { class: "font-bold {theme.titlebar_text()}", "Nome de Exibição / Apelido:" }
                                 div { class: "p-2 bg-white/50 border border-white/70 rounded text-xs text-slate-700",
                                     if let Some(ref nick) = contact.nickname {
                                         "{nick} ({contact.display_name})"
@@ -181,7 +182,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                             }
 
                             div { class: "flex flex-col space-y-1",
-                                label { class: "font-bold text-[#2f4b6c]", "Frase Pessoal:" }
+                                label { class: "font-bold {theme.titlebar_text()}", "Frase Pessoal:" }
                                 div { class: "p-2 bg-white/50 border border-white/70 rounded text-xs text-slate-700 italic",
                                     if contact.personal_message.is_empty() {
                                         "Nenhuma frase pessoal definida."
@@ -192,7 +193,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                             }
 
                             div { class: "flex flex-col space-y-1",
-                                label { class: "font-bold text-[#2f4b6c]", "Música Ouvindo:" }
+                                label { class: "font-bold {theme.titlebar_text()}", "Música Ouvindo:" }
                                 div { class: "p-2 bg-white/50 border border-white/70 rounded text-xs text-[#0066cc] font-medium flex items-center space-x-1.5",
                                     span { "🎵" }
                                     span { "{contact.music_listening.as_deref().unwrap_or(\"Nenhuma música sendo ouvida no momento\")}" }
@@ -200,7 +201,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                             }
 
                             div { class: "flex flex-col space-y-1",
-                                label { class: "font-bold text-[#2f4b6c]", "Relação no MSN:" }
+                                label { class: "font-bold {theme.titlebar_text()}", "Relação no MSN:" }
                                 div { class: "p-2 bg-white/50 border border-white/70 rounded text-xs text-slate-700 flex items-center space-x-1.5",
                                     span { if contact.is_favorite { "⭐ Favorito" } else { "👥 Contato Comum" } }
                                     span { "•" }
@@ -212,7 +213,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
 
                     // Estatísticas de Uso / Info Geral
                     div { class: "bg-white/40 border border-white/50 rounded-xl p-3 flex flex-col space-y-1.5 shadow-sm text-[10.5px] leading-relaxed text-slate-600",
-                        span { class: "font-bold text-[#2f4b6c] mb-0.5 block", "Estatísticas da Conta" }
+                        span { class: "font-bold {theme.titlebar_text()} mb-0.5 block", "Estatísticas da Conta" }
                         if is_own_profile {
                             div { class: "flex justify-between",
                                 span { "Total de contatos na lista:" }
@@ -236,7 +237,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                 }
 
                 // Botões de Ação
-                div { class: "px-4 py-3 bg-white/10 border-t border-white/20 flex items-center justify-end space-x-2",
+                div { class: "px-4 py-3 bg-white/10 border-t {theme.titlebar_border()}/30 flex items-center justify-end space-x-2",
                     if is_own_profile {
                         button {
                             class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold cursor-pointer transition-colors focus:outline-none",
@@ -244,14 +245,14 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                             "Cancelar"
                         }
                         button {
-                            class: "px-5 py-1.5 bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white rounded font-bold shadow-md cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none",
+                            class: "px-5 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none",
                             disabled: is_saving(),
                             onclick: save_profile,
                             if is_saving() { "Salvando..." } else { "Salvar" }
                         }
                     } else {
                         button {
-                            class: "px-6 py-1.5 bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                            class: "px-6 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                             onclick: move |_| state.show_profile_modal.set(false),
                             "Fechar"
                         }

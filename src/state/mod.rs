@@ -1,6 +1,4 @@
-use crate::models::{
-    AppTheme, BannerInfo, Contact, Message, TicTacToe, UserStatus,
-};
+use crate::models::{AppTheme, BannerInfo, Contact, Message, TicTacToe, UserStatus};
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
@@ -37,9 +35,9 @@ pub struct AppState {
     pub toast_counter: Signal<usize>,
     pub message_counter: Signal<usize>,
     pub detached_chats: Signal<Vec<String>>, // contact_ids desvinculados em janelas nativas
-    pub use_custom_titlebar: Signal<bool>,  // barra de título personalizada ativa
-    pub interface_scale: Signal<f64>,       // fator de escala (zoom) do aplicativo
-    pub chat_mode: Signal<String>,          // modo de chat (integrated ou detached)
+    pub use_custom_titlebar: Signal<bool>,   // barra de título personalizada ativa
+    pub interface_scale: Signal<f64>,        // fator de escala (zoom) do aplicativo
+    pub chat_mode: Signal<String>,           // modo de chat (integrated ou detached)
 
     // Novos estados para Skypia completo e dinâmico
     pub banner_info: Signal<Option<BannerInfo>>,
@@ -49,6 +47,7 @@ pub struct AppState {
     pub show_add_contact_modal: Signal<bool>,
     pub show_music_player_modal: Signal<bool>,
     pub show_profile_modal: Signal<bool>,
+    pub show_about: Signal<bool>,
     pub profile_modal_contact_id: Signal<Option<String>>,
     pub recommended_songs: Signal<Vec<String>>,
 
@@ -57,7 +56,7 @@ pub struct AppState {
     pub server_user_id: Signal<Option<String>>,
     pub user_avatar_url: Signal<Option<String>>, // URL da foto real (do servidor)
     pub show_register_modal: Signal<bool>,
-    pub server_error: Signal<Option<String>>,    // Último erro da API
+    pub server_error: Signal<Option<String>>, // Último erro da API
     pub show_avatar_picker: Signal<bool>,
 
     // WebSocket e digitação em tempo real
@@ -68,6 +67,15 @@ pub struct AppState {
     pub pending_requests: Signal<Vec<Contact>>,
     pub last_activity_time: Signal<u64>,
     pub was_automatically_away: Signal<bool>,
+    pub active_nudge: Signal<Option<String>>,
+    pub contact_density: Signal<String>,
+    pub fav_density: Signal<String>,
+    pub online_density: Signal<String>,
+    pub offline_density: Signal<String>,
+    pub groups_density: Signal<String>,
+    pub unread_counts: Signal<HashMap<String, usize>>,
+    pub group_chats: Signal<Vec<crate::models::Conversation>>,
+    pub dragged_contact_id: Signal<Option<String>>,
 }
 
 impl AppState {
@@ -102,6 +110,7 @@ impl AppState {
             show_add_contact_modal: Signal::new(false),
             show_music_player_modal: Signal::new(false),
             show_profile_modal: Signal::new(false),
+            show_about: Signal::new(false),
             profile_modal_contact_id: Signal::new(None),
             recommended_songs: Signal::new(Vec::new()),
 
@@ -117,6 +126,15 @@ impl AppState {
             pending_requests: Signal::new(Vec::new()),
             last_activity_time: Signal::new(chrono::Utc::now().timestamp() as u64),
             was_automatically_away: Signal::new(false),
+            active_nudge: Signal::new(None),
+            contact_density: Signal::new("medium".to_string()),
+            fav_density: Signal::new("medium".to_string()),
+            online_density: Signal::new("medium".to_string()),
+            offline_density: Signal::new("medium".to_string()),
+            groups_density: Signal::new("medium".to_string()),
+            unread_counts: Signal::new(HashMap::new()),
+            group_chats: Signal::new(Vec::new()),
+            dragged_contact_id: Signal::new(None),
         }
     }
 
@@ -135,18 +153,58 @@ impl AppState {
         let mut theme_sig = self.theme;
         let mut chat_mode_sig = self.chat_mode;
         let mut pending_sig = self.pending_requests;
+        let mut density_sig = self.contact_density;
+        let mut fav_density_sig = self.fav_density;
+        let mut online_density_sig = self.online_density;
+        let mut offline_density_sig = self.offline_density;
+        let mut groups_density_sig = self.groups_density;
+        let mut group_chats_sig = self.group_chats;
 
         let token_opt = self.auth_token();
         let self_user_id = self.server_user_id();
 
         spawn(async move {
-            if let Ok((scale, custom_bar, theme, chat_mode)) =
+            if let Ok((scale, custom_bar, theme, chat_mode, density)) =
                 crate::services::db::DatabaseService::load_settings().await
             {
                 *scale_sig.write() = scale;
                 *custom_bar_sig.write() = custom_bar;
                 *theme_sig.write() = theme;
                 *chat_mode_sig.write() = chat_mode;
+                *density_sig.write() = density.clone();
+
+                // Parse da densidade por categoria
+                let (fav, online, offline, groups) = if density.contains(':') {
+                    let mut f = "medium".to_string();
+                    let mut o = "medium".to_string();
+                    let mut off = "medium".to_string();
+                    let mut g = "medium".to_string();
+                    for part in density.split(',') {
+                        let subparts: Vec<&str> = part.split(':').collect();
+                        if subparts.len() == 2 {
+                            match subparts[0] {
+                                "fav" => f = subparts[1].to_string(),
+                                "online" => o = subparts[1].to_string(),
+                                "offline" => off = subparts[1].to_string(),
+                                "groups" => g = subparts[1].to_string(),
+                                _ => {}
+                            }
+                        }
+                    }
+                    (f, o, off, g)
+                } else {
+                    let d = density.as_str();
+                    let f = if d == "large" { "large".to_string() } else { "medium".to_string() };
+                    let o = if d == "small" { "small".to_string() } else { "medium".to_string() };
+                    let off = if d == "small" { "small".to_string() } else { "medium".to_string() };
+                    let g = "medium".to_string();
+                    (f, o, off, g)
+                };
+
+                *fav_density_sig.write() = fav;
+                *online_density_sig.write() = online;
+                *offline_density_sig.write() = offline;
+                *groups_density_sig.write() = groups;
             }
 
             // Sincronização de rede se autenticado
@@ -154,8 +212,11 @@ impl AppState {
                 // 1. Busca contatos do servidor e salva em memória
                 if let Ok(srv_contacts) = crate::services::api::get_contacts(&token).await {
                     // Carrega favoritos locais do SQLite
-                    let local_favorites = if let Ok(local_list) = crate::services::db::DatabaseService::load_contacts().await {
-                        local_list.into_iter()
+                    let local_favorites = if let Ok(local_list) =
+                        crate::services::db::DatabaseService::load_contacts().await
+                    {
+                        local_list
+                            .into_iter()
                             .filter(|c| c.is_favorite)
                             .map(|c| c.id)
                             .collect::<std::collections::HashSet<String>>()
@@ -182,7 +243,9 @@ impl AppState {
                             music_listening: profile.music,
                             avatar_url: profile.avatar_url,
                             is_favorite: is_fav,
-                            relation_status: profile.relation_status.unwrap_or_else(|| "Aceito".to_string()),
+                            relation_status: profile
+                                .relation_status
+                                .unwrap_or_else(|| "Aceito".to_string()),
                             nickname: profile.nickname,
                         });
                     }
@@ -191,64 +254,92 @@ impl AppState {
 
                 // 1.1 Busca solicitações pendentes do servidor
                 if let Ok(pending_srv) = crate::services::api::get_pending_requests(&token).await {
-                    let contacts_mapped: Vec<Contact> = pending_srv.into_iter().map(|profile| {
-                        let status_enum = match profile.status.as_str() {
-                            "Online" => UserStatus::Online,
-                            "Ocupado" => UserStatus::Ocupado,
-                            "Ausente" => UserStatus::Ausente,
-                            "Invisivel" => UserStatus::Invisivel,
-                            _ => UserStatus::Offline,
-                        };
-                        Contact {
-                            id: profile.id,
-                            email: profile.email,
-                            display_name: profile.display_name,
-                            status: status_enum,
-                            personal_message: profile.personal_message,
-                            music_listening: profile.music,
-                            avatar_url: profile.avatar_url,
-                            is_favorite: false,
-                            relation_status: "Pendente".to_string(),
-                            nickname: None,
-                        }
-                    }).collect();
+                    let contacts_mapped: Vec<Contact> = pending_srv
+                        .into_iter()
+                        .map(|profile| {
+                            let status_enum = match profile.status.as_str() {
+                                "Online" => UserStatus::Online,
+                                "Ocupado" => UserStatus::Ocupado,
+                                "Ausente" => UserStatus::Ausente,
+                                "Invisivel" => UserStatus::Invisivel,
+                                _ => UserStatus::Offline,
+                            };
+                            Contact {
+                                id: profile.id,
+                                email: profile.email,
+                                display_name: profile.display_name,
+                                status: status_enum,
+                                personal_message: profile.personal_message,
+                                music_listening: profile.music,
+                                avatar_url: profile.avatar_url,
+                                is_favorite: false,
+                                relation_status: "Pendente".to_string(),
+                                nickname: None,
+                            }
+                        })
+                        .collect();
                     *pending_sig.write() = contacts_mapped;
                 }
 
                 // 2. Busca histórico de mensagens das conversas do servidor
-                if let Ok(srv_conversations) = crate::services::api::get_conversations(&token).await {
+                if let Ok(srv_conversations) = crate::services::api::get_conversations(&token).await
+                {
                     let mut all_messages = HashMap::new();
+                    let mut groups = Vec::new();
 
                     for conv in srv_conversations {
-                        // Encontra o contato parceiro na conversa
-                        let partner_opt = conv.members.iter().find(|member| {
-                            if let Some(ref s_id) = self_user_id {
-                                &member.id != s_id
-                            } else {
-                                true
-                            }
-                        });
-
-                        if let Some(partner) = partner_opt {
-                            let partner_id = partner.id.clone();
-                            if let Ok(srv_messages) = crate::services::api::get_conversation_messages(&token, &conv.id).await {
+                        if conv.is_group {
+                            groups.push(conv.clone());
+                            if let Ok(srv_messages) =
+                                crate::services::api::get_conversation_messages(&token, &conv.id)
+                                    .await
+                            {
                                 let mut normalized_messages = Vec::new();
                                 for mut msg in srv_messages {
-                                    // Se a mensagem foi enviada pelo próprio usuário local, muda o sender_id para "0"
                                     if let Some(ref s_id) = self_user_id {
                                         if &msg.sender_id == s_id {
                                             msg.sender_id = "0".to_string();
                                         }
                                     }
-                                    // Seta a conversation_id no front para ser o partner_id
-                                    msg.conversation_id = partner_id.clone();
                                     normalized_messages.push(msg);
                                 }
-                                all_messages.insert(partner_id, normalized_messages);
+                                all_messages.insert(conv.id.clone(), normalized_messages);
+                            }
+                        } else {
+                            // Encontra o contato parceiro na conversa
+                            let partner_opt = conv.members.iter().find(|member| {
+                                if let Some(ref s_id) = self_user_id {
+                                    &member.id != s_id
+                                } else {
+                                    true
+                                }
+                            });
+
+                            if let Some(partner) = partner_opt {
+                                let partner_id = partner.id.clone();
+                                if let Ok(srv_messages) =
+                                    crate::services::api::get_conversation_messages(&token, &conv.id)
+                                        .await
+                                {
+                                    let mut normalized_messages = Vec::new();
+                                    for mut msg in srv_messages {
+                                        // Se a mensagem foi enviada pelo próprio usuário local, muda o sender_id para "0"
+                                        if let Some(ref s_id) = self_user_id {
+                                            if &msg.sender_id == s_id {
+                                                msg.sender_id = "0".to_string();
+                                            }
+                                        }
+                                        // Seta a conversation_id no front para ser o partner_id
+                                        msg.conversation_id = partner_id.clone();
+                                        normalized_messages.push(msg);
+                                    }
+                                    all_messages.insert(partner_id, normalized_messages);
+                                }
                             }
                         }
                     }
                     *chat_messages_sig.write() = all_messages;
+                    *group_chats_sig.write() = groups;
                 }
             }
 
@@ -278,7 +369,7 @@ impl AppState {
 
     pub fn set_user_name(&mut self, name: String) {
         *self.user_name.write() = name.clone();
-        
+
         // Atualiza via WebSocket em tempo real se conectado
         if let Some(tx) = &*self.ws_tx.read() {
             let _ = tx.send(crate::models::ClientAction::UpdatePresence {
@@ -288,19 +379,23 @@ impl AppState {
                 display_name: Some(name.clone()),
             });
         }
-        
+
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_user_name(name.clone()).await;
             if !has_ws {
                 if let Some(token) = token_opt {
-                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                        display_name: Some(name),
-                        personal_message: None,
-                        status: None,
-                        music: None,
-                    }).await;
+                    let _ = crate::services::api::update_profile(
+                        &token,
+                        crate::services::api::UpdateProfileRequest {
+                            display_name: Some(name),
+                            personal_message: None,
+                            status: None,
+                            music: None,
+                        },
+                    )
+                    .await;
                 }
             }
         });
@@ -311,7 +406,7 @@ impl AppState {
         if status == UserStatus::Offline {
             *self.logged_in.write() = false;
         }
-        
+
         let status_str = match status {
             UserStatus::Online => "Online",
             UserStatus::Ocupado => "Ocupado",
@@ -319,7 +414,7 @@ impl AppState {
             UserStatus::Invisivel => "Invisivel",
             UserStatus::Offline => "Offline",
         };
-        
+
         // Atualiza via WebSocket em tempo real se conectado
         if let Some(tx) = &*self.ws_tx.read() {
             let _ = tx.send(crate::models::ClientAction::UpdatePresence {
@@ -329,19 +424,23 @@ impl AppState {
                 display_name: None,
             });
         }
-        
+
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_user_status(status).await;
             if !has_ws {
                 if let Some(token) = token_opt {
-                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                        display_name: None,
-                        personal_message: None,
-                        status: Some(status_str.to_string()),
-                        music: None,
-                    }).await;
+                    let _ = crate::services::api::update_profile(
+                        &token,
+                        crate::services::api::UpdateProfileRequest {
+                            display_name: None,
+                            personal_message: None,
+                            status: Some(status_str.to_string()),
+                            music: None,
+                        },
+                    )
+                    .await;
                 }
             }
         });
@@ -356,7 +455,7 @@ impl AppState {
 
     pub fn set_user_personal_message(&mut self, msg: String) {
         *self.user_personal_message.write() = msg.clone();
-        
+
         // Atualiza via WebSocket em tempo real se conectado
         if let Some(tx) = &*self.ws_tx.read() {
             let _ = tx.send(crate::models::ClientAction::UpdatePresence {
@@ -366,19 +465,23 @@ impl AppState {
                 display_name: None,
             });
         }
-        
+
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_personal_message(msg.clone()).await;
             if !has_ws {
                 if let Some(token) = token_opt {
-                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                        display_name: None,
-                        personal_message: Some(msg),
-                        status: None,
-                        music: None,
-                    }).await;
+                    let _ = crate::services::api::update_profile(
+                        &token,
+                        crate::services::api::UpdateProfileRequest {
+                            display_name: None,
+                            personal_message: Some(msg),
+                            status: None,
+                            music: None,
+                        },
+                    )
+                    .await;
                 }
             }
         });
@@ -386,7 +489,7 @@ impl AppState {
 
     pub fn set_user_music(&mut self, music: Option<String>) {
         *self.user_music.write() = music.clone();
-        
+
         // Atualiza via WebSocket em tempo real se conectado
         if let Some(tx) = &*self.ws_tx.read() {
             let _ = tx.send(crate::models::ClientAction::UpdatePresence {
@@ -396,19 +499,23 @@ impl AppState {
                 display_name: None,
             });
         }
-        
+
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_user_music(music.clone()).await;
             if !has_ws {
                 if let Some(token) = token_opt {
-                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                        display_name: None,
-                        personal_message: None,
-                        status: None,
-                        music: Some(music),
-                    }).await;
+                    let _ = crate::services::api::update_profile(
+                        &token,
+                        crate::services::api::UpdateProfileRequest {
+                            display_name: None,
+                            personal_message: None,
+                            status: None,
+                            music: Some(music),
+                        },
+                    )
+                    .await;
                 }
             }
         });
@@ -437,9 +544,12 @@ impl AppState {
         *self.use_custom_titlebar.write() = custom_bar;
         *self.theme.write() = theme;
         let chat_mode = self.chat_mode();
+        let density = self.contact_density();
         spawn(async move {
-            let _ =
-                crate::services::db::DatabaseService::save_settings(scale, custom_bar, theme, chat_mode).await;
+            let _ = crate::services::db::DatabaseService::save_settings(
+                scale, custom_bar, theme, chat_mode, density,
+            )
+            .await;
         });
     }
 
@@ -448,9 +558,12 @@ impl AppState {
         let scale = self.interface_scale();
         let custom_bar = self.use_custom_titlebar();
         let theme = self.theme();
+        let density = self.contact_density();
         spawn(async move {
-            let _ =
-                crate::services::db::DatabaseService::save_settings(scale, custom_bar, theme, mode).await;
+            let _ = crate::services::db::DatabaseService::save_settings(
+                scale, custom_bar, theme, mode, density,
+            )
+            .await;
         });
     }
 
@@ -563,6 +676,10 @@ impl AppState {
         (self.show_profile_modal)()
     }
 
+    pub fn show_about(&self) -> bool {
+        (self.show_about)()
+    }
+
     pub fn profile_modal_contact_id(&self) -> Option<String> {
         self.profile_modal_contact_id.read().clone()
     }
@@ -619,5 +736,90 @@ impl AppState {
 
     pub fn was_automatically_away(&self) -> bool {
         (self.was_automatically_away)()
+    }
+
+    pub fn contact_density(&self) -> String {
+        self.contact_density.read().clone()
+    }
+
+    pub fn fav_density(&self) -> String {
+        self.fav_density.read().clone()
+    }
+
+    pub fn online_density(&self) -> String {
+        self.online_density.read().clone()
+    }
+
+    pub fn offline_density(&self) -> String {
+        self.offline_density.read().clone()
+    }
+
+    pub fn groups_density(&self) -> String {
+        self.groups_density.read().clone()
+    }
+
+    pub fn set_contact_density(&mut self, density: String) {
+        *self.contact_density.write() = density.clone();
+        let scale = self.interface_scale();
+        let custom_bar = self.use_custom_titlebar();
+        let theme = self.theme();
+        let chat_mode = self.chat_mode();
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::save_settings(
+                scale, custom_bar, theme, chat_mode, density,
+            )
+            .await;
+        });
+    }
+
+    pub fn set_category_density(&mut self, category: &str, density: String) {
+        match category {
+            "fav" => *self.fav_density.write() = density,
+            "online" => *self.online_density.write() = density,
+            "offline" => *self.offline_density.write() = density,
+            "groups" => *self.groups_density.write() = density,
+            _ => {}
+        }
+
+        let fav = self.fav_density.read().clone();
+        let online = self.online_density.read().clone();
+        let offline = self.offline_density.read().clone();
+        let groups = self.groups_density.read().clone();
+        let serialized = format!("fav:{},online:{},offline:{},groups:{}", fav, online, offline, groups);
+        
+        *self.contact_density.write() = serialized.clone();
+
+        let scale = self.interface_scale();
+        let custom_bar = self.use_custom_titlebar();
+        let theme = self.theme();
+        let chat_mode = self.chat_mode();
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::save_settings(
+                scale, custom_bar, theme, chat_mode, serialized,
+            )
+            .await;
+        });
+    }
+
+    pub fn active_nudge(&self) -> Option<String> {
+        self.active_nudge.read().clone()
+    }
+
+    pub fn unread_counts(&self) -> HashMap<String, usize> {
+        self.unread_counts.read().clone()
+    }
+
+    pub fn unread_count_for(&self, contact_id: &str) -> usize {
+        self.unread_counts.read().get(contact_id).copied().unwrap_or(0)
+    }
+
+    pub fn increment_unread(&mut self, contact_id: &str) {
+        let mut counts = self.unread_counts.write();
+        let count = counts.entry(contact_id.to_string()).or_insert(0);
+        *count += 1;
+    }
+
+    pub fn mark_chat_read(&mut self, contact_id: &str) {
+        self.unread_counts.write().remove(contact_id);
     }
 }

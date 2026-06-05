@@ -213,6 +213,60 @@ impl AppTheme {
             AppTheme::SilverMetallic => "text-[#333333]",
         }
     }
+
+    pub fn bg_chat(&self) -> &'static str {
+        match self {
+            AppTheme::AeroBlue => "linear-gradient(180deg, rgba(230, 241, 252, 0.95) 0%, rgba(190, 215, 240, 0.9) 100%)",
+            AppTheme::RubyPink => "linear-gradient(180deg, rgba(254, 230, 232, 0.95) 0%, rgba(253, 203, 196, 0.9) 100%)",
+            AppTheme::ForestGreen => "linear-gradient(180deg, rgba(232, 245, 233, 0.95) 0%, rgba(175, 224, 177, 0.9) 100%)",
+            AppTheme::SilverMetallic => "linear-gradient(180deg, rgba(245, 245, 247, 0.95) 0%, rgba(209, 209, 214, 0.9) 100%)",
+        }
+    }
+
+    pub fn modal_gradient(&self) -> &'static str {
+        match self {
+            AppTheme::AeroBlue => "from-[#e6f1fc] to-[#c8def5]",
+            AppTheme::RubyPink => "from-[#fae6e8] to-[#f5b3b5]",
+            AppTheme::ForestGreen => "from-[#e7f4e9] to-[#a2cfab]",
+            AppTheme::SilverMetallic => "from-[#f2f2f4] to-[#d1d1d6]",
+        }
+    }
+
+    pub fn modal_border(&self) -> &'static str {
+        match self {
+            AppTheme::AeroBlue => "border-[#7ba9d4]",
+            AppTheme::RubyPink => "border-[#ea888e]",
+            AppTheme::ForestGreen => "border-[#85c290]",
+            AppTheme::SilverMetallic => "border-[#b0b0b8]",
+        }
+    }
+
+    pub fn btn_primary(&self) -> &'static str {
+        match self {
+            AppTheme::AeroBlue => "bg-gradient-to-b from-[#8fc1e9] via-[#5c98d6] to-[#4585c5] hover:from-[#9bd0fa] hover:via-[#70abeb] hover:to-[#579adf] text-white border-[#4074a8]",
+            AppTheme::RubyPink => "bg-gradient-to-b from-[#f5b3b5] via-[#ea888e] to-[#a81c43] hover:from-[#ffc4c6] hover:via-[#f59e9f] hover:to-[#c82255] text-white border-[#a81c43]",
+            AppTheme::ForestGreen => "bg-gradient-to-b from-[#a2cfab] via-[#85c290] to-[#2e6930] hover:from-[#b5dec0] hover:via-[#9cd0ab] hover:to-[#387e3a] text-white border-[#2e6930]",
+            AppTheme::SilverMetallic => "bg-gradient-to-b from-[#d1d1d6] via-[#aeaea2] to-[#3a3a3c] hover:from-[#e5e5ea] hover:via-[#c7c7cc] hover:to-[#48484a] text-white border-[#3a3a3c]",
+        }
+    }
+    
+    pub fn tooltip_bg(&self) -> &'static str {
+        match self {
+            AppTheme::AeroBlue => "from-sky-50 to-sky-100/95 border-[#a6b9cd]",
+            AppTheme::RubyPink => "from-[#fff3f3] to-[#ffd7db]/95 border-[#ea888e]",
+            AppTheme::ForestGreen => "from-[#f4fbf5] to-[#dcf5e1]/95 border-[#85c290]",
+            AppTheme::SilverMetallic => "from-[#fafafb] to-[#e5e5ea]/95 border-[#b0b0b8]",
+        }
+    }
+
+    pub fn toast_gradient(&self) -> &'static str {
+        match self {
+            AppTheme::AeroBlue => "linear-gradient(135deg, rgba(240, 248, 255, 0.95) 0%, rgba(215, 235, 252, 0.95) 100%)",
+            AppTheme::RubyPink => "linear-gradient(135deg, rgba(255, 243, 243, 0.95) 0%, rgba(255, 215, 219, 0.95) 100%)",
+            AppTheme::ForestGreen => "linear-gradient(135deg, rgba(244, 251, 245, 0.95) 0%, rgba(220, 245, 225, 0.95) 100%)",
+            AppTheme::SilverMetallic => "linear-gradient(135deg, rgba(250, 250, 251, 0.95) 0%, rgba(229, 229, 234, 0.95) 100%)",
+        }
+    }
 }
 
 #[component]
@@ -316,6 +370,7 @@ pub enum WsEvent {
         personal_message: String,
         music: Option<String>,
         avatar_url: Option<String>,
+        display_name: String,
     },
     Nudge {
         conversation_id: String,
@@ -332,6 +387,23 @@ pub enum WsEvent {
     },
     ContactRequestAccepted {
         contact: UserProfile,
+    },
+    ContactAdded {
+        contact: UserProfile,
+    },
+    ContactBlocked {
+        contact_id: String,
+        blocked: bool,
+    },
+    ContactRemoved {
+        contact_id: String,
+    },
+    NicknameUpdated {
+        contact_id: String,
+        nickname: Option<String>,
+    },
+    Error {
+        message: String,
     },
 }
 
@@ -356,6 +428,23 @@ pub enum ClientAction {
         personal_message: Option<String>,
         music: Option<Option<String>>,
         display_name: Option<String>,
+    },
+    AddContact {
+        email_or_username: String,
+    },
+    AcceptContact {
+        contact_id: String,
+    },
+    RejectContact {
+        contact_id: String,
+    },
+    BlockContact {
+        contact_id: String,
+        block: bool,
+    },
+    SetNickname {
+        contact_id: String,
+        nickname: Option<String>,
     },
 }
 

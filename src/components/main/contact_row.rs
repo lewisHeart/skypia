@@ -3,8 +3,15 @@ use crate::state::AppState;
 use crate::models::{Contact, render_avatar};
 
 #[component]
-pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
+pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Element {
+    let theme = state.theme();
+    let unread_count = state.unread_count_for(&contact.id);
+    let name_font_weight = if unread_count > 0 { "font-extrabold" } else { "font-semibold" };
+    let is_typing = state.typing_contacts().get(&contact.id).map(|ids| !ids.is_empty()).unwrap_or(false);
+    let show_msg_or_typing = is_typing || !contact.personal_message.trim().is_empty();
+
     let mut show_tooltip = use_signal(|| false);
+    let mut tooltip_x = use_signal(|| 0i32);
     let mut tooltip_y = use_signal(|| 0i32);
 
     let mut show_context_menu = use_signal(|| false);
@@ -32,10 +39,25 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
     };
 
     let is_blocked = contact.relation_status == "Bloqueado";
+    let container_padding = match density.as_str() {
+        "large" => "py-2 px-1.5",
+        "small" => "py-0.5 px-1.5",
+        _ => "p-1",
+    };
 
     rsx! {
         div {
-            class: "flex items-center space-x-2.5 p-1 rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
+            class: "flex items-center space-x-2.5 {container_padding} rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
+            draggable: "true",
+            ondragstart: {
+                let cid = contact.id.clone();
+                move |_| {
+                    *state.dragged_contact_id.write() = Some(cid.clone());
+                }
+            },
+            ondragend: move |_| {
+                *state.dragged_contact_id.write() = None;
+            },
             ondoubleclick: handle_double_click,
             oncontextmenu: move |e| {
                 e.prevent_default();
@@ -48,6 +70,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             onmouseenter: move |e| {
                 if !show_context_menu() {
                     let scale = state.interface_scale();
+                    tooltip_x.set((e.client_coordinates().x as f64 / scale) as i32);
                     tooltip_y.set((e.client_coordinates().y as f64 / scale) as i32);
                     show_tooltip.set(true);
                 }
@@ -55,29 +78,77 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             onmousemove: move |e| {
                 if !show_context_menu() {
                     let scale = state.interface_scale();
+                    tooltip_x.set((e.client_coordinates().x as f64 / scale) as i32);
                     tooltip_y.set((e.client_coordinates().y as f64 / scale) as i32);
                 }
             },
             onmouseleave: move |_| show_tooltip.set(false),
             
-            // Small Avatar with MSN 3D border frame representing status
-            div { 
-                class: "flex-shrink-0 p-[1.5px] rounded-[5px] border {contact.status.avatar_frame_class()} overflow-hidden bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center",
-                div {
-                    class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
-                    {render_avatar(contact.avatar_url.as_deref(), 24)}
+            // Small Avatar with MSN 3D border frame representing status or simple dot
+            if density == "small" {
+                div { 
+                    class: "flex-shrink-0 w-6 h-6 flex items-center justify-center",
+                    div { class: "w-2.5 h-2.5 rounded-full {contact.status.color_class()} border border-white/40 shadow-sm" }
+                }
+            } else {
+                {
+                    let avatar_size = if density == "large" { 36 } else { 24 };
+                    let frame_rounded = if density == "large" { "rounded-[7px]" } else { "rounded-[5px]" };
+                    let inner_rounded = if density == "large" { "rounded-[4px]" } else { "rounded-[3px]" };
+                    rsx! {
+                        div { 
+                            class: "flex-shrink-0 p-[1.5px] {frame_rounded} border {contact.status.avatar_frame_class()} overflow-hidden bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
+                            div {
+                                class: "{inner_rounded} overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
+                                {render_avatar(contact.avatar_url.as_deref(), avatar_size)}
+                            }
+                        }
+                    }
                 }
             }
             
             // Name and Sub-status
-            div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
-                div { class: "flex items-center space-x-1",
-                    span { class: "font-semibold text-xs text-[#1e395b] truncate group-hover:text-sky-700", "{name_to_show}" }
+            if density == "small" {
+                div { class: "flex-1 min-w-0 flex items-center space-x-1.5 text-xs",
+                    span { class: "{name_font_weight} {theme.titlebar_text()} truncate hover:underline flex-shrink-0", "{name_to_show}" }
                     if is_blocked {
-                        span { class: "text-[9px] opacity-75", "🚫" }
+                        span { class: "text-[9px] opacity-75 flex-shrink-0", "🚫" }
+                    }
+                    if unread_count > 0 {
+                        span { 
+                            class: "bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.25 rounded-full min-w-[15px] h-3.5 flex items-center justify-center animate-pulse border border-white/80 shadow-sm flex-shrink-0",
+                            "{unread_count}"
+                        }
+                    }
+                    if show_msg_or_typing {
+                        span { class: "text-slate-400/80 flex-shrink-0", "—" }
+                        if is_typing {
+                            span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate flex-1", "✍️ digitando..." }
+                        } else {
+                            span { class: "text-[10px] text-slate-500 truncate italic font-normal flex-1", "{contact.personal_message}" }
+                        }
                     }
                 }
-                span { class: "text-[10px] text-slate-500 truncate italic font-normal", "{contact.personal_message}" }
+            } else {
+                div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
+                    div { class: "flex items-center space-x-1",
+                        span { class: "{name_font_weight} text-xs {theme.titlebar_text()} truncate hover:underline", "{name_to_show}" }
+                        if is_blocked {
+                            span { class: "text-[9px] opacity-75", "🚫" }
+                        }
+                        if unread_count > 0 {
+                            span { 
+                                class: "bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.25 rounded-full min-w-[15px] h-3.5 flex items-center justify-center animate-pulse border border-white/80 shadow-sm flex-shrink-0",
+                                "{unread_count}"
+                            }
+                        }
+                    }
+                    if is_typing {
+                        span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate", "✍️ digitando..." }
+                    } else {
+                        span { class: "text-[10px] text-slate-500 truncate italic font-normal", "{contact.personal_message}" }
+                    }
+                }
             }
             
             // Listening music indicator icon
@@ -88,8 +159,8 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             // Nostalgic hover card tooltip
             if show_tooltip() {
                 div { 
-                    class: "fixed left-[360px] w-64 bg-gradient-to-b from-sky-50 to-sky-100/95 border border-[#a6b9cd] rounded-lg shadow-xl z-50 p-3 flex flex-col space-y-2 text-xs text-slate-700 pointer-events-none",
-                    style: "top: {tooltip_y - 45}px;",
+                    class: "fixed w-64 bg-gradient-to-b {theme.tooltip_bg()} border rounded-lg shadow-xl z-50 p-3 flex flex-col space-y-2 text-xs text-slate-700 pointer-events-none",
+                    style: "left: {tooltip_x + 15}px; top: {tooltip_y + 15}px;",
                     div { class: "flex items-start space-x-3",
                         // Tooltip Avatar with fixed border
                         div { 
@@ -97,7 +168,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                             {render_avatar(contact.avatar_url.as_deref(), 44)}
                         }
                         div { class: "flex-1 min-w-0 flex flex-col space-y-1",
-                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{name_to_show}" }
+                            span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{name_to_show}" }
                             span { class: "text-[10px] text-slate-400 select-all font-semibold", "{contact.email}" }
                             span { class: "font-semibold text-[10px] text-slate-500", "Status: {contact.status.as_str()}" }
                         }
@@ -105,7 +176,9 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                     div { class: "border-t border-slate-200/80 pt-1.5 flex flex-col space-y-1",
                         p { class: "text-[10px] text-slate-600 italic select-text", "“{contact.personal_message}”" }
                         if let Some(ref song) = contact.music_listening {
-                            div { class: "flex items-center space-x-1 text-[9px] text-[#0066cc] font-medium",
+                            div { 
+                                class: "flex items-center space-x-1 text-[9px] {theme.titlebar_text()} font-medium",
+                                style: "opacity: 0.90;",
                                 span { "🎵" }
                                 span { "{song}" }
                             }
@@ -114,11 +187,19 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                 }
             }
 
-            // Menu de Contexto MSN Style
+            // Menu de Contexto MSN Style com Overlay para fechar ao clicar fora
             if show_context_menu() {
+                div {
+                    class: "fixed inset-0 z-[9998] bg-transparent cursor-default",
+                    onclick: move |e| {
+                        e.stop_propagation();
+                        show_context_menu.set(false);
+                    }
+                }
                 div { 
                     class: "fixed w-44 bg-white/95 border border-slate-300 rounded-lg shadow-2xl backdrop-blur-md z-[9999] p-1 flex flex-col text-[11px] text-slate-700 transition-all",
                     style: "left: {menu_x}px; top: {menu_y}px;",
+                    onclick: move |e| e.stop_propagation(),
                     onmouseleave: move |_| show_context_menu.set(false),
                     
                     button { 
@@ -199,11 +280,11 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                     class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 cursor-default",
                     onclick: move |_| show_rename_modal.set(false),
                     div { 
-                        class: "w-80 bg-gradient-to-b from-[#f2f7fc] to-[#d8e8f7] border-2 border-[#5c98d6] rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs text-[#1e395b]",
+                        class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border-2 {theme.modal_border()} rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
                         onclick: move |e| e.stop_propagation(),
                         
-                        div { class: "flex items-center justify-between border-b border-[#a8c9eb] pb-2",
-                            span { class: "font-bold text-sm", "Renomear Contato" }
+                        div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
+                            span { class: "font-bold text-sm {theme.titlebar_text()}", "Renomear Contato" }
                             button { 
                                 class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors focus:outline-none",
                                 onclick: move |_| show_rename_modal.set(false),
@@ -214,7 +295,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                         div { class: "flex flex-col space-y-1.5",
                             label { class: "font-semibold text-slate-700", "Digite o apelido para {contact.display_name}:" }
                             input { 
-                                class: "w-full px-2.5 py-1.5 border border-[#a8c9eb] rounded bg-white focus:outline-none focus:border-[#5c98d6] text-xs text-slate-800",
+                                class: "w-full px-2.5 py-1.5 border {theme.titlebar_border()} rounded bg-white focus:outline-none focus:border-slate-400 text-xs text-slate-800",
                                 placeholder: "Apelido personalizado...",
                                 value: "{new_nickname}",
                                 oninput: move |e| new_nickname.set(e.value()),
@@ -232,9 +313,9 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                             }
                         }
                         
-                        div { class: "flex items-center justify-end space-x-2 pt-2 border-t border-[#a8c9eb]/50",
+                        div { class: "flex items-center justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/50",
                             button { 
-                                class: "px-4 py-1.5 bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                                class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                 onclick: {
                                     let cid = cid_rename_click.clone();
                                     move |_| {

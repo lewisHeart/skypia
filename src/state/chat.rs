@@ -40,6 +40,8 @@ impl AppState {
             }
         }
 
+        self.mark_chat_read(&contact_id);
+
         if is_detached {
             if !chat_mode_is_detached && self.detached_chats().contains(&contact_id) {
                 self.attach_chat(contact_id);
@@ -190,6 +192,20 @@ impl AppState {
             is_game_invite: false,
         };
 
+        // Ativa animação reativa de tremor para essa conversa por 800ms
+        let mut active_nudge_sig = self.active_nudge;
+        let cid_nudge = contact_id.clone();
+        *active_nudge_sig.write() = Some(contact_id.clone());
+        spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            if active_nudge_sig().as_ref() == Some(&cid_nudge) {
+                *active_nudge_sig.write() = None;
+            }
+        });
+
+        // Toca som do nudge localmente
+        crate::sound::play_sound("nudge");
+
         let mut messages = self.chat_messages.write();
         messages
             .entry(contact_id)
@@ -250,8 +266,24 @@ impl AppState {
                 .push(nudge_msg);
         }
 
-        // Se o chat não estiver desvinculado, abre e seleciona na tela principal
-        self.open_chat(contact_id);
+        // Ativa animação reativa de tremor para essa conversa por 800ms
+        let mut active_nudge_sig = self.active_nudge;
+        let cid_nudge = contact_id.clone();
+        *active_nudge_sig.write() = Some(contact_id.clone());
+        spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            if active_nudge_sig().as_ref() == Some(&cid_nudge) {
+                *active_nudge_sig.write() = None;
+            }
+        });
+
+        // Toca som do nudge localmente
+        crate::sound::play_sound("nudge");
+
+        // Se o chat não estiver desvinculado, seleciona e abre na janela principal
+        if !self.detached_chats().contains(&contact_id) && self.chat_mode() != "detached" {
+            *self.selected_chat_id.write() = Some(contact_id);
+        }
 
         // Não salva localmente, confiamos no backend
     }
@@ -288,6 +320,12 @@ impl AppState {
             file_transfer: None,
             is_game_invite: false,
         };
+
+        let is_selected = self.selected_chat_id() == Some(contact_id.clone());
+        let is_detached = self.detached_chats().contains(&contact_id);
+        if !is_selected || is_detached {
+            self.increment_unread(&contact_id);
+        }
 
         let mut messages = self.chat_messages.write();
         messages
@@ -329,7 +367,8 @@ impl AppState {
 
         // Remove do estado local
         self.detached_chats.write().retain(|id| id != &contact_id);
-        *self.selected_chat_id.write() = Some(contact_id);
+        *self.selected_chat_id.write() = Some(contact_id.clone());
+        self.mark_chat_read(&contact_id);
     }
 
     pub fn send_wink(&mut self, contact_id: String, wink_name: String) {

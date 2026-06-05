@@ -29,22 +29,24 @@ fn ToastCard(toast: crate::state::Toast, mut state: AppState) -> Element {
         });
     });
 
+    let theme = state.theme();
+
     rsx! {
         div {
-            class: "w-full p-3 rounded-lg border border-[#7baad4] shadow-xl flex items-center space-x-3 toast-in pointer-events-auto cursor-pointer select-none bg-sky-50/95 hover:bg-sky-100/95 transition-colors",
-            style: "background: linear-gradient(135deg, rgba(240, 248, 255, 0.95) 0%, rgba(215, 235, 252, 0.95) 100%);",
+            class: "w-full p-3 rounded-lg border {theme.modal_border()} shadow-xl flex items-center space-x-3 toast-in pointer-events-auto cursor-pointer select-none transition-colors hover:opacity-95",
+            style: "background: {theme.toast_gradient()};",
             onclick: move |_| {
                 state.remove_toast(toast_id);
             },
 
             // Avatar
-            div { class: "w-9 h-9 rounded border border-slate-300 overflow-hidden flex-shrink-0 bg-white shadow-sm",
+            div { class: "w-9 h-9 rounded border border-slate-350 overflow-hidden flex-shrink-0 bg-white shadow-sm",
                 {render_avatar(toast.avatar_url.as_deref(), 36)}
             }
 
             // Content
             div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
-                span { class: "font-bold text-xs text-[#1e395b] truncate", "{toast.title}" }
+                span { class: "font-bold text-xs {theme.titlebar_text()} truncate", "{toast.title}" }
                 span { class: "text-[10px] text-slate-600 truncate", "{toast.message}" }
             }
 

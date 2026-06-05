@@ -41,6 +41,15 @@ impl AppState {
         let mut state_clone = *self;
         let token_opt = self.auth_token();
 
+        // Tenta via WebSocket primeiro
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::AddContact {
+                email_or_username,
+            });
+            return;
+        }
+
+        // Fallback HTTP
         spawn(async move {
             let mut added_contact = None;
 
@@ -111,6 +120,17 @@ impl AppState {
     }
 
     pub fn accept_friend_request(&mut self, contact_id: String) {
+        // Tenta via WebSocket primeiro
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::AcceptContact {
+                contact_id: contact_id.clone(),
+            });
+            // Remove da lista de pendentes localmente
+            self.pending_requests.write().retain(|c| c.id != contact_id);
+            return;
+        }
+
+        // Fallback HTTP
         let token_opt = self.auth_token();
         let mut state_clone = *self;
         spawn(async move {
@@ -134,6 +154,17 @@ impl AppState {
     }
 
     pub fn reject_friend_request(&mut self, contact_id: String) {
+        // Tenta via WebSocket primeiro
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::RejectContact {
+                contact_id: contact_id.clone(),
+            });
+            // Remove da lista de pendentes localmente
+            self.pending_requests.write().retain(|c| c.id != contact_id);
+            return;
+        }
+
+        // Fallback HTTP
         let token_opt = self.auth_token();
         let mut state_clone = *self;
         spawn(async move {
@@ -156,6 +187,16 @@ impl AppState {
     }
 
     pub fn block_contact(&mut self, contact_id: String, block: bool) {
+        // Tenta via WebSocket primeiro
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::BlockContact {
+                contact_id,
+                block,
+            });
+            return;
+        }
+
+        // Fallback HTTP
         let token_opt = self.auth_token();
         let mut state_clone = *self;
         spawn(async move {
@@ -178,6 +219,16 @@ impl AppState {
     }
 
     pub fn rename_contact(&mut self, contact_id: String, nickname: Option<String>) {
+        // Tenta via WebSocket primeiro
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::SetNickname {
+                contact_id,
+                nickname,
+            });
+            return;
+        }
+
+        // Fallback HTTP
         let token_opt = self.auth_token();
         let mut state_clone = *self;
         spawn(async move {
@@ -223,5 +274,147 @@ impl AppState {
                 );
             }
         }
+    }
+
+    pub fn create_group_chat(&mut self, name: String, member_emails: Vec<String>) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        spawn(async move {
+            if let Some(token) = token_opt {
+                match crate::services::api::create_conversation(&token, Some(name.clone()), true, member_emails).await {
+                    Ok(conv) => {
+                        state_clone.add_toast(
+                            "Grupo Criado".to_string(),
+                            format!("O grupo '{}' foi criado com sucesso.", name),
+                            None,
+                        );
+                        state_clone.load_initial_data();
+                        state_clone.open_chat(conv.id);
+                    }
+                    Err(e) => {
+                        state_clone.add_toast("Erro ao Criar Grupo".to_string(), e, None);
+                    }
+                }
+            }
+        });
+    }
+
+    pub fn leave_group_chat(&mut self, group_id: String) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        let gid = group_id.clone();
+        spawn(async move {
+            if let Some(token) = token_opt {
+                let client = reqwest::Client::new();
+                let resp = client
+                    .post(format!("{}/conversations/{}/leave", crate::services::api::SERVER_BASE_URL, gid))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .send()
+                    .await;
+                
+                match resp {
+                    Ok(r) if r.status().is_success() => {
+                        state_clone.add_toast(
+                            "Sair do Grupo".to_string(),
+                            "Você saiu do grupo com sucesso.".to_string(),
+                            None,
+                        );
+                        if state_clone.selected_chat_id() == Some(gid.clone()) {
+                            *state_clone.selected_chat_id.write() = None;
+                        }
+                        state_clone.active_chats.write().retain(|id| id != &gid);
+                        state_clone.detached_chats.write().retain(|id| id != &gid);
+                        state_clone.load_initial_data();
+                    }
+                    _ => {
+                        state_clone.add_toast(
+                            "Erro".to_string(),
+                            "Não foi possível sair do grupo.".to_string(),
+                            None,
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    pub fn add_group_member(&mut self, group_id: String, email: String) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        let gid = group_id.clone();
+        spawn(async move {
+            if let Some(token) = token_opt {
+                let client = reqwest::Client::new();
+                let body = serde_json::json!({ "email": email });
+                let resp = client
+                    .post(format!("{}/conversations/{}/members/add", crate::services::api::SERVER_BASE_URL, gid))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .json(&body)
+                    .send()
+                    .await;
+
+                match resp {
+                    Ok(r) if r.status().is_success() => {
+                        state_clone.add_toast(
+                            "Membro Adicionado".to_string(),
+                            format!("{} foi adicionado ao grupo.", email),
+                            None,
+                        );
+                        state_clone.load_initial_data();
+                    }
+                    Ok(r) => {
+                        let text = r.text().await.unwrap_or_default();
+                        let error_msg = serde_json::from_str::<serde_json::Value>(&text)
+                            .ok()
+                            .and_then(|v| v["error"].as_str().map(|s| s.to_string()))
+                            .unwrap_or_else(|| "Erro desconhecido.".to_string());
+                        state_clone.add_toast("Erro ao Adicionar".to_string(), error_msg, None);
+                    }
+                    Err(_) => {
+                        state_clone.add_toast(
+                            "Erro de conexão".to_string(),
+                            "Não foi possível conectar ao servidor.".to_string(),
+                            None,
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    pub fn remove_group_member(&mut self, group_id: String, user_id: String) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        let gid = group_id.clone();
+        spawn(async move {
+            if let Some(token) = token_opt {
+                let client = reqwest::Client::new();
+                let body = serde_json::json!({ "user_id": user_id });
+                let resp = client
+                    .post(format!("{}/conversations/{}/members/remove", crate::services::api::SERVER_BASE_URL, gid))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .json(&body)
+                    .send()
+                    .await;
+
+                match resp {
+                    Ok(r) if r.status().is_success() => {
+                        state_clone.add_toast(
+                            "Membro Removido".to_string(),
+                            "O participante foi removido do grupo.".to_string(),
+                            None,
+                        );
+                        state_clone.load_initial_data();
+                    }
+                    _ => {
+                        state_clone.add_toast(
+                            "Erro".to_string(),
+                            "Não foi possível remover o participante.".to_string(),
+                            None,
+                        );
+                    }
+                }
+            }
+        });
     }
 }
