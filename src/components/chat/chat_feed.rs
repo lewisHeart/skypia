@@ -520,11 +520,46 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                                         span { class: "text-[9px] text-purple-500 font-normal ml-auto", "{msg.timestamp}" }
                                     }
                                 } else if msg.is_game_invite {
-                                    div { class: "py-2 px-3 bg-emerald-100/80 border border-emerald-200 rounded text-emerald-700 font-bold flex flex-col space-y-1 my-1 shadow-sm",
-                                        div { class: "flex items-center space-x-2",
-                                            span { "🎮" }
-                                            span { "{msg.text}" }
-                                            span { class: "text-[9px] text-emerald-600 font-normal ml-auto", "{msg.timestamp}" }
+                                    {
+                                        let is_my_invite = msg.sender_id == "0";
+                                        let game_states = state.game_states();
+                                        let active_game = game_states.get(&contact_id);
+                                        let is_accepted = active_game.map(|g| g.accepted).unwrap_or(false);
+                                        let cid_accept = contact_id.clone();
+                                        let cid_reject = contact_id.clone();
+                                        
+                                        rsx! {
+                                            div { class: "py-2 px-3 bg-emerald-100/80 border border-emerald-200 rounded text-emerald-700 font-bold flex flex-col space-y-1.5 my-1 shadow-sm",
+                                                div { class: "flex items-center space-x-2",
+                                                    span { "🎮" }
+                                                    if is_accepted {
+                                                        span { "Desafio de Jogo da Velha (Iniciado)" }
+                                                    } else if is_my_invite {
+                                                        span { "Você convidou {display_name} para jogar Jogo da Velha." }
+                                                    } else {
+                                                        span { "{msg.sender_name} convidou você para jogar Jogo da Velha." }
+                                                    }
+                                                    span { class: "text-[9px] text-emerald-600 font-normal ml-auto", "{msg.timestamp}" }
+                                                }
+                                                if !is_accepted && !is_my_invite {
+                                                    div { class: "flex items-center space-x-2 text-[11px] font-normal pt-1",
+                                                        button {
+                                                            class: "px-2 py-0.5 {theme.btn_primary()} rounded font-bold cursor-pointer transition-colors",
+                                                            onclick: move |_| state.accept_game_invite(cid_accept.clone()),
+                                                            "Aceitar"
+                                                        }
+                                                        button {
+                                                            class: "px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-350 rounded cursor-pointer transition-colors text-slate-700",
+                                                            onclick: move |_| state.reject_game_invite(cid_reject.clone()),
+                                                            "Recusar"
+                                                        }
+                                                    }
+                                                } else if !is_accepted && is_my_invite {
+                                                    div { class: "text-[10px] font-normal text-emerald-600 italic animate-pulse",
+                                                        "Aguardando resposta do contato..."
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 } else if let Some(ref transfer) = msg.file_transfer {

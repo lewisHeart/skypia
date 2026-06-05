@@ -253,7 +253,7 @@ fn App() -> Element {
                             src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/busts-in-silhouette.webp",
                             class: "w-4 h-4 object-contain pointer-events-none"
                         }
-                        span { "Skypia Messenger" }
+                        span { "Skypia" }
                     }
 
                     // Controls (X)
@@ -436,6 +436,11 @@ fn App() -> Element {
         // Modal de Perfil Pessoal
         if app_state.show_profile_modal() {
             crate::components::profile::profile_modal::ProfileModal { state: app_state }
+        }
+
+        // Modal de Jogos
+        if app_state.show_games_modal() {
+            crate::components::chat::games_modal::GamesModal { state: app_state }
         }
     }
 }

@@ -4,14 +4,46 @@ use dioxus::prelude::*;
 
 // Avatares predefinidos embutidos em tempo de compilação (funciona em qualquer plataforma)
 static PRESET_AVATARS: &[(&str, &str, &[u8])] = &[
-    ("Margarida", "image/png", include_bytes!("../../../assets/usertiles/daisy.png")),
-    ("Cachorrinho", "image/png", include_bytes!("../../../assets/usertiles/dog.png")),
-    ("Gatinho", "image/png", include_bytes!("../../../assets/usertiles/kitten.png")),
-    ("Robozinho", "image/png", include_bytes!("../../../assets/usertiles/robot.png")),
-    ("Futebol", "image/gif", include_bytes!("../../../assets/usertiles/soccer.gif")),
-    ("Sol", "image/gif", include_bytes!("../../../assets/usertiles/summer.gif")),
-    ("Flores", "image/gif", include_bytes!("../../../assets/usertiles/spring.gif")),
-    ("Outono", "image/gif", include_bytes!("../../../assets/usertiles/fall.gif")),
+    (
+        "Margarida",
+        "image/png",
+        include_bytes!("../../../assets/usertiles/daisy.png"),
+    ),
+    (
+        "Cachorrinho",
+        "image/png",
+        include_bytes!("../../../assets/usertiles/dog.png"),
+    ),
+    (
+        "Gatinho",
+        "image/png",
+        include_bytes!("../../../assets/usertiles/kitten.png"),
+    ),
+    (
+        "Robozinho",
+        "image/png",
+        include_bytes!("../../../assets/usertiles/robot.png"),
+    ),
+    (
+        "Futebol",
+        "image/gif",
+        include_bytes!("../../../assets/usertiles/soccer.gif"),
+    ),
+    (
+        "Sol",
+        "image/gif",
+        include_bytes!("../../../assets/usertiles/summer.gif"),
+    ),
+    (
+        "Flores",
+        "image/gif",
+        include_bytes!("../../../assets/usertiles/spring.gif"),
+    ),
+    (
+        "Outono",
+        "image/gif",
+        include_bytes!("../../../assets/usertiles/fall.gif"),
+    ),
 ];
 
 // IDs únicos para os inputs de arquivo HTML (mobile)
@@ -29,8 +61,8 @@ static PRESET_ASSET_PATHS: &[&str] = &[
 #[component]
 pub fn AvatarPicker(mut state: AppState) -> Element {
     let theme = state.theme();
-    let mut is_uploading = use_signal(|| false);
-    let mut upload_error = use_signal(|| Option::<String>::None);
+    let is_uploading = use_signal(|| false);
+    let upload_error = use_signal(|| Option::<String>::None);
 
     rsx! {
         div {

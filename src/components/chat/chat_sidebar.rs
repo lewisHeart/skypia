@@ -24,6 +24,15 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
         g.members.iter().any(|m| Some(m.id.clone()) == self_id && m.role.as_deref() == Some("admin"))
     }).unwrap_or(false);
 
+    // Variáveis auxiliares para o Jogo da Velha (fora da macro rsx!)
+    let contact_name = contact.as_ref().map(|c| c.nickname.clone().unwrap_or(c.display_name.clone())).unwrap_or_else(|| "Contato".to_string());
+    let messages = state.chat_messages();
+    let chat_history = messages.get(&contact_id);
+    let last_invite_msg = chat_history.and_then(|msgs| {
+        msgs.iter().rfind(|m| m.is_game_invite)
+    });
+    let is_my_invite = last_invite_msg.map(|m| m.sender_id == "0").unwrap_or(true);
+
     rsx! {
         if is_group {
             {
@@ -166,73 +175,110 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                     span { "Jogo da Velha" }
                 }
                 
-                // 3x3 board grid
-                div { class: "grid grid-cols-3 gap-1.5 w-full aspect-square bg-slate-900/10 p-1.5 rounded-lg border {theme.titlebar_border()}",
-                    for (idx, cell) in game.board.iter().enumerate() {
-                        {
-                            let cell_text = match cell {
-                                TicTacToeCell::Empty => "",
-                                TicTacToeCell::X => "X",
-                                TicTacToeCell::O => "O",
-                            };
-                            let cell_color = match cell {
-                                TicTacToeCell::Empty => "bg-white/40 hover:bg-white/60".to_string(),
-                                TicTacToeCell::X => {
-                                    let bg_class = theme.accent_color().split_whitespace().nth(1).unwrap_or("bg-[#3b82f6]");
-                                    format!("{} text-white font-black text-sm cursor-default", bg_class)
-                                }
-                                TicTacToeCell::O => "bg-rose-500/80 text-white font-black text-sm cursor-default".to_string(),
-                            };
-                            let cid = contact_id.clone();
-                            rsx! {
+                if !game.accepted {
+                    div { class: "flex-1 flex flex-col items-center justify-center text-center space-y-4 py-6 w-full",
+                        if is_my_invite {
+                            div { class: "w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" }
+                            span { class: "font-semibold text-[10px] text-slate-600 px-1", "Aguardando aceitação de {contact_name}..." }
+                            button {
+                                class: "w-full py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold transition-all text-[10px] text-slate-700 cursor-pointer text-center",
+                                onclick: {
+                                    let cid = contact_id.clone();
+                                    move |_| {
+                                        state.game_states.write().remove(&cid);
+                                    }
+                                },
+                                "Cancelar"
+                            }
+                        } else {
+                            span { class: "text-lg", "📨" }
+                            span { class: "font-semibold text-[10px] text-slate-600 px-1", "{contact_name} convidou você para jogar!" }
+                            div { class: "flex flex-col space-y-1.5 w-full pt-2",
                                 button {
-                                    class: "w-full aspect-square rounded flex items-center justify-center border border-white/20 transition-all cursor-pointer {cell_color}",
-                                    disabled: !game.active || *cell != TicTacToeCell::Empty || game.turn != TicTacToeCell::X,
-                                    onclick: move |_| state.make_game_move(cid.clone(), idx),
-                                    "{cell_text}"
+                                    class: "w-full py-1 {theme.btn_primary()} rounded font-bold transition-all text-[10px] cursor-pointer text-center",
+                                    onclick: {
+                                        let cid = contact_id.clone();
+                                        move |_| state.accept_game_invite(cid.clone())
+                                    },
+                                    "Aceitar"
+                                }
+                                button {
+                                    class: "w-full py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold transition-all text-[10px] text-slate-700 cursor-pointer text-center",
+                                    onclick: {
+                                        let cid = contact_id.clone();
+                                        move |_| state.reject_game_invite(cid.clone())
+                                    },
+                                    "Recusar"
                                 }
                             }
                         }
                     }
-                }
-                
-                // Game Status info
-                div { class: "text-[10px] text-center font-semibold pt-1 min-h-8 flex items-center justify-center w-full",
-                    if !game.active {
-                        if let Some(winner) = game.winner {
-                            if winner == TicTacToeCell::X {
-                                span { "Você Venceu! 🎉" }
-                            } else {
-                                span { "Você Perdeu! 😢" }
+                } else {
+                    div { class: "grid grid-cols-3 gap-1.5 w-full aspect-square bg-slate-900/10 p-1.5 rounded-lg border {theme.titlebar_border()}",
+                        for (idx, cell) in game.board.iter().enumerate() {
+                            {
+                                let cell_text = match cell {
+                                    TicTacToeCell::Empty => "",
+                                    TicTacToeCell::X => "X",
+                                    TicTacToeCell::O => "O",
+                                };
+                                let cell_color = match cell {
+                                    TicTacToeCell::Empty => "bg-white/40 hover:bg-white/60".to_string(),
+                                    TicTacToeCell::X => {
+                                        let bg_class = theme.accent_color().split_whitespace().nth(1).unwrap_or("bg-[#3b82f6]");
+                                        format!("{} text-white font-black text-sm cursor-default", bg_class)
+                                    }
+                                    TicTacToeCell::O => "bg-rose-500/80 text-white font-black text-sm cursor-default".to_string(),
+                                };
+                                let cid = contact_id.clone();
+                                rsx! {
+                                    button {
+                                        class: "w-full aspect-square rounded flex items-center justify-center border border-white/20 transition-all cursor-pointer {cell_color}",
+                                        disabled: !game.active || *cell != TicTacToeCell::Empty || game.turn != TicTacToeCell::X,
+                                        onclick: move |_| state.make_game_move(cid.clone(), idx),
+                                        "{cell_text}"
+                                    }
+                                }
                             }
-                        } else if game.is_draw {
-                            span { "Deu Velha! 🤝" }
                         }
-                    } else if game.turn == TicTacToeCell::X {
-                        span { "Sua vez (X)" }
-                    } else {
-                        span { class: "animate-pulse", "Pensando (O)..." }
                     }
-                }
-                
-                // Controls
-                button {
-                    class: "w-full py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold transition-all text-[10px] cursor-pointer text-center",
-                    onclick: {
-                        let cid = contact_id.clone();
-                        move |_| state.start_game(cid.clone())
-                    },
-                    if game.active { "Reiniciar" } else { "Jogar de Novo" }
-                }
-                button {
-                    class: "w-full py-1 bg-red-100 hover:bg-red-200 border border-red-300 rounded font-bold transition-all text-[10px] text-red-700 cursor-pointer text-center",
-                    onclick: {
-                        let cid = contact_id.clone();
-                        move |_| {
-                            state.game_states.write().remove(&cid);
+                    
+                    div { class: "text-[10px] text-center font-semibold pt-1 min-h-8 flex items-center justify-center w-full",
+                        if !game.active {
+                            if let Some(winner) = game.winner {
+                                if winner == TicTacToeCell::X {
+                                    span { "Você Venceu! 🎉" }
+                                } else {
+                                    span { "Você Perdeu! 😢" }
+                                }
+                            } else if game.is_draw {
+                                span { "Deu Velha! 🤝" }
+                            }
+                        } else if game.turn == TicTacToeCell::X {
+                            span { "Sua vez (X)" }
+                        } else {
+                            span { class: "animate-pulse", "Pensando (O)..." }
                         }
-                    },
-                    "Sair do Jogo"
+                    }
+                    
+                    button {
+                        class: "w-full py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold transition-all text-[10px] cursor-pointer text-center",
+                        onclick: {
+                            let cid = contact_id.clone();
+                            move |_| state.start_game(cid.clone())
+                        },
+                        if game.active { "Reiniciar" } else { "Jogar de Novo" }
+                    }
+                    button {
+                        class: "w-full py-1 bg-red-100 hover:bg-red-200 border border-red-300 rounded font-bold transition-all text-[10px] text-red-700 cursor-pointer text-center",
+                        onclick: {
+                            let cid = contact_id.clone();
+                            move |_| {
+                                state.game_states.write().remove(&cid);
+                            }
+                        },
+                        "Sair do Jogo"
+                    }
                 }
             }
         } else {

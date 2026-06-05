@@ -82,6 +82,7 @@ pub struct TicTacToe {
     pub winner: Option<TicTacToeCell>,
     pub is_draw: bool,
     pub active: bool,
+    pub accepted: bool,
 }
 
 impl TicTacToe {
@@ -92,6 +93,7 @@ impl TicTacToe {
             winner: None,
             is_draw: false,
             active: true,
+            accepted: false,
         }
     }
 }
@@ -361,6 +363,7 @@ pub struct UserProfile {
     pub relation_status: Option<String>,
     pub nickname: Option<String>,
     pub role: Option<String>,
+    pub is_favorite: Option<bool>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -405,6 +408,11 @@ pub enum WsEvent {
         contact_id: String,
         nickname: Option<String>,
     },
+    FavoriteUpdated {
+        contact_id: String,
+        is_favorite: bool,
+    },
+    ConversationJoined(Conversation),
     Error {
         message: String,
     },
@@ -448,6 +456,10 @@ pub enum ClientAction {
     SetNickname {
         contact_id: String,
         nickname: Option<String>,
+    },
+    SetFavorite {
+        contact_id: String,
+        is_favorite: bool,
     },
 }
 

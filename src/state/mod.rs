@@ -43,6 +43,7 @@ pub struct AppState {
     pub banner_info: Signal<Option<BannerInfo>>,
     pub active_wink: Signal<Option<String>>, // wink sendo executado na tela ("kiss", "hammer", "pig")
     pub game_states: Signal<HashMap<String, TicTacToe>>, // jogo da velha por contato
+    pub show_games_modal: Signal<bool>,
     pub show_settings_modal: Signal<bool>,
     pub show_add_contact_modal: Signal<bool>,
     pub show_music_player_modal: Signal<bool>,
@@ -106,6 +107,7 @@ impl AppState {
             banner_info: Signal::new(None),
             active_wink: Signal::new(None),
             game_states: Signal::new(HashMap::new()),
+            show_games_modal: Signal::new(false),
             show_settings_modal: Signal::new(false),
             show_add_contact_modal: Signal::new(false),
             show_music_player_modal: Signal::new(false),
@@ -396,7 +398,7 @@ impl AppState {
     pub fn set_user_status(&mut self, status: UserStatus) {
         *self.user_status.write() = status;
         if status == UserStatus::Offline {
-            *self.logged_in.write() = false;
+            self.logout();
         }
 
         let status_str = match status {
@@ -650,6 +652,10 @@ impl AppState {
 
     pub fn game_states(&self) -> HashMap<String, TicTacToe> {
         self.game_states.read().clone()
+    }
+
+    pub fn show_games_modal(&self) -> bool {
+        (self.show_games_modal)()
     }
 
     pub fn show_settings_modal(&self) -> bool {

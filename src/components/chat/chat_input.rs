@@ -156,16 +156,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                     if !is_group {
                         button {
                             class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center transition-colors",
-                            title: "Desafiar para Jogo da Velha",
-                            onclick: {
-                                let cid = contact_id.clone();
-                                move |_| {
-                                    state.start_game(cid.clone());
-                                    show_file_panel.set(false);
-                                    show_wink_panel.set(false);
-                                    show_font_panel.set(false);
-                                    show_emoticon_panel.set(false);
-                                }
+                            title: "Skypia Jogos",
+                            onclick: move |_| {
+                                state.show_games_modal.set(true);
+                                show_file_panel.set(false);
+                                show_wink_panel.set(false);
+                                show_font_panel.set(false);
+                                show_emoticon_panel.set(false);
                             },
                             img {
                                 src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/video-game.webp",

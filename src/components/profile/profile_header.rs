@@ -13,7 +13,8 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
     let mut is_editing_msg = use_signal(|| false);
     let mut temp_msg = use_signal(|| state.user_personal_message());
 
-    let mut show_status_menu = use_signal(|| false);
+    let mut show_status_menu_name = use_signal(|| false);
+    let mut show_status_menu_avatar = use_signal(|| false);
     let mut show_actions_menu = use_signal(|| false);
     let mut music_search_query = use_signal(|| String::new());
 
@@ -44,6 +45,17 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 div {
                     class: "fixed inset-0 z-40 bg-transparent cursor-default",
                     onclick: move |_| show_actions_menu.set(false),
+                }
+            }
+
+            // Click outside overlay to close status menus
+            if show_status_menu_name() || show_status_menu_avatar() {
+                div {
+                    class: "fixed inset-0 z-40 bg-transparent cursor-default",
+                    onclick: move |_| {
+                        show_status_menu_name.set(false);
+                        show_status_menu_avatar.set(false);
+                    },
                 }
             }
 
@@ -142,6 +154,26 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     class: "absolute inset-[2px] rounded-[5px] bg-black/0 hover:bg-black/25 transition-all flex items-center justify-center opacity-0 hover:opacity-100 z-20",
                     span { class: "text-white text-sm drop-shadow", "✏️" }
                 }
+
+                // Bolinha de status (toggle de status) no canto inferior direito do avatar
+                div {
+                    class: "absolute -bottom-1 -right-1 w-4.5 h-4.5 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow cursor-pointer hover:scale-115 transition-transform z-30",
+                    title: "Alterar status",
+                    onclick: move |e| {
+                        e.stop_propagation(); // Evita abrir o AvatarPicker
+                        show_status_menu_avatar.set(!show_status_menu_avatar());
+                        show_status_menu_name.set(false);
+                    },
+                    div { class: "w-2.5 h-2.5 rounded-full {state.user_status().color_class()} border border-black/10" }
+
+                    if show_status_menu_avatar() {
+                        StatusDropdown {
+                            state,
+                            show_menu: show_status_menu_avatar,
+                            class: "absolute left-1/2 top-full mt-1 -translate-x-1/2 z-50".to_string()
+                        }
+                    }
+                }
             }
 
             // Profile Info
@@ -197,12 +229,24 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                                 },
                                 "{state.user_name()}"
                             }
-                            button {
-                                class: "text-[10px] font-semibold px-1 rounded {theme.titlebar_text()} hover:bg-white/40 cursor-pointer flex items-center space-x-0.5 transition-colors focus:outline-none flex-shrink-0",
-                                style: "opacity: 0.8;",
-                                onclick: move |_| show_status_menu.set(!show_status_menu()),
-                                span { "({state.user_status().as_str()})" }
-                                span { "▼" }
+                            div { class: "relative flex items-center flex-shrink-0",
+                                button {
+                                    class: "text-[10px] font-semibold px-1 rounded {theme.titlebar_text()} hover:bg-white/40 cursor-pointer flex items-center space-x-0.5 transition-colors focus:outline-none flex-shrink-0",
+                                    style: "opacity: 0.8;",
+                                    onclick: move |_| {
+                                        show_status_menu_name.set(!show_status_menu_name());
+                                        show_status_menu_avatar.set(false);
+                                    },
+                                    span { "({state.user_status().as_str()})" }
+                                    span { "▼" }
+                                }
+                                if show_status_menu_name() {
+                                    StatusDropdown {
+                                        state,
+                                        show_menu: show_status_menu_name,
+                                        class: "absolute left-0 top-full mt-1 z-50".to_string()
+                                    }
+                                }
                             }
                         }
                     }
@@ -238,14 +282,23 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         autofocus: true,
                     }
                 } else {
-                    p {
-                        class: "text-xs {theme.titlebar_text()} italic truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
-                        style: "opacity: 0.75;",
-                        onclick: move |_| {
-                            temp_msg.set(state.user_personal_message());
-                            is_editing_msg.set(true);
-                        },
-                        "{state.user_personal_message()}"
+                    {
+                        let display_msg = if state.user_personal_message().trim().is_empty() {
+                            "<Insira uma mensagem pessoal>".to_string()
+                        } else {
+                            state.user_personal_message()
+                        };
+                        rsx! {
+                            p {
+                                class: "text-xs {theme.titlebar_text()} italic truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
+                                style: "opacity: 0.75;",
+                                onclick: move |_| {
+                                    temp_msg.set(state.user_personal_message());
+                                    is_editing_msg.set(true);
+                                },
+                                "{display_msg}"
+                            }
+                        }
                     }
                 }
 
@@ -267,48 +320,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
             }
         }
 
-        // User status selection dropdown popup
-        if show_status_menu() {
-            div {
-                class: "absolute left-4 top-20 w-36 bg-white/95 border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
-                button {
-                    class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                    onclick: move |_| {
-                        state.set_user_status(UserStatus::Online);
-                        show_status_menu.set(false);
-                    },
-                    div { class: "w-2.5 h-2.5 rounded-full bg-[#3cd070] border border-[#2fa558]" }
-                    span { "Disponível" }
-                }
-                button {
-                    class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                    onclick: move |_| {
-                        state.set_user_status(UserStatus::Ocupado);
-                        show_status_menu.set(false);
-                    },
-                    div { class: "w-2.5 h-2.5 rounded-full bg-[#e81123] border border-[#b50a18]" }
-                    span { "Ocupado" }
-                }
-                button {
-                    class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                    onclick: move |_| {
-                        state.set_user_status(UserStatus::Ausente);
-                        show_status_menu.set(false);
-                    },
-                    div { class: "w-2.5 h-2.5 rounded-full bg-[#ffb900] border border-[#c99200]" }
-                    span { "Ausente" }
-                }
-                button {
-                    class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
-                    onclick: move |_| {
-                        state.set_user_status(UserStatus::Offline);
-                        show_status_menu.set(false);
-                    },
-                    div { class: "w-2.5 h-2.5 rounded-full bg-gray-400 border border-gray-500" }
-                    span { "Offline" }
-                }
-            }
-        }
+
 
         // ==========================================
         // MUSIC PLAYER MODAL (Orkut/MSN Style)
@@ -395,6 +407,56 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
         // Modal do AvatarPicker
         if state.show_avatar_picker() {
             crate::components::profile::avatar_picker::AvatarPicker { state }
+        }
+    }
+}
+
+#[component]
+fn StatusDropdown(
+    mut state: AppState,
+    mut show_menu: Signal<bool>,
+    class: String,
+) -> Element {
+    rsx! {
+        div {
+            class: "{class} w-36 bg-white border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700 font-normal",
+            onclick: move |e| e.stop_propagation(),
+            button {
+                class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
+                onclick: move |_| {
+                    state.set_user_status(UserStatus::Online);
+                    show_menu.set(false);
+                },
+                div { class: "w-2.5 h-2.5 rounded-full bg-[#3cd070] border border-[#2fa558]" }
+                span { "Disponível" }
+            }
+            button {
+                class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
+                onclick: move |_| {
+                    state.set_user_status(UserStatus::Ocupado);
+                    show_menu.set(false);
+                },
+                div { class: "w-2.5 h-2.5 rounded-full bg-[#e81123] border border-[#b50a18]" }
+                span { "Ocupado" }
+            }
+            button {
+                class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
+                onclick: move |_| {
+                    state.set_user_status(UserStatus::Ausente);
+                    show_menu.set(false);
+                },
+                div { class: "w-2.5 h-2.5 rounded-full bg-[#ffb900] border border-[#c99200]" }
+                span { "Ausente" }
+            }
+            button {
+                class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer",
+                onclick: move |_| {
+                    state.set_user_status(UserStatus::Offline);
+                    show_menu.set(false);
+                },
+                div { class: "w-2.5 h-2.5 rounded-full bg-gray-400 border border-gray-500" }
+                span { "Offline" }
+            }
         }
     }
 }

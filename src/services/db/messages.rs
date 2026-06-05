@@ -1,4 +1,4 @@
-use crate::models::{Message, FileTransferState};
+use crate::models::{FileTransferState, Message};
 use crate::services::db::{get_pool, DatabaseService};
 use sqlx::Row;
 
@@ -24,9 +24,8 @@ impl DatabaseService {
                 let is_wink: Option<String> = row.get("is_wink");
                 let file_transfer_str: Option<String> = row.get("file_transfer");
 
-                let file_transfer = file_transfer_str.and_then(|s| {
-                    serde_json::from_str::<FileTransferState>(&s).ok()
-                });
+                let file_transfer = file_transfer_str
+                    .and_then(|s| serde_json::from_str::<FileTransferState>(&s).ok());
 
                 Message {
                     id,
@@ -78,11 +77,15 @@ impl DatabaseService {
         Ok(())
     }
 
-    pub async fn save_conversations(conversations: Vec<crate::models::Conversation>) -> Result<(), String> {
+    pub async fn save_conversations(
+        conversations: Vec<crate::models::Conversation>,
+    ) -> Result<(), String> {
         let pool = get_pool();
-        
+
         let _ = sqlx::query("DELETE FROM conversations").execute(pool).await;
-        let _ = sqlx::query("DELETE FROM conversation_members").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM conversation_members")
+            .execute(pool)
+            .await;
 
         for conv in conversations {
             sqlx::query("INSERT INTO conversations (id, name, is_group, avatar_url, description, created_at) VALUES (?, ?, ?, ?, ?, ?)")
@@ -114,7 +117,7 @@ impl DatabaseService {
 
     pub async fn load_conversations() -> Result<Vec<crate::models::Conversation>, String> {
         let pool = get_pool();
-        
+
         let rows = sqlx::query("SELECT id, name, is_group, avatar_url, description, created_at FROM conversations ORDER BY id DESC")
             .fetch_all(pool)
             .await
@@ -156,6 +159,7 @@ impl DatabaseService {
                     relation_status: None,
                     nickname: None,
                     role,
+                    is_favorite: todo!(),
                 });
             }
 

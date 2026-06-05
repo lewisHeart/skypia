@@ -26,7 +26,7 @@ pub fn connect_ws(mut state: AppState, token: String) {
                 Ok((ws_stream, _)) => {
                     println!("WebSocket conectado com sucesso!");
                     state.add_toast(
-                        "Tempo Real Conectado".to_string(),
+                        "Servidores conectados".to_string(),
                         "Você está conectado ao servidor do Skypia.".to_string(),
                         None,
                     );
@@ -88,6 +88,9 @@ pub fn connect_ws(mut state: AppState, token: String) {
                     let close_tx_read = close_tx.clone();
                     dioxus::prelude::spawn(async move {
                         while let Some(msg_res) = ws_receiver.next().await {
+                            if state_read.auth_token().is_none() {
+                                break;
+                            }
                             match msg_res {
                                 Ok(TungsteniteMsg::Text(text)) => {
                                     match serde_json::from_str::<WsEvent>(&text) {
@@ -139,6 +142,9 @@ pub fn connect_ws(mut state: AppState, token: String) {
 }
 
 async fn process_ws_event(state: &mut AppState, event: WsEvent) {
+    if state.auth_token().is_none() {
+        return;
+    }
     match event {
         WsEvent::ChatMessage(mut msg) => {
             let conv_id = msg.conversation_id.clone();
@@ -151,7 +157,10 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             // 1. Adiciona à lista de mensagens em memória
             {
                 let mut chat_msgs = state.chat_messages.write();
-                chat_msgs.entry(conv_id.clone()).or_default().push(msg.clone());
+                chat_msgs
+                    .entry(conv_id.clone())
+                    .or_default()
+                    .push(msg.clone());
             }
 
             // 2. Efeitos visuais e sonoros para mensagens de terceiros
@@ -173,14 +182,14 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 }
 
                 // Tenta achar a foto de perfil do contato remetente
-                let avatar_url = state.contacts().iter().find(|c| c.id == conv_id).and_then(|c| c.avatar_url.clone());
+                let avatar_url = state
+                    .contacts()
+                    .iter()
+                    .find(|c| c.id == conv_id)
+                    .and_then(|c| c.avatar_url.clone());
 
                 // Dispara notificação toast
-                state.add_toast(
-                    msg.sender_name.clone(),
-                    msg.text.clone(),
-                    avatar_url,
-                );
+                state.add_toast(msg.sender_name.clone(), msg.text.clone(), avatar_url);
             }
         }
         WsEvent::PresenceUpdate {
@@ -270,8 +279,16 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     state.increment_unread(&conversation_id);
                 }
 
-                let avatar_url = state.contacts().iter().find(|c| c.id == conversation_id).and_then(|c| c.avatar_url.clone());
-                state.add_toast(sender_name, "enviou um Chamar a Atenção!".to_string(), avatar_url);
+                let avatar_url = state
+                    .contacts()
+                    .iter()
+                    .find(|c| c.id == conversation_id)
+                    .and_then(|c| c.avatar_url.clone());
+                state.add_toast(
+                    sender_name,
+                    "enviou um Chamar a Atenção!".to_string(),
+                    avatar_url,
+                );
             }
         }
         WsEvent::Typing {
@@ -367,7 +384,9 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 music_listening: contact.music.clone(),
                 avatar_url: contact.avatar_url.clone(),
                 is_favorite: false,
-                relation_status: contact.relation_status.unwrap_or_else(|| "Pendente".to_string()),
+                relation_status: contact
+                    .relation_status
+                    .unwrap_or_else(|| "Pendente".to_string()),
                 nickname: contact.nickname,
             };
 
@@ -386,10 +405,21 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 new_contact.avatar_url,
             );
         }
-        WsEvent::ContactBlocked { contact_id, blocked } => {
+        WsEvent::ContactBlocked {
+            contact_id,
+            blocked,
+        } => {
             state.add_toast(
-                if blocked { "Contato Bloqueado".to_string() } else { "Contato Desbloqueado".to_string() },
-                if blocked { "Você bloqueou o contato.".to_string() } else { "Você desbloqueou o contato.".to_string() },
+                if blocked {
+                    "Contato Bloqueado".to_string()
+                } else {
+                    "Contato Desbloqueado".to_string()
+                },
+                if blocked {
+                    "Você bloqueou o contato.".to_string()
+                } else {
+                    "Você desbloqueou o contato.".to_string()
+                },
                 None,
             );
             // Recarrega dados para refletir mudança
@@ -406,7 +436,10 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 None,
             );
         }
-        WsEvent::NicknameUpdated { contact_id, nickname } => {
+        WsEvent::NicknameUpdated {
+            contact_id,
+            nickname,
+        } => {
             let mut list = state.contacts.write();
             if let Some(c) = list.iter_mut().find(|c| c.id == contact_id) {
                 c.nickname = nickname;
@@ -415,5 +448,10 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
         WsEvent::Error { message } => {
             state.add_toast("Erro".to_string(), message, None);
         }
+        WsEvent::FavoriteUpdated {
+            contact_id,
+            is_favorite,
+        } => todo!(),
+        WsEvent::ConversationJoined(conversation) => todo!(),
     }
 }

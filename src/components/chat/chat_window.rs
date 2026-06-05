@@ -1,9 +1,9 @@
-use dioxus::prelude::*;
-use crate::models::render_avatar;
-use crate::state::AppState;
 use crate::components::chat::chat_feed::ChatFeed;
 use crate::components::chat::chat_input::ChatInput;
 use crate::components::chat::chat_sidebar::ChatSidebar;
+use crate::models::render_avatar;
+use crate::state::AppState;
+use dioxus::prelude::*;
 
 const WINK_STYLES: &str = r#"
 @keyframes msnKiss {
@@ -51,12 +51,14 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
         None => match state.selected_chat_id() {
             Some(id) => id,
             None => return rsx! {},
-        }
+        },
     };
 
     let contact_id = resolved_contact_id;
     let contact = state.contacts().into_iter().find(|c| c.id == contact_id);
-    let group = (state.group_chats)().into_iter().find(|g| g.id == contact_id);
+    let group = (state.group_chats)()
+        .into_iter()
+        .find(|g| g.id == contact_id);
 
     if contact.is_none() && group.is_none() {
         return rsx! {};
@@ -64,7 +66,9 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
 
     let is_group = group.is_some();
     let display_name_to_show = if let Some(ref g) = group {
-        g.name.clone().unwrap_or_else(|| "Grupo sem nome".to_string())
+        g.name
+            .clone()
+            .unwrap_or_else(|| "Grupo sem nome".to_string())
     } else {
         let c = contact.as_ref().unwrap();
         c.nickname.clone().unwrap_or_else(|| c.display_name.clone())
@@ -75,9 +79,11 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
     } else {
         contact.as_ref().unwrap().status.as_str().to_string()
     };
-    
+
     let personal_message_text = if let Some(ref g) = group {
-        let member_names = g.members.iter()
+        let member_names = g
+            .members
+            .iter()
             .map(|m| m.nickname.clone().unwrap_or_else(|| m.display_name.clone()))
             .collect::<Vec<String>>()
             .join(", ");
@@ -94,17 +100,20 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
 
     let active_nudge = state.active_nudge();
     let is_nudge_active = active_nudge.as_ref() == Some(&contact_id);
-    let shake_class = if is_nudge_active { "animate-nudge-shake" } else { "" };
-
+    let shake_class = if is_nudge_active {
+        "animate-nudge-shake"
+    } else {
+        ""
+    };
 
     rsx! {
         style { "{WINK_STYLES}" }
-        
+
         // Camada de animação de Winks ativa
         if let Some(wink) = state.active_wink() {
-            div { 
+            div {
                 class: "absolute inset-0 z-[150] flex flex-col items-center justify-center pointer-events-none select-none overflow-hidden rounded-lg",
-                
+
                 if wink == "kiss" {
                     div { class: "absolute inset-0 bg-pink-400/20 animate-pulse" }
                     div { class: "text-9xl animate-msn-kiss", "💋" }
@@ -118,11 +127,11 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                 }
             }
         }
-        
+
         div {
             class: "w-full h-full flex flex-col select-none bg-bubbles {shake_class} overflow-hidden",
             style: "background: {theme.bg_chat()};",
-            
+
             // Abas para chats ativos
             if contact_id_prop.is_none() && active_chats.len() > 1 {
                 div { class: "h-8 bg-white/20 border-b {theme.titlebar_border()} flex items-center px-2 space-x-1 flex-shrink-0 overflow-x-auto",
@@ -138,7 +147,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                                 let name_to_show = c.nickname.clone().unwrap_or(c.display_name.clone());
                                 let chat_id_select = chat_id.clone();
                                 let chat_id_close = chat_id.clone();
-                                
+
                                 rsx! {
                                     button {
                                         class: "px-3 h-6 flex items-center space-x-1.5 border rounded-t text-[11px] transition-all cursor-pointer truncate max-w-[120px] {active_tab_style}",
@@ -147,7 +156,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                                         },
                                         div { class: "w-2 h-2 rounded-full {c.status.color_class()}" }
                                         span { "{name_to_show}" }
-                                        span { 
+                                        span {
                                             class: "text-[9px] text-slate-400 hover:text-red-500 font-bold ml-1.5",
                                             onclick: move |e| {
                                                 e.stop_propagation();
@@ -166,7 +175,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
             // Painel Superior de Status (Informações do contato atual)
             div { class: "p-3 flex items-center space-x-3 bg-white/10 border-b {theme.titlebar_border()} flex-shrink-0 justify-between",
                 div { class: "flex items-center space-x-3 min-w-0 flex-1",
-                    
+
                     if contact_id_prop.is_none() {
                         button {
                             class: "md:hidden px-2 py-1 bg-white/30 hover:bg-white/50 border border-white/20 {theme.titlebar_text()} text-[11px] rounded font-bold cursor-pointer mr-1 flex items-center space-x-0.5 flex-shrink-0 transition-colors",
@@ -174,14 +183,13 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                             onclick: move |_| {
                                 *state.selected_chat_id.write() = None;
                             },
-                            span { "←" }
-                            span { "Contatos" }
+                            span { "⬅️" }
                         }
                     }
 
                     // Avatar do cabeçalho com moldura de status clássica do MSN
                     if is_group {
-                        div { 
+                        div {
                             class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border border-sky-300/60 bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
                             div {
                                 class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
@@ -192,7 +200,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                         {
                             let c = contact.as_ref().unwrap();
                             rsx! {
-                                div { 
+                                div {
                                     class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border {c.status.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
                                     div {
                                         class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
@@ -202,7 +210,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                             }
                         }
                     }
-                    
+
                     div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
                         div { class: "flex items-center space-x-2",
                             span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{display_name_to_show}" }
@@ -211,7 +219,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                         p { class: "text-xs {theme.titlebar_text()}/85 italic truncate", "“{personal_message_text}”" }
                     }
                 }
-                
+
                 if contact_id_prop.is_none() {
                     {
                         let contact_id_detach = contact_id.clone();
@@ -225,7 +233,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                                         DetachedChatWindow,
                                         DetachedChatWindowProps { contact_id: contact_id_detach.clone() }
                                     );
-                                    
+
                                     #[cfg(feature = "desktop")]
                                     spawn(async move {
                                         let _ = dioxus::desktop::window().new_window(
@@ -247,12 +255,12 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
 
             // Layout Principal do Chat
             div { class: "flex-1 flex min-h-0 w-full",
-                
+
                 // Coluna Esquerda: Histórico e Input de texto
                 div { class: "flex-1 flex flex-col sm:border-r border-white/20 min-w-0 h-full",
                     // Histórico do Chat (ChatFeed)
                     ChatFeed { contact_id: contact_id.clone(), state }
-                    
+
                     // Barra de formatação e Entrada de mensagem (ChatInput) ou aviso amarelo
                     if !is_group && contact.as_ref().map(|c| c.relation_status == "Pendente").unwrap_or(false) {
                         div { class: "h-20 bg-[#fffec8] border-t border-[#d8d080] p-4 flex flex-col justify-center items-center text-center text-xs text-[#5c5010] space-y-1 select-text flex-shrink-0",
@@ -268,7 +276,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                         }
                     }
                 }
-                
+
                 // Coluna Direita: Avatars grandes de perfil ou Jogo da Velha (ChatSidebar)
                 ChatSidebar { contact_id: contact_id.clone(), state }
             }
@@ -287,11 +295,11 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
     {
         let mut app_state = use_context_provider(|| AppState::new());
         let desktop = dioxus::desktop::use_window();
-        
+
         // Garante login e seleção local
         *app_state.logged_in.write() = true;
         *app_state.selected_chat_id.write() = Some(props.contact_id.clone());
-        
+
         // Adiciona à lista de chats ativos no estado local sem disparar open_chat
         {
             let mut chats = app_state.active_chats.write();
@@ -341,7 +349,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
             spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                    
+
                     // 1. Sincroniza o tema e densidade com o banco de dados em tempo real
                     if let Ok((_scale, _custom_bar, db_theme, _chat_mode, db_density)) =
                         crate::services::db::DatabaseService::load_settings().await
@@ -353,9 +361,11 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                             state.update_densities_from_serialized(db_density);
                         }
                     }
-                    
+
                     // 2. Se o chat for acoplado, fecha esta janela
-                    if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
+                    if let Ok(detached) =
+                        crate::services::db::DatabaseService::get_detached_chats().await
+                    {
                         if !detached.contains(&cid) {
                             desktop_clone.close();
                             break;
@@ -365,36 +375,45 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
             });
         });
 
-
         let theme = app_state.theme();
-        let contact_opt = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);
-        let group_opt = (app_state.group_chats)().into_iter().find(|g| g.id == props.contact_id);
-        
+        let contact_opt = app_state
+            .contacts()
+            .into_iter()
+            .find(|c| c.id == props.contact_id);
+        let group_opt = (app_state.group_chats)()
+            .into_iter()
+            .find(|g| g.id == props.contact_id);
+
         if contact_opt.is_none() && group_opt.is_none() {
             return rsx! {
                 document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
                 document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
-                div { 
+                div {
                     class: "w-screen h-screen flex flex-col items-center justify-center bg-gradient-to-br {theme.bg_gradient()} text-[#1e395b] font-bold text-xs select-none",
                     span { class: "text-2xl mb-2 animate-bounce", "🦋" }
                     span { class: "animate-pulse", "Carregando conversa..." }
                 }
             };
         }
-        
+
         let contact_name = if let Some(ref c) = contact_opt {
             c.nickname.clone().unwrap_or_else(|| c.display_name.clone())
         } else {
-            group_opt.as_ref().unwrap().name.clone().unwrap_or_else(|| "Grupo sem nome".to_string())
+            group_opt
+                .as_ref()
+                .unwrap()
+                .name
+                .clone()
+                .unwrap_or_else(|| "Grupo sem nome".to_string())
         };
 
         rsx! {
             document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
             document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
-            
-            div { 
+
+            div {
                 class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-br {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
-                
+
                 // Bordas e Cantos para Redimensionamento Nativo da Janela Flutuante (Escala 100%!)
                 if app_state.use_custom_titlebar() {
                     // Borda Superior
@@ -463,33 +482,33 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                     }
                 }
 
-                
+
                 // Subtle theme background bubbles
                 div { class: "absolute inset-0 bg-bubbles pointer-events-none opacity-25 z-0" }
 
                 div { class: "w-full h-full flex flex-col pointer-events-auto z-10",
-                    
+
                     // Barra de título Aero personalizada para janela desvinculada
                     if app_state.use_custom_titlebar() {
-                        div { 
+                        div {
                             class: "w-full h-8 bg-gradient-to-b {theme.titlebar_gradient()} flex items-center justify-between z-50 flex-shrink-0 select-none border-b {theme.titlebar_border()} px-3 relative rounded-t-2xl shadow-sm cursor-default",
                             style: "-webkit-app-region: drag;",
                             onmousedown: move |_| {
                                 #[cfg(feature = "desktop")]
                                 let _ = dioxus::desktop::use_window().drag_window();
                             },
-                            
+
                             div { class: "flex items-center space-x-1.5 font-bold text-xs pointer-events-none {theme.titlebar_text()} select-none",
                                 span { class: "text-base", "💬" }
                                 span { "Conversa com {contact_name}" }
                             }
-                            
+
                             // Window control buttons
-                            div { 
+                            div {
                                 class: "flex items-center space-x-2.5",
                                 style: "-webkit-app-region: no-drag;",
                                 onmousedown: move |e| e.stop_propagation(),
-                                
+
                                 button {
                                     class: "px-2.5 h-[22px] flex items-center justify-center bg-white border border-slate-300 rounded font-semibold text-[10px] text-slate-700 hover:underline hover:border-slate-400 shadow-sm cursor-pointer transition-colors focus:outline-none",
                                     title: "Vincular de volta à janela principal do Skypia",
@@ -529,7 +548,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                                     },
                                     "⬜"
                                 }
-                                button { 
+                                button {
                                     class: "h-[22px] px-3.5 bg-white border border-[#f2d3ce] rounded font-bold text-xs text-[#8c2222] shadow-sm cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white flex items-center justify-center focus:outline-none",
                                     title: "Fechar",
                                     onclick: move |e| {
@@ -543,7 +562,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                         }
                     } else {
                         // Barra de Controle simplificada caso use decorações do sistema nativo
-                        div { 
+                        div {
                             class: "h-8 bg-gradient-to-b {theme.titlebar_gradient()} px-3 flex items-center justify-between text-[#1b324d] font-bold text-xs select-none border-b {theme.titlebar_border()}",
                             div { class: "flex items-center space-x-1.5 {theme.titlebar_text()}",
                                 span { "💬" }
@@ -567,18 +586,18 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                             }
                         }
                     }
-                    
+
                     // Área do chat propriamente dita (Escalonada!)
-                    div { 
+                    div {
                         class: "flex-1 min-h-0 w-full relative",
-                        
+
                         div {
                             class: "absolute inset-0 overflow-hidden",
-                            
+
                             div {
                                 class: "w-full h-full relative",
                                 style: "transform: scale({app_state.interface_scale()}); transform-origin: top left; width: {100.0 / app_state.interface_scale()}%; height: {100.0 / app_state.interface_scale()}%;",
-                                
+
                                 ChatWindow { state: app_state, contact_id_prop: Some(props.contact_id.clone()) }
                             }
                         }
