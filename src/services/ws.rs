@@ -28,6 +28,9 @@ pub fn connect_ws(mut state: AppState, token: String) {
                         None,
                     );
 
+                    // Sincroniza dados iniciais ao conectar/reconectar
+                    state.load_initial_data();
+
                     // Cria o canal de ações específico para ESTA conexão ativa
                     let (tx, mut rx) = mpsc::unbounded_channel::<ClientAction>();
                     *state.ws_tx.write() = Some(tx);
@@ -37,17 +40,40 @@ pub fn connect_ws(mut state: AppState, token: String) {
                     // Canal de cancelamento interno para as subtarefas cooperativas
                     let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
 
-                    // Task de Escrita: lê do canal rx e envia para o WebSocket
+                    // Task de Escrita: lê do canal rx e envia para o WebSocket (com heartbeat a cada 30 segundos)
                     let close_tx_write = close_tx.clone();
                     dioxus::prelude::spawn(async move {
-                        while let Some(action) = rx.recv().await {
-                            if let Ok(json_str) = serde_json::to_string(&action) {
-                                if ws_sender
-                                    .send(TungsteniteMsg::Text(json_str.into()))
-                                    .await
-                                    .is_err()
-                                {
-                                    break;
+                        let mut interval = tokio::time::interval(Duration::from_secs(30));
+                        // Descarta o primeiro tick imediato para evitar envio instantâneo
+                        interval.tick().await;
+
+                        loop {
+                            tokio::select! {
+                                action_opt = rx.recv() => {
+                                    match action_opt {
+                                        Some(action) => {
+                                            if let Ok(json_str) = serde_json::to_string(&action) {
+                                                if ws_sender
+                                                    .send(TungsteniteMsg::Text(json_str.into()))
+                                                    .await
+                                                    .is_err()
+                                                {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        None => break,
+                                    }
+                                }
+                                _ = interval.tick() => {
+                                    // Envia Ping de controle do protocolo WebSocket para manter a conexão ativa
+                                    if ws_sender
+                                        .send(TungsteniteMsg::Ping(vec![].into()))
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
                                 }
                             }
                         }

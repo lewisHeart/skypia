@@ -57,15 +57,13 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             },
             onmouseleave: move |_| show_tooltip.set(false),
             
-            // Status Icon Buddy Dot
-            div { class: "relative flex-shrink-0",
-                div { class: "w-3 h-3 rounded-full {contact.status.color_class()} border border-black/10 shadow-sm" }
-            }
-            
-            // Small Avatar with fixed border
+            // Small Avatar with MSN 3D border frame representing status
             div { 
-                class: "flex-shrink-0 shadow-sm rounded-[4px] border border-slate-300/60 overflow-hidden bg-transparent",
-                {render_avatar(contact.avatar_url.as_deref(), 24)}
+                class: "flex-shrink-0 p-[1.5px] rounded-[5px] border {contact.status.avatar_frame_class()} overflow-hidden bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center",
+                div {
+                    class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
+                    {render_avatar(contact.avatar_url.as_deref(), 24)}
+                }
             }
             
             // Name and Sub-status

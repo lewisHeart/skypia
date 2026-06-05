@@ -11,6 +11,46 @@ pub fn MainWindow(mut state: AppState) -> Element {
     let mut add_contact_email = use_signal(|| String::new());
     let mut show_pending_modal = use_signal(|| false);
 
+    let mut search_result = use_signal(|| None::<crate::models::UserProfile>);
+    let mut search_error = use_signal(|| None::<String>);
+    let mut is_searching = use_signal(|| false);
+
+    // Reseta o estado de busca quando o modal é fechado
+    use_effect(move || {
+        if !state.show_add_contact_modal() {
+            search_result.set(None);
+            search_error.set(None);
+            is_searching.set(false);
+            add_contact_email.set(String::new());
+        }
+    });
+
+    let mut handle_search = move || {
+        let query = add_contact_email().trim().to_string();
+        if query.is_empty() { return; }
+        
+        let token_opt = state.auth_token();
+        is_searching.set(true);
+        search_error.set(None);
+        search_result.set(None);
+        
+        spawn(async move {
+            if let Some(token) = token_opt {
+                match crate::services::api::search_user(&token, &query).await {
+                    Ok(user) => {
+                        search_result.set(Some(user));
+                    }
+                    Err(e) => {
+                        search_error.set(Some(e));
+                    }
+                }
+            } else {
+                search_error.set(Some("Você precisa estar conectado na rede.".to_string()));
+            }
+            is_searching.set(false);
+        });
+    };
+
     rsx! {
         div {
             class: "w-full h-full flex flex-col select-none bg-bubbles bg-gradient-to-b from-[#e6f1fc]/90 to-[#c8def5]/80 overflow-hidden",
@@ -150,6 +190,18 @@ pub fn MainWindow(mut state: AppState) -> Element {
                         }
                     }
 
+                    div { class: "flex flex-col space-y-1.5",
+                        label { class: "font-bold text-slate-700", "Modo de Chat" }
+                        select {
+                            class: "w-full p-1.5 border border-[#a6b9cd] rounded bg-white text-slate-700 font-medium",
+                            onchange: move |e| {
+                                state.set_chat_mode(e.value());
+                            },
+                            option { value: "integrated", selected: state.chat_mode() == "integrated", "Chat Conectado" }
+                            option { value: "detached", selected: state.chat_mode() == "detached", "Janela Separada" }
+                        }
+                    }
+
                     div { class: "flex justify-end pt-2 border-t border-white/40",
                         button {
                             class: "px-4 py-1.5 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white border border-[#4074a8] rounded font-bold shadow hover:from-[#9bd0fa] hover:to-[#579adf] cursor-pointer transition-colors",
@@ -169,62 +221,121 @@ pub fn MainWindow(mut state: AppState) -> Element {
                 class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4",
                 onclick: move |_| state.show_add_contact_modal.set(false),
                 div {
-                    class: "w-80 bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs text-[#1e395b] pointer-events-auto",
+                    class: "w-[340px] bg-gradient-to-b from-[#e6f1fc] to-[#c8def5] border border-[#7ba9d4] rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs text-[#1e395b] pointer-events-auto",
                     onclick: move |e| e.stop_propagation(),
 
                     div { class: "flex items-center justify-between border-b border-white/40 pb-2",
-                        span { class: "font-bold text-sm", "➕ Adicionar Novo Contato" }
+                        span { class: "font-bold text-sm flex items-center space-x-1.5", 
+                            span { "➕" }
+                            span { "Adicionar Novo Contato" }
+                        }
                         button {
-                            class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
+                            class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors focus:outline-none",
                             onclick: move |_| state.show_add_contact_modal.set(false),
                             "✕"
                         }
                     }
 
-                    div { class: "flex flex-col space-y-1",
+                    // Campo de entrada e botão de busca
+                    div { class: "flex flex-col space-y-1.5",
                         label { class: "font-semibold text-slate-700", "Email ou Nome de usuário:" }
-                        input {
-                            class: "w-full p-1.5 border border-[#a6b9cd] rounded msn-input",
-                            placeholder: "Ex: wellington ou wk.scbd@skypia.io",
-                            value: "{add_contact_email}",
-                            oninput: move |e| add_contact_email.set(e.value()),
-                            onkeydown: move |e| {
-                                if e.key() == Key::Enter && !add_contact_email().trim().is_empty() {
-                                    state.add_contact_dynamic(
-                                        add_contact_email().trim().to_string(),
-                                        "".to_string(),
-                                        UserStatus::Offline,
-                                        "".to_string()
-                                    );
-                                    play_sound("online");
-                                    state.show_add_contact_modal.set(false);
+                        div { class: "flex space-x-1.5",
+                            input {
+                                class: "flex-1 p-1.5 border border-[#a6b9cd] rounded msn-input text-xs focus:outline-none focus:border-[#5c98d6] bg-white",
+                                placeholder: "Ex: wellington ou wk.scbd@skypia.io",
+                                value: "{add_contact_email}",
+                                oninput: move |e| add_contact_email.set(e.value()),
+                                onkeydown: move |e| {
+                                    if e.key() == Key::Enter && !add_contact_email().trim().is_empty() && !is_searching() {
+                                        handle_search();
+                                    }
                                 }
+                            }
+                            button {
+                                class: "px-3 py-1.5 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] hover:from-[#9bd0fa] hover:to-[#579adf] text-white border border-[#4074a8] rounded font-bold shadow transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center focus:outline-none",
+                                disabled: add_contact_email().trim().is_empty() || is_searching(),
+                                onclick: move |_| handle_search(),
+                                if is_searching() { "Buscando..." } else { "Buscar" }
                             }
                         }
                     }
 
+                    // Painel de Resultados de busca
+                    div { class: "min-h-[90px] border border-[#a6b9cd]/40 bg-white/40 rounded p-2.5 flex flex-col justify-center items-center relative overflow-hidden",
+                        if is_searching() {
+                            div { class: "flex flex-col items-center space-y-2 text-slate-500 py-4",
+                                div { class: "w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" }
+                                span { "Buscando usuário no servidor..." }
+                            }
+                        } else if let Some(ref err) = search_error() {
+                            div { class: "flex flex-col items-center space-y-1 text-center py-2 text-[#b50a18]",
+                                span { class: "text-lg", "⚠️" }
+                                span { class: "font-semibold", "{err}" }
+                            }
+                        } else if let Some(ref user) = search_result() {
+                            {
+                                let user_for_add = user.clone();
+                                let status_enum = match user_for_add.status.as_str() {
+                                    "Online" => crate::models::UserStatus::Online,
+                                    "Ocupado" => crate::models::UserStatus::Ocupado,
+                                    "Ausente" => crate::models::UserStatus::Ausente,
+                                    "Invisivel" => crate::models::UserStatus::Invisivel,
+                                    _ => crate::models::UserStatus::Offline,
+                                };
+                                rsx! {
+                                    div { class: "w-full flex items-center space-x-3.5",
+                                        // Avatar com moldura de status do MSN
+                                        div { 
+                                            class: "flex-shrink-0 p-[2px] rounded-[7px] border {status_enum.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md",
+                                            div {
+                                                class: "rounded-[4px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
+                                                {crate::models::render_avatar(user_for_add.avatar_url.as_deref(), 48)}
+                                            }
+                                        }
+                                        // Detalhes
+                                        div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
+                                            span { class: "font-bold text-sm text-[#1b324d] truncate", "{user_for_add.display_name}" }
+                                            span { class: "text-[10px] text-slate-500 font-semibold truncate", "{user_for_add.email}" }
+                                            span { class: "text-[10px] text-slate-400 truncate italic", "“{user_for_add.personal_message}”" }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Estado inicial/vazio
+                            div { class: "text-center text-slate-400 py-4 font-normal",
+                                "Digite as informações e clique em Buscar para encontrar um amigo."
+                            }
+                        }
+                    }
+
+                    // Botões de controle no rodapé
                     div { class: "flex justify-end space-x-2 pt-2 border-t border-white/40",
                         button {
-                            class: "px-3 py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold cursor-pointer transition-colors",
+                            class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold cursor-pointer transition-colors focus:outline-none",
                             onclick: move |_| state.show_add_contact_modal.set(false),
                             "Cancelar"
                         }
-                        button {
-                            class: "px-4 py-1 bg-gradient-to-b from-[#8fc1e9] to-[#4585c5] text-white border border-[#4074a8] rounded font-bold shadow hover:from-[#9bd0fa] hover:to-[#579adf] cursor-pointer transition-colors",
-                            disabled: add_contact_email().trim().is_empty(),
-                            onclick: move |_| {
-                                if !add_contact_email().trim().is_empty() {
-                                    state.add_contact_dynamic(
-                                        add_contact_email().trim().to_string(),
-                                        "".to_string(),
-                                        UserStatus::Offline,
-                                        "".to_string()
-                                    );
-                                    play_sound("online");
-                                    state.show_add_contact_modal.set(false);
+                        if let Some(ref user) = search_result() {
+                            {
+                                let user_clone = user.clone();
+                                rsx! {
+                                    button {
+                                        class: "px-4 py-1.5 bg-gradient-to-b from-[#22c55e] to-[#15803d] hover:from-[#4ade80] hover:to-[#166534] text-white border border-[#166534] rounded font-bold shadow transition-colors cursor-pointer focus:outline-none",
+                                        onclick: move |_| {
+                                            state.add_contact_dynamic(
+                                                user_clone.email.clone(),
+                                                user_clone.display_name.clone(),
+                                                UserStatus::Offline,
+                                                user_clone.personal_message.clone()
+                                            );
+                                            play_sound("online");
+                                            state.show_add_contact_modal.set(false);
+                                        },
+                                        "Adicionar Contato"
+                                    }
                                 }
-                            },
-                            "Adicionar"
+                            }
                         }
                     }
                 }

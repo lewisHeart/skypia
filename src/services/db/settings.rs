@@ -3,9 +3,9 @@ use crate::services::db::{get_pool, DatabaseService, theme_to_str, str_to_theme}
 use sqlx::Row;
 
 impl DatabaseService {
-    pub async fn load_settings() -> Result<(f64, bool, AppTheme), String> {
+    pub async fn load_settings() -> Result<(f64, bool, AppTheme, String), String> {
         let pool = get_pool();
-        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme FROM settings WHERE id = 1")
+        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme, chat_mode FROM settings WHERE id = 1")
             .fetch_one(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -13,20 +13,23 @@ impl DatabaseService {
         let scale: f64 = row.get("interface_scale");
         let custom_bar: i32 = row.get("use_custom_titlebar");
         let theme_str: String = row.get("theme");
+        let chat_mode: String = row.get("chat_mode");
 
-        Ok((scale, custom_bar != 0, str_to_theme(&theme_str)))
+        Ok((scale, custom_bar != 0, str_to_theme(&theme_str), chat_mode))
     }
 
     pub async fn save_settings(
         scale: f64,
         custom_bar: bool,
         theme: AppTheme,
+        chat_mode: String,
     ) -> Result<(), String> {
         let pool = get_pool();
-        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ? WHERE id = 1")
+        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ?, chat_mode = ? WHERE id = 1")
             .bind(scale)
             .bind(custom_bar as i32)
             .bind(theme_to_str(&theme))
+            .bind(chat_mode)
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;

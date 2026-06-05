@@ -117,7 +117,8 @@ impl DatabaseService {
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 interface_scale REAL NOT NULL DEFAULT 1.0,
                 use_custom_titlebar INTEGER NOT NULL DEFAULT 1,
-                theme TEXT NOT NULL DEFAULT 'AeroBlue'
+                theme TEXT NOT NULL DEFAULT 'AeroBlue',
+                chat_mode TEXT NOT NULL DEFAULT 'integrated'
             );
             "#,
         )
@@ -253,6 +254,10 @@ impl DatabaseService {
             .await;
 
         let _ = sqlx::query("ALTER TABLE contacts ADD COLUMN nickname TEXT")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN chat_mode TEXT NOT NULL DEFAULT 'integrated'")
             .execute(pool)
             .await;
 

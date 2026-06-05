@@ -39,6 +39,16 @@ impl UserStatus {
         }
     }
 
+    pub fn avatar_frame_class(&self) -> &'static str {
+        match self {
+            UserStatus::Online => "bg-gradient-to-b from-[#a9f54b] via-[#85e028] to-[#5db30e] border-[#5db30e] shadow-[0_0_3px_rgba(133,224,40,0.35)]",
+            UserStatus::Ocupado => "bg-gradient-to-b from-[#ff8c8c] via-[#ff4747] to-[#d61818] border-[#d61818] shadow-[0_0_3px_rgba(255,71,71,0.35)]",
+            UserStatus::Ausente => "bg-gradient-to-b from-[#ffeb8c] via-[#ffcb47] to-[#e69d00] border-[#e69d00] shadow-[0_0_3px_rgba(255,203,71,0.35)]",
+            UserStatus::Invisivel => "bg-gradient-to-b from-[#fafafa] via-[#e3e3e3] to-[#c2c2c2] border-[#b5b5b5] shadow-sm",
+            UserStatus::Offline => "bg-gradient-to-b from-[#fafafa] via-[#e3e3e3] to-[#c2c2c2] border-[#b5b5b5] shadow-sm",
+        }
+    }
+
     pub fn text_color(&self) -> &'static str {
         match self {
             UserStatus::Online => "text-green-600",

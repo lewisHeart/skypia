@@ -39,6 +39,7 @@ pub struct AppState {
     pub detached_chats: Signal<Vec<String>>, // contact_ids desvinculados em janelas nativas
     pub use_custom_titlebar: Signal<bool>,  // barra de título personalizada ativa
     pub interface_scale: Signal<f64>,       // fator de escala (zoom) do aplicativo
+    pub chat_mode: Signal<String>,          // modo de chat (integrated ou detached)
 
     // Novos estados para Skypia completo e dinâmico
     pub banner_info: Signal<Option<BannerInfo>>,
@@ -90,6 +91,7 @@ impl AppState {
             detached_chats: Signal::new(Vec::new()),
             use_custom_titlebar: Signal::new(true),
             interface_scale: Signal::new(1.0),
+            chat_mode: Signal::new("integrated".to_string()),
 
             banner_info: Signal::new(None),
             active_wink: Signal::new(None),
@@ -127,18 +129,20 @@ impl AppState {
         let mut scale_sig = self.interface_scale;
         let mut custom_bar_sig = self.use_custom_titlebar;
         let mut theme_sig = self.theme;
+        let mut chat_mode_sig = self.chat_mode;
         let mut pending_sig = self.pending_requests;
 
         let token_opt = self.auth_token();
         let self_user_id = self.server_user_id();
 
         spawn(async move {
-            if let Ok((scale, custom_bar, theme)) =
+            if let Ok((scale, custom_bar, theme, chat_mode)) =
                 crate::services::db::DatabaseService::load_settings().await
             {
                 *scale_sig.write() = scale;
                 *custom_bar_sig.write() = custom_bar;
                 *theme_sig.write() = theme;
+                *chat_mode_sig.write() = chat_mode;
             }
 
             // Sincronização de rede se autenticado
@@ -358,9 +362,21 @@ impl AppState {
         *self.interface_scale.write() = scale;
         *self.use_custom_titlebar.write() = custom_bar;
         *self.theme.write() = theme;
+        let chat_mode = self.chat_mode();
         spawn(async move {
             let _ =
-                crate::services::db::DatabaseService::save_settings(scale, custom_bar, theme).await;
+                crate::services::db::DatabaseService::save_settings(scale, custom_bar, theme, chat_mode).await;
+        });
+    }
+
+    pub fn set_chat_mode(&mut self, mode: String) {
+        *self.chat_mode.write() = mode.clone();
+        let scale = self.interface_scale();
+        let custom_bar = self.use_custom_titlebar();
+        let theme = self.theme();
+        spawn(async move {
+            let _ =
+                crate::services::db::DatabaseService::save_settings(scale, custom_bar, theme, mode).await;
         });
     }
 
@@ -439,6 +455,10 @@ impl AppState {
 
     pub fn interface_scale(&self) -> f64 {
         (self.interface_scale)()
+    }
+
+    pub fn chat_mode(&self) -> String {
+        self.chat_mode.read().clone()
     }
 
     pub fn banner_info(&self) -> Option<BannerInfo> {

@@ -99,6 +99,20 @@ fn App() -> Element {
         }
     });
 
+    // Ajusta o tamanho da janela principal do SO baseado no estado do chat
+    use_effect(move || {
+        #[cfg(feature = "desktop")]
+        {
+            let desktop = dioxus::desktop::use_window();
+            let has_selected_chat = app_state.selected_chat_id().is_some() && app_state.chat_mode() == "integrated";
+            if has_selected_chat {
+                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(850.0, 620.0));
+            } else {
+                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(350.0, 620.0));
+            }
+        }
+    });
+
     // Carregamento dinâmico de dados quando logado
     use_effect(move || {
         if app_state.logged_in() {
@@ -323,7 +337,7 @@ fn App() -> Element {
                             onmousedown: move |e| e.stop_propagation(),
                             
                             div { class: "px-2 py-1 text-slate-400 font-bold text-[9px] uppercase tracking-wider", "Status" }
-                            for status in &[UserStatus::Online, UserStatus::Ocupado, UserStatus::Ausente, UserStatus::Offline] {
+                            for status in &[UserStatus::Online, UserStatus::Ocupado, UserStatus::Ausente, UserStatus::Invisivel, UserStatus::Offline] {
                                 button { 
                                     class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
                                     onclick: move |_| {
@@ -445,7 +459,7 @@ fn App() -> Element {
                             onmousedown: move |e| e.stop_propagation(),
                             
                             div { class: "px-2 py-1 text-slate-400 font-bold text-[9px] uppercase tracking-wider", "Status" }
-                            for status in &[UserStatus::Online, UserStatus::Ocupado, UserStatus::Ausente, UserStatus::Offline] {
+                            for status in &[UserStatus::Online, UserStatus::Ocupado, UserStatus::Ausente, UserStatus::Invisivel, UserStatus::Offline] {
                                 button { 
                                     class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
                                     onclick: move |_| {
@@ -525,16 +539,17 @@ fn App() -> Element {
                         } else {
                             // Full Screen split-pane layout
                             {
-                                let has_selected_chat = app_state.selected_chat_id().is_some();
+                                let is_integrated = app_state.chat_mode() == "integrated";
+                                let has_selected_chat = app_state.selected_chat_id().is_some() && is_integrated;
                                 let sidebar_class = if has_selected_chat {
                                     "hidden md:flex w-[350px] h-full flex-col flex-shrink-0 border-r border-[#7baad4]/30"
                                 } else {
-                                    "w-full md:w-[350px] h-full flex flex-col flex-shrink-0 border-r border-[#7baad4]/30"
+                                    "w-full h-full flex flex-col flex-shrink-0"
                                 };
                                 let chat_container_class = if has_selected_chat {
                                     "flex-1 h-full flex flex-col min-w-0"
                                 } else {
-                                    "hidden md:flex flex-1 h-full flex flex-col min-w-0"
+                                    "hidden"
                                 };
                                 
                                 rsx! {
@@ -542,26 +557,9 @@ fn App() -> Element {
                                         div { class: sidebar_class,
                                             MainWindow { state: app_state }
                                         }
-                                        div { class: chat_container_class,
-                                            if has_selected_chat {
+                                        if has_selected_chat {
+                                            div { class: chat_container_class,
                                                 ChatWindow { state: app_state, contact_id_prop: None }
-                                            } else {
-                                                // Welcome/Placeholder Panel
-                                                div { 
-                                                    class: "flex-1 h-full flex flex-col items-center justify-center text-center p-8 bg-white/20",
-                                                    svg { view_box: "0 0 100 100", class: "w-28 h-28 mb-6 filter drop-shadow-md opacity-75 animate-pulse",
-                                                        g { fill: "#00adef",
-                                                            circle { cx: "38", cy: "35", r: "15" }
-                                                            path { d: "M18 75 C18 55, 58 55, 58 75 Z" }
-                                                        }
-                                                        g { fill: "#7cc576",
-                                                            circle { cx: "62", cy: "45", r: "13" }
-                                                            path { d: "M45 80 C45 62, 79 62, 79 80 Z" }
-                                                        }
-                                                    }
-                                                    h2 { class: "text-base font-bold text-[#1e395b]/80 mb-1.5", "Skypia Messenger" }
-                                                    p { class: "text-xs text-slate-500 max-w-[280px]", "Dê um clique duplo em qualquer contato da lista para iniciar uma conversa." }
-                                                }
                                             }
                                         }
                                     }

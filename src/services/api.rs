@@ -296,13 +296,13 @@ pub async fn create_conversation(
     }
 }
 
-/// Busca um perfil de usuário pelo email
-pub async fn search_user(token: &str, email: &str) -> Result<UserProfile, String> {
+/// Busca um perfil de usuário pelo e-mail ou nome de usuário
+pub async fn search_user(token: &str, email_or_username: &str) -> Result<UserProfile, String> {
     let client = reqwest::Client::new();
     let resp = client
         .get(format!("{}/contacts/search", SERVER_BASE_URL))
         .header("Authorization", format!("Bearer {}", token))
-        .query(&[("email", email)])
+        .query(&[("email_or_username", email_or_username)])
         .send()
         .await
         .map_err(|e| format!("Erro de conexão: {}", e))?;

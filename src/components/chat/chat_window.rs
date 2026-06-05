@@ -147,15 +147,12 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                         }
                     }
 
-                    // Avatar do cabeçalho com moldura fixa e badge de status clássico do MSN
+                    // Avatar do cabeçalho com moldura de status clássica do MSN
                     div { 
-                        class: "relative p-[2.5px] flex-shrink-0 shadow rounded-[8px] border border-[#a1c6e7] bg-white transition-all",
-                        {render_avatar(contact.avatar_url.as_deref(), 36)}
-                        
-                        // Status Badge overlay
-                        div { 
-                            class: "absolute -bottom-0.5 -right-0.5 w-[13px] h-[13px] rounded-full bg-white border border-[#a1c6e7] flex items-center justify-center pointer-events-none z-10 shadow-sm",
-                            div { class: "w-[7px] h-[7px] rounded-full {contact.status.color_class()} border border-black/10" }
+                        class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border {contact.status.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
+                        div {
+                            class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
+                            {render_avatar(contact.avatar_url.as_deref(), 36)}
                         }
                     }
                     

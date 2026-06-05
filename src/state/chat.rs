@@ -30,7 +30,8 @@ impl AppState {
     }
 
     pub fn open_chat(&mut self, contact_id: String) {
-        let is_detached = self.detached_chats().contains(&contact_id);
+        let chat_mode_is_detached = self.chat_mode() == "detached";
+        let is_detached = self.detached_chats().contains(&contact_id) || chat_mode_is_detached;
 
         {
             let mut chats = self.active_chats.write();
@@ -39,10 +40,33 @@ impl AppState {
             }
         }
 
-        // Se o chat estiver desvinculado em uma janela nativa, dar duplo clique
-        // na barra lateral reata o chat e acopla de volta na janela principal!
         if is_detached {
-            self.attach_chat(contact_id);
+            if !chat_mode_is_detached && self.detached_chats().contains(&contact_id) {
+                self.attach_chat(contact_id);
+            } else {
+                self.detach_chat(contact_id.clone());
+                
+                #[cfg(feature = "desktop")]
+                {
+                    use crate::components::chat::chat_window::{DetachedChatWindow, DetachedChatWindowProps};
+                    let dom = VirtualDom::new_with_props(
+                        DetachedChatWindow,
+                        DetachedChatWindowProps { contact_id: contact_id.clone() }
+                    );
+                    spawn(async move {
+                        let _ = dioxus::desktop::window().new_window(
+                            dom,
+                            dioxus::desktop::Config::default()
+                                .with_menu(None)
+                                .with_window(
+                                    dioxus::desktop::WindowBuilder::new()
+                                        .with_title("Conversa - Skypia Messenger")
+                                        .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(600.0, 500.0))
+                                )
+                        ).await;
+                    });
+                }
+            }
         } else {
             *self.selected_chat_id.write() = Some(contact_id);
         }

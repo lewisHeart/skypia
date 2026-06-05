@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use crate::state::AppState;
-use crate::models::{render_avatar, TicTacToeCell, UserStatus};
+use crate::models::{render_avatar, TicTacToeCell};
 
 #[component]
 pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
@@ -12,20 +12,6 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
 
     let game_states = state.game_states();
     let active_game = game_states.get(&contact_id);
-
-    let contact_status_color = match contact.status {
-        UserStatus::Online => "border-[#3cd070]",
-        UserStatus::Ocupado => "border-[#e81123]",
-        UserStatus::Ausente => "border-[#ffb900]",
-        UserStatus::Offline | UserStatus::Invisivel => "border-slate-400",
-    };
-
-    let user_status_color = match state.user_status() {
-        UserStatus::Online => "border-[#3cd070]",
-        UserStatus::Ocupado => "border-[#e81123]",
-        UserStatus::Ausente => "border-[#ffb900]",
-        UserStatus::Offline | UserStatus::Invisivel => "border-slate-400",
-    };
 
     rsx! {
         if let Some(game) = active_game {
@@ -104,27 +90,25 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
         } else {
             div { class: "hidden sm:flex w-28 flex-col items-center justify-between p-3 bg-white/10 flex-shrink-0 border-l border-white/20",
                 
-                // Contact's avatar frame with status contour in Tailwind CSS
+                // Contact's avatar frame with MSN status contour
                 div { class: "flex flex-col items-center space-y-1.5",
                     div { 
-                        class: "shadow-md relative rounded-[8px] border-[3.5px] {contact_status_color} overflow-hidden bg-transparent",
-                        {render_avatar(contact.avatar_url.as_deref(), 64)}
-                        div { 
-                            class: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow-sm",
-                            div { class: "w-2.5 h-2.5 rounded-full {contact.status.color_class()} border border-black/10" }
+                        class: "relative p-[2.5px] rounded-[9px] border {contact.status.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md flex-shrink-0",
+                        div {
+                            class: "rounded-[6px] overflow-hidden border border-white/35 bg-white flex-shrink-0 flex items-center justify-center",
+                            {render_avatar(contact.avatar_url.as_deref(), 64)}
                         }
                     }
                     span { class: "text-[10px] text-slate-500 font-bold max-w-[85px] truncate text-center", "{contact.display_name}" }
                 }
 
-                // User's own avatar frame with status contour in Tailwind CSS
+                // User's own avatar frame with MSN status contour
                 div { class: "flex flex-col items-center space-y-1.5",
                     div { 
-                        class: "shadow-md relative rounded-[8px] border-[3.5px] {user_status_color} overflow-hidden bg-transparent",
-                        {render_avatar(state.user_avatar_url().as_deref(), 64)}
-                        div { 
-                            class: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow-sm",
-                            div { class: "w-2.5 h-2.5 rounded-full {state.user_status().color_class()} border border-black/10" }
+                        class: "relative p-[2.5px] rounded-[9px] border {state.user_status().avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md flex-shrink-0",
+                        div {
+                            class: "rounded-[6px] overflow-hidden border border-white/35 bg-white flex-shrink-0 flex items-center justify-center",
+                            {render_avatar(state.user_avatar_url().as_deref(), 64)}
                         }
                     }
                     span { class: "text-[10px] text-slate-500 font-bold max-w-[85px] truncate text-center", "Você" }

@@ -92,29 +92,21 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 }
             }
 
-            // Avatar Frame — mostra foto real se disponível, caso contrário SVG built-in
+            // Avatar Frame — MSN Style color status border
             div {
-                class: "relative p-[3px] flex-shrink-0 cursor-pointer shadow rounded-[10px] border border-[#a1c6e7] bg-white transition-all hover:border-sky-400",
+                class: "relative p-[2px] flex-shrink-0 cursor-pointer shadow rounded-[8px] border {state.user_status().avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all hover:brightness-105",
                 onclick: move |_| {
                     state.show_avatar_picker.set(true);
                 },
-                // Foto real (URL do servidor) ou SVG fallback
-                {render_avatar(state.user_avatar_url().as_deref(), 48)}
-
-                // Status Badge overlay
                 div {
-                    class: "absolute -bottom-0.5 -right-0.5 w-[15px] h-[15px] rounded-full bg-white border border-[#a1c6e7] flex items-center justify-center cursor-pointer hover:scale-110 transition-transform z-10 shadow-sm",
-                    onclick: move |e| {
-                        e.stop_propagation();
-                        show_status_menu.set(!show_status_menu());
-                    },
-                    div { class: "w-[9px] h-[9px] rounded-full {state.user_status().color_class()} border border-black/10" }
+                    class: "rounded-[5px] overflow-hidden border border-white/35 bg-white flex-shrink-0 flex items-center justify-center",
+                    {render_avatar(state.user_avatar_url().as_deref(), 48)}
                 }
 
                 // Ícone de edição sobre o avatar
                 div {
-                    class: "absolute inset-0 rounded-[7px] bg-black/0 hover:bg-black/20 transition-all flex items-center justify-center opacity-0 hover:opacity-100",
-                    span { class: "text-white text-base drop-shadow", "✏️" }
+                    class: "absolute inset-[2px] rounded-[5px] bg-black/0 hover:bg-black/25 transition-all flex items-center justify-center opacity-0 hover:opacity-100 z-20",
+                    span { class: "text-white text-sm drop-shadow", "✏️" }
                 }
             }
 
@@ -162,13 +154,21 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             autofocus: true,
                         }
                     } else {
-                        span {
-                            class: "font-bold text-sm text-[#1b324d] truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
-                            onclick: move |_| {
-                                temp_name.set(state.user_name());
-                                is_editing_name.set(true);
-                            },
-                            "{state.user_name()}"
+                        div { class: "flex items-center space-x-1.5 min-w-0 max-w-full",
+                            span {
+                                class: "font-bold text-sm text-[#1b324d] truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
+                                onclick: move |_| {
+                                    temp_name.set(state.user_name());
+                                    is_editing_name.set(true);
+                                },
+                                "{state.user_name()}"
+                            }
+                            button {
+                                class: "text-[10px] font-semibold px-1 rounded text-[#2f4b6c]/85 hover:bg-white/40 hover:text-[#1e395b] cursor-pointer flex items-center space-x-0.5 transition-colors focus:outline-none flex-shrink-0",
+                                onclick: move |_| show_status_menu.set(!show_status_menu()),
+                                span { "({state.user_status().as_str()})" }
+                                span { "▼" }
+                            }
                         }
                     }
                 }
