@@ -1,16 +1,15 @@
-use dioxus::prelude::*;
-use crate::state::AppState;
 use crate::components::auth::login::Login;
-use crate::components::main::main_window::MainWindow;
 use crate::components::chat::chat_window::ChatWindow;
+use crate::components::main::main_window::MainWindow;
 use crate::components::ToastList;
+use crate::state::AppState;
+use dioxus::prelude::*;
 
-
-mod models;
-mod state;
-mod sound;
-mod services;
 mod components;
+mod models;
+mod services;
+mod sound;
+mod state;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -33,6 +32,9 @@ fn get_current_slot() -> Option<u32> {
 }
 
 fn main() {
+    // Carrega variáveis de ambiente a partir do arquivo .env
+    dotenvy::dotenv().ok();
+
     // Cria o runtime do Tokio global persistente com suporte completo (rede, timers, etc.)
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -59,7 +61,7 @@ fn main() {
                 .join(".skypia_data")
                 .join("webview")
                 .join(format!("slot_{}", slot));
-            
+
             // Garante a criação do diretório de dados
             let _ = std::fs::create_dir_all(&data_dir);
             config = config.with_data_directory(data_dir);
@@ -75,15 +77,13 @@ fn main() {
     }
 }
 
-
 #[component]
 fn App() -> Element {
     // Initialize AppState as a global context
     let mut app_state = use_context_provider(|| AppState::new());
     let logged_in = app_state.logged_in();
     let theme = app_state.theme();
-    
-    
+
     // Sincroniza decorações da janela nativa
     use_effect(move || {
         #[cfg(feature = "desktop")]
@@ -98,7 +98,8 @@ fn App() -> Element {
         #[cfg(feature = "desktop")]
         {
             let desktop = dioxus::desktop::use_window();
-            let has_selected_chat = app_state.selected_chat_id().is_some() && app_state.chat_mode() == "integrated";
+            let has_selected_chat =
+                app_state.selected_chat_id().is_some() && app_state.chat_mode() == "integrated";
             if has_selected_chat {
                 desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(850.0, 620.0));
             } else {
@@ -136,14 +137,13 @@ fn App() -> Element {
         }
     });
 
-
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
-        
+
         // Main Application Screen
-        div { 
+        div {
             class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-br {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
             onmousemove: move |_| {
                 if logged_in {
@@ -236,17 +236,17 @@ fn App() -> Element {
                     }
                 }
             }
-            
+
             // 2. Custom Title Bar for Windows 7 Aero-like custom styling (Escala 100%)
             if app_state.use_custom_titlebar() {
-                div { 
+                div {
                     class: "w-full h-8 bg-gradient-to-b {theme.titlebar_gradient()} flex items-center justify-between z-50 flex-shrink-0 select-none border-b {theme.titlebar_border()} px-3 relative rounded-t-2xl shadow-sm cursor-default",
                     style: "-webkit-app-region: drag;",
                     onmousedown: move |_| {
                         #[cfg(feature = "desktop")]
                         let _ = dioxus::desktop::use_window().drag_window();
                     },
-                    
+
                     // Icon and Title
                     div { class: "flex items-center space-x-1.5 font-bold text-xs pointer-events-none {theme.titlebar_text()} select-none",
                         img {
@@ -255,15 +255,15 @@ fn App() -> Element {
                         }
                         span { "Skypia Messenger" }
                     }
-                    
+
                     // Controls (X)
-                    div { 
+                    div {
                         class: "flex items-center space-x-2.5",
                         style: "-webkit-app-region: no-drag;",
                         onmousedown: move |e| e.stop_propagation(),
-                        
+
                         // Close [X] Button (Matches user screenshot exactly)
-                        button { 
+                        button {
                             class: "h-[22px] px-3.5 bg-white border border-[#f2d3ce] rounded font-bold text-xs text-[#8c2222] shadow-sm cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white flex items-center justify-center focus:outline-none",
                             title: "Fechar",
                             onclick: move |e| {
@@ -278,16 +278,16 @@ fn App() -> Element {
             }
 
             // 3. Área de Conteúdo do Cliente (Essa sim é escalonada pelo usuário!)
-            div { 
+            div {
                 class: "flex-1 min-h-0 w-full relative",
-                
+
                 div {
                     class: "absolute inset-0 overflow-hidden",
-                    
+
                     div {
                         class: "w-full h-full relative",
                         style: "transform: scale({app_state.interface_scale()}); transform-origin: top left; width: {100.0 / app_state.interface_scale()}%; height: {100.0 / app_state.interface_scale()}%;",
-                        
+
                         if !logged_in {
                             // Login page occupies the whole screen (centers form card inside itself)
                             Login { state: app_state }
@@ -306,7 +306,7 @@ fn App() -> Element {
                                 } else {
                                     "hidden"
                                 };
-                                
+
                                 rsx! {
                                     div { class: "w-full flex-1 min-h-0 flex flex-row pointer-events-auto z-10 h-full",
                                         div { class: sidebar_class,
@@ -336,13 +336,13 @@ fn App() -> Element {
                 let first_req = pending_list[0].clone();
                 let first_req_id_accept = first_req.id.clone();
                 let first_req_id_reject = first_req.id.clone();
-                
+
                 rsx! {
-                    div { 
+                    div {
                         class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9998] flex items-center justify-center p-4 pointer-events-auto",
-                        div { 
+                        div {
                             class: "w-[360px] bg-gradient-to-b {theme.modal_gradient()} border-2 {theme.modal_border()} rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
-                            
+
                             // Cabeçalho clássico
                             div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
                                 span { class: "font-bold text-sm flex items-center space-x-1.5 {theme.titlebar_text()}",
@@ -350,28 +350,28 @@ fn App() -> Element {
                                     span { "Solicitação de Amizade" }
                                 }
                             }
-                            
+
                             // Conteúdo
                             div { class: "flex flex-col space-y-3 py-1",
                                 p { class: "font-semibold text-slate-700",
                                     "{first_req.display_name} ({first_req.email}) deseja adicionar você à lista de contatos."
                                 }
-                                
+
                                 div { class: "bg-white/60 border {theme.titlebar_border()} p-3 rounded text-[11px] leading-relaxed text-slate-600 space-y-2",
                                     p { "Ao aceitar, você poderá ver o status dele, trocar mensagens em tempo real e compartilhar winks e nudges!" }
                                 }
                             }
-                            
+
                             // Botões de Ação
                             div { class: "flex items-center justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/50",
-                                button { 
+                                button {
                                     class: "px-4 py-1.5 bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                     onclick: move |_| {
                                         app_state.accept_friend_request(first_req_id_accept.clone());
                                     },
                                     "Aceitar"
                                 }
-                                button { 
+                                button {
                                     class: "px-4 py-1.5 bg-gradient-to-b from-rose-400 to-rose-500 hover:from-rose-500 hover:to-rose-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                     onclick: move |_| {
                                         app_state.reject_friend_request(first_req_id_reject.clone());
@@ -386,16 +386,16 @@ fn App() -> Element {
                 rsx! {}
             }
         }
-        
+
         // About Skypia Modal Dialog
         if app_state.show_about() {
-            div { 
+            div {
                 class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 pointer-events-auto",
                 onclick: move |_| app_state.show_about.set(false),
-                div { 
+                div {
                     class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
                     onclick: move |e| e.stop_propagation(),
-                    
+
                     div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
                         div { class: "flex items-center space-x-1.5 font-bold text-sm {theme.titlebar_text()}",
                             img {
@@ -404,13 +404,13 @@ fn App() -> Element {
                             }
                             span { "Sobre o Skypia" }
                         }
-                        button { 
+                        button {
                             class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
                             onclick: move |_| app_state.show_about.set(false),
                             "✕"
                         }
                     }
-                    
+
                     div { class: "flex flex-col items-center text-center space-y-2 py-2",
                         img {
                             src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/butterfly.webp",
@@ -419,12 +419,12 @@ fn App() -> Element {
                         span { class: "font-bold text-sm", "Skypia Messenger v14.0" }
                         span { class: "text-[10px] text-slate-500", "Copyright © 2026 Skypia Corp. Todos os direitos reservados." }
                     }
-                    
+
                     p { class: "text-[11px] leading-relaxed text-slate-600 bg-white/40 p-2.5 rounded border {theme.titlebar_border()}/30 text-center",
                         "O Skypia é o clone definitivo do MSN Messenger, recriado em Rust com Dioxus 0.7 e TailwindCSS para uma experiência premium de alta fidelidade visual Aero Glass."
                     }
-                    
-                    button { 
+
+                    button {
                         class: "w-full py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all",
                         onclick: move |_| app_state.show_about.set(false),
                         "Ok"

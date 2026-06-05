@@ -40,13 +40,17 @@ impl AppState {
 
     /// Faz logout completo
     pub fn logout(&mut self) {
-        *self.logged_in.write() = false;
-        *self.auth_token.write() = None;
-        *self.server_user_id.write() = None;
-        *self.user_avatar_url.write() = None;
-        *self.ws_tx.write() = None;
+        let mut self_clone = *self;
         spawn(async move {
+            // 1. Limpa o token no SQLite primeiro para evitar condição de corrida (race condition)
             let _ = crate::services::db::DatabaseService::clear_auth_token().await;
+            
+            // 2. Atualiza os estados na UI para deslogar
+            *self_clone.logged_in.write() = false;
+            *self_clone.auth_token.write() = None;
+            *self_clone.server_user_id.write() = None;
+            *self_clone.user_avatar_url.write() = None;
+            *self_clone.ws_tx.write() = None;
         });
     }
 }

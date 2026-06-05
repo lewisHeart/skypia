@@ -45,18 +45,25 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
         _ => "p-1",
     };
 
+    let dragged_cid = (state.dragged_contact_id)();
+    let is_currently_dragged = dragged_cid.as_ref() == Some(&contact.id);
+    let opacity_class = if is_currently_dragged { "opacity-40" } else { "" };
+
     rsx! {
         div {
-            class: "flex items-center space-x-2.5 {container_padding} rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
-            draggable: "true",
-            ondragstart: {
+            class: "flex items-center space-x-2.5 {container_padding} rounded hover:bg-white/45 cursor-pointer relative group transition-colors {opacity_class}",
+            onmousedown: {
                 let cid = contact.id.clone();
-                move |_| {
+                move |e| {
+                    e.stop_propagation();
                     *state.dragged_contact_id.write() = Some(cid.clone());
                 }
             },
-            ondragend: move |_| {
-                *state.dragged_contact_id.write() = None;
+            onmouseup: {
+                move |e| {
+                    e.stop_propagation();
+                    *state.dragged_contact_id.write() = None;
+                }
             },
             ondoubleclick: handle_double_click,
             oncontextmenu: move |e| {

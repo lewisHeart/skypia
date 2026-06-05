@@ -8,7 +8,10 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message as TungsteniteMsg;
 
 pub fn connect_ws(mut state: AppState, token: String) {
-    let ws_url = format!("ws://127.0.0.1:8082/ws?token={}", token);
+    let base = crate::services::api::SERVER_BASE_URL
+        .replace("http://", "ws://")
+        .replace("https://", "wss://");
+    let ws_url = format!("{}/ws?token={}", base, token);
 
     // Spawna o loop de conexão em background no scheduler do Dioxus (evita erros de Send)
     dioxus::prelude::spawn(async move {
@@ -18,7 +21,7 @@ pub fn connect_ws(mut state: AppState, token: String) {
                 break;
             }
 
-            println!("Conectando ao WebSocket em: ws://127.0.0.1:8082/ws");
+            println!("Conectando ao WebSocket em: {}/ws", base);
             match connect_async(&ws_url).await {
                 Ok((ws_stream, _)) => {
                     println!("WebSocket conectado com sucesso!");

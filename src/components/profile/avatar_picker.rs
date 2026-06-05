@@ -2,11 +2,35 @@ use crate::services::api;
 use crate::state::AppState;
 use dioxus::prelude::*;
 
+// Avatares predefinidos embutidos em tempo de compilação (funciona em qualquer plataforma)
+static PRESET_AVATARS: &[(&str, &str, &[u8])] = &[
+    ("Margarida", "image/png", include_bytes!("../../../assets/usertiles/daisy.png")),
+    ("Cachorrinho", "image/png", include_bytes!("../../../assets/usertiles/dog.png")),
+    ("Gatinho", "image/png", include_bytes!("../../../assets/usertiles/kitten.png")),
+    ("Robozinho", "image/png", include_bytes!("../../../assets/usertiles/robot.png")),
+    ("Futebol", "image/gif", include_bytes!("../../../assets/usertiles/soccer.gif")),
+    ("Sol", "image/gif", include_bytes!("../../../assets/usertiles/summer.gif")),
+    ("Flores", "image/gif", include_bytes!("../../../assets/usertiles/spring.gif")),
+    ("Outono", "image/gif", include_bytes!("../../../assets/usertiles/fall.gif")),
+];
+
+// IDs únicos para os inputs de arquivo HTML (mobile)
+static PRESET_ASSET_PATHS: &[&str] = &[
+    "/assets/usertiles/daisy.png",
+    "/assets/usertiles/dog.png",
+    "/assets/usertiles/kitten.png",
+    "/assets/usertiles/robot.png",
+    "/assets/usertiles/soccer.gif",
+    "/assets/usertiles/summer.gif",
+    "/assets/usertiles/spring.gif",
+    "/assets/usertiles/fall.gif",
+];
+
 #[component]
 pub fn AvatarPicker(mut state: AppState) -> Element {
     let theme = state.theme();
-    let is_uploading = use_signal(|| false);
-    let upload_error = use_signal(|| Option::<String>::None);
+    let mut is_uploading = use_signal(|| false);
+    let mut upload_error = use_signal(|| Option::<String>::None);
 
     rsx! {
         div {
@@ -33,7 +57,6 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                     }
                 }
 
-                // Abas (apenas visual, sem lógica de tab aqui pois é simples)
                 div { class: "p-4 flex flex-col space-y-4",
 
                     // Erro de upload
@@ -44,20 +67,11 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                         }
                     }
 
-                    // Seção 1: GIFs Clássicos do MSN
+                    // Seção 1: Avatares Predefinidos (via include_bytes! — funciona em todas as plataformas)
                     div { class: "flex flex-col space-y-2 border-b border-white/20 pb-4",
                         p { class: "text-xs font-bold {theme.titlebar_text()}", "Escolha uma imagem predefinida" }
                         div { class: "grid grid-cols-4 gap-2",
-                            for &(name, rel_path, mime) in &[
-                                ("Margarida", "daisy.png", "image/png"),
-                                ("Cachorrinho", "dog.png", "image/png"),
-                                ("Gatinho", "kitten.png", "image/png"),
-                                ("Robozinho", "robot.png", "image/png"),
-                                ("Futebol", "soccer.gif", "image/gif"),
-                                ("Sol", "summer.gif", "image/gif"),
-                                ("Flores", "spring.gif", "image/gif"),
-                                ("Outono", "fall.gif", "image/gif"),
-                            ] {
+                            for (idx, &(name, mime, _bytes)) in PRESET_AVATARS.iter().enumerate() {
                                 button {
                                     class: "relative aspect-square rounded-lg border {theme.titlebar_border()} bg-white/60 p-1 hover:border-[#5c98d6] hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group overflow-hidden shadow-sm",
                                     disabled: is_uploading(),
@@ -66,63 +80,33 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                         let mut uploading = is_uploading;
                                         let mut err_sig = upload_error;
 
-                                        // 1. Atualização otimista local instantânea na tela usando a URL do asset
-                                        let local_src = match rel_path {
-                                            "daisy.png" => asset!("/assets/usertiles/daisy.png").to_string(),
-                                            "dog.png" => asset!("/assets/usertiles/dog.png").to_string(),
-                                            "kitten.png" => asset!("/assets/usertiles/kitten.png").to_string(),
-                                            "robot.png" => asset!("/assets/usertiles/robot.png").to_string(),
-                                            "soccer.gif" => asset!("/assets/usertiles/soccer.gif").to_string(),
-                                            "summer.gif" => asset!("/assets/usertiles/summer.gif").to_string(),
-                                            "spring.gif" => asset!("/assets/usertiles/spring.gif").to_string(),
-                                            "fall.gif" => asset!("/assets/usertiles/fall.gif").to_string(),
-                                            _ => "".to_string(),
-                                        };
-                                        *state.user_avatar_url.write() = Some(local_src);
+                                        // Atualização otimista local com a URL do asset (funciona em desktop/web)
+                                        let asset_path = PRESET_ASSET_PATHS[idx];
+                                        *state.user_avatar_url.write() = Some(asset_path.to_string());
+                                        state.show_avatar_picker.set(false);
 
-                                        // 2. Se estiver autenticado, faz o upload dos bytes locais em background
+                                        // Upload dos bytes embutidos para o servidor em background
                                         if let Some(token) = state.auth_token() {
+                                            let bytes_vec = PRESET_AVATARS[idx].2.to_vec();
+                                            let mime_str = mime.to_string();
                                             spawn(async move {
                                                 uploading.set(true);
                                                 err_sig.set(None);
-
-                                                let filepath = format!("assets/usertiles/{}", rel_path);
-                                                match std::fs::read(&filepath) {
-                                                    Ok(bytes_vec) => {
-                                                        match api::upload_avatar(&token, bytes_vec, mime).await {
-                                                            Ok(uploaded_url) => {
-                                                                *state.user_avatar_url.write() = Some(uploaded_url);
-                                                                uploading.set(false);
-                                                                state.show_avatar_picker.set(false);
-                                                            }
-                                                            Err(e) => {
-                                                                uploading.set(false);
-                                                                err_sig.set(Some(format!("Falha no upload: {}", e)));
-                                                            }
-                                                        }
+                                                match api::upload_avatar(&token, bytes_vec, &mime_str).await {
+                                                    Ok(uploaded_url) => {
+                                                        *state.user_avatar_url.write() = Some(uploaded_url);
+                                                        uploading.set(false);
                                                     }
                                                     Err(e) => {
                                                         uploading.set(false);
-                                                        err_sig.set(Some(format!("Erro ao ler arquivo: {}", e)));
+                                                        err_sig.set(Some(format!("Falha no upload: {}", e)));
                                                     }
                                                 }
                                             });
-                                        } else {
-                                            state.show_avatar_picker.set(false);
                                         }
                                     },
                                     img {
-                                        src: match rel_path {
-                                            "daisy.png" => asset!("/assets/usertiles/daisy.png").to_string(),
-                                            "dog.png" => asset!("/assets/usertiles/dog.png").to_string(),
-                                            "kitten.png" => asset!("/assets/usertiles/kitten.png").to_string(),
-                                            "robot.png" => asset!("/assets/usertiles/robot.png").to_string(),
-                                            "soccer.gif" => asset!("/assets/usertiles/soccer.gif").to_string(),
-                                            "summer.gif" => asset!("/assets/usertiles/summer.gif").to_string(),
-                                            "spring.gif" => asset!("/assets/usertiles/spring.gif").to_string(),
-                                            "fall.gif" => asset!("/assets/usertiles/fall.gif").to_string(),
-                                            _ => "".to_string(),
-                                        },
+                                        src: PRESET_ASSET_PATHS[idx],
                                         class: "w-full h-full object-cover rounded-md group-hover:scale-105 transition-transform",
                                         alt: name
                                     }
@@ -131,7 +115,7 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                         }
                     }
 
-                    // Seção 2: Upload de foto real
+                    // Seção 2: Upload de foto própria
                     div { class: "flex flex-col space-y-2",
                         p { class: "text-xs font-bold {theme.titlebar_text()}", "Enviar foto própria" }
 
@@ -145,7 +129,7 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                 span { class: "text-xs text-slate-500", "Enviando foto..." }
                             }
                         } else {
-                            // Preview do avatar atual (se for URL)
+                            // Preview do avatar atual
                             if state.user_avatar_url().is_some() {
                                 div { class: "flex items-center space-x-3 p-2 bg-white/40 rounded-xl border border-white/50",
                                     div {
@@ -159,30 +143,37 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                 }
                             }
 
-                            // Botão de upload via sistema de arquivos nativo
-                            div { class: "flex flex-col items-center p-4 border-2 border-dashed {theme.modal_border()}/50 rounded-xl bg-white/20 hover:bg-white/40 transition-all cursor-pointer group",
-                                onclick: move |_| {
-                                    let mut state = state;
-                                    let mut uploading = is_uploading;
-                                    let mut err_sig = upload_error;
+                            // Área de upload — usa a estratégia certa para cada plataforma
+                            div { class: "relative flex flex-col items-center p-4 border-2 border-dashed {theme.modal_border()}/50 rounded-xl bg-white/20 hover:bg-white/40 transition-all cursor-pointer group",
 
-                                    spawn(async move {
-                                        #[cfg(feature = "desktop")]
-                                        {
-                                            // Abre o diálogo de arquivo nativo
-                                            let file_dialog = rfd::FileDialog::new()
-                                                .add_filter("Imagens", &["jpg", "jpeg", "png", "gif", "webp"])
-                                                .set_title("Escolher foto de perfil");
+                                // ── INPUT HTML NATIVO (mobile e web) ──────────────────────────────
+                                // No Android abre a câmera/galeria; no desktop serve como fallback
+                                input {
+                                    r#type: "file",
+                                    id: "avatar-file-input",
+                                    accept: "image/*",
+                                    // No mobile capture="user" abre câmera frontal, mas vamos deixar
+                                    // sem para que o usuário escolha câmera OU galeria
+                                    class: "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
+                                    onchange: move |e| {
+                                        let mut state = state;
+                                        let mut uploading = is_uploading;
+                                        let mut err_sig = upload_error;
 
-                                            if let Some(path) = file_dialog.pick_file() {
-                                                uploading.set(true);
-                                                err_sig.set(None);
+                                        // Dioxus 0.7: e.files() retorna Vec<FileData> diretamente
+                                        let files = e.files();
+                                        if let Some(file) = files.into_iter().next() {
+                                            let token_opt = state.auth_token();
+                                            let file_name = file.name();
+                                            spawn(async move {
+                                                if let Some(token) = token_opt {
+                                                    uploading.set(true);
+                                                    err_sig.set(None);
 
-                                                match std::fs::read(&path) {
-                                                    Ok(bytes) => {
-                                                        let mime = detect_mime(&path);
-                                                        if let Some(token) = state.auth_token() {
-                                                            match api::upload_avatar(&token, bytes, &mime).await {
+                                                    match file.read_bytes().await {
+                                                        Ok(bytes) => {
+                                                            let mime = detect_mime_from_name(&file_name);
+                                                            match api::upload_avatar(&token, bytes.to_vec(), &mime).await {
                                                                 Ok(url) => {
                                                                     *state.user_avatar_url.write() = Some(url);
                                                                     uploading.set(false);
@@ -194,23 +185,21 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                                                 }
                                                             }
                                                         }
-                                                    }
-                                                    Err(e) => {
-                                                        uploading.set(false);
-                                                        err_sig.set(Some(format!("Erro ao ler arquivo: {}", e)));
+                                                        Err(e) => {
+                                                            uploading.set(false);
+                                                            err_sig.set(Some(format!("Não foi possível ler o arquivo: {}", e)));
+                                                        }
                                                     }
                                                 }
-                                            }
+                                            });
                                         }
-                                        #[cfg(not(feature = "desktop"))]
-                                        {
-                                            err_sig.set(Some("Upload disponível apenas na versão desktop.".to_string()));
-                                        }
-                                    });
-                                },
-                                span { class: "text-2xl mb-1 group-hover:scale-110 transition-transform", "📷" }
-                                p { class: "text-xs font-semibold {theme.titlebar_text()}", "Clique para selecionar uma foto" }
-                                p { class: "text-[10px] text-slate-500", "JPG, PNG, GIF ou WebP • máx 5MB" }
+                                    }
+                                }
+
+                                // Conteúdo visual por baixo do input transparente
+                                span { class: "text-2xl mb-1 group-hover:scale-110 transition-transform pointer-events-none", "📷" }
+                                p { class: "text-xs font-semibold {theme.titlebar_text()} pointer-events-none", "Toque para selecionar ou tirar foto" }
+                                p { class: "text-[10px] text-slate-500 pointer-events-none", "JPG, PNG, GIF ou WebP • máx 5MB" }
                             }
                         }
                     }
@@ -220,12 +209,16 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
     }
 }
 
-#[cfg(feature = "desktop")]
-fn detect_mime(path: &std::path::Path) -> String {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("png") => "image/png".to_string(),
-        Some("gif") => "image/gif".to_string(),
-        Some("webp") => "image/webp".to_string(),
-        _ => "image/jpeg".to_string(),
+/// Detecta o MIME type pelo nome do arquivo (funciona em qualquer plataforma)
+fn detect_mime_from_name(name: &str) -> String {
+    let lower = name.to_lowercase();
+    if lower.ends_with(".png") {
+        "image/png".to_string()
+    } else if lower.ends_with(".gif") {
+        "image/gif".to_string()
+    } else if lower.ends_with(".webp") {
+        "image/webp".to_string()
+    } else {
+        "image/jpeg".to_string()
     }
 }

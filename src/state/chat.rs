@@ -232,40 +232,6 @@ impl AppState {
     }
 
     pub fn receive_nudge(&mut self, contact_id: String) {
-        let contact_name = if let Some(c) = self.contacts().iter().find(|c| c.id == contact_id) {
-            c.display_name.clone()
-        } else {
-            "Contato".to_string()
-        };
-
-        let msg_id = uuid::Uuid::new_v4().to_string();
-
-        let now = chrono::Local::now();
-        let timestamp = now.format("%H:%M:%S").to_string();
-
-        let nudge_msg = Message {
-            id: msg_id,
-            conversation_id: contact_id.clone(),
-            sender_id: contact_id.clone(),
-            sender_name: contact_name.clone(),
-            text: format!("{} enviou um Chamar a Atenção.", contact_name),
-            timestamp,
-            is_nudge: true,
-            font_color: "#e81123".to_string(),
-            font_family: "Segoe UI".to_string(),
-            is_wink: None,
-            file_transfer: None,
-            is_game_invite: false,
-        };
-
-        {
-            let mut messages = self.chat_messages.write();
-            messages
-                .entry(contact_id.clone())
-                .or_insert_with(Vec::new)
-                .push(nudge_msg);
-        }
-
         // Ativa animação reativa de tremor para essa conversa por 800ms
         let mut active_nudge_sig = self.active_nudge;
         let cid_nudge = contact_id.clone();

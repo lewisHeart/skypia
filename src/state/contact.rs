@@ -276,12 +276,31 @@ impl AppState {
         }
     }
 
-    pub fn create_group_chat(&mut self, name: String, member_emails: Vec<String>) {
+    pub fn create_group_chat(
+        &mut self,
+        name: String,
+        description: String,
+        avatar_url: String,
+        member_emails: Vec<String>,
+    ) {
         let token_opt = self.auth_token();
         let mut state_clone = *self;
+        
+        let desc_opt = if description.trim().is_empty() { None } else { Some(description.trim().to_string()) };
+        let avatar_opt = if avatar_url.trim().is_empty() { None } else { Some(avatar_url.trim().to_string()) };
+        
         spawn(async move {
             if let Some(token) = token_opt {
-                match crate::services::api::create_conversation(&token, Some(name.clone()), true, member_emails).await {
+                match crate::services::api::create_conversation(
+                    &token,
+                    Some(name.clone()),
+                    true,
+                    member_emails,
+                    avatar_opt,
+                    desc_opt,
+                )
+                .await
+                {
                     Ok(conv) => {
                         state_clone.add_toast(
                             "Grupo Criado".to_string(),

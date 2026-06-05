@@ -1,24 +1,20 @@
-use dioxus::prelude::*;
-use crate::state::AppState;
 use crate::sound::play_sound;
+use crate::state::AppState;
+use dioxus::prelude::*;
 
 #[component]
-pub fn ChatInput(
-    contact_id: String,
-    mut state: AppState,
-    on_nudge: EventHandler<()>,
-) -> Element {
+pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler<()>) -> Element {
     let theme = state.theme();
     let mut input_text = use_signal(|| String::new());
     let mut selected_font = use_signal(|| "Segoe UI".to_string());
     let mut selected_color = use_signal(|| "#1e395b".to_string());
-    
+
     // UI Popovers
     let mut show_emoticon_panel = use_signal(|| false);
     let mut show_font_panel = use_signal(|| false);
     let mut show_wink_panel = use_signal(|| false);
     let mut show_file_panel = use_signal(|| false);
-    
+
     let typings = state.typing_contacts();
     let users_typing = typings.get(&contact_id).cloned().unwrap_or_default();
     let is_typing_srv = !users_typing.is_empty();
@@ -50,15 +46,15 @@ pub fn ChatInput(
             state.set_typing(cid, false);
         }
     });
- 
+
     let contact = state.contacts().into_iter().find(|c| c.id == contact_id);
-    let group = (state.group_chats)().into_iter().find(|g| g.id == contact_id);
+    let group = (state.group_chats)()
+        .into_iter()
+        .find(|g| g.id == contact_id);
     if contact.is_none() && group.is_none() {
         return rsx! {};
     }
     let is_group = group.is_some();
-
-
 
     // Send nudge handler
     let contact_id_nudge = contact_id.clone();
@@ -67,7 +63,6 @@ pub fn ChatInput(
         play_sound("nudge");
         on_nudge.call(());
     };
-
 
     // Helper to insert emoticons at text cursor
     let mut insert_emoticon = move |code: &str| {
@@ -94,7 +89,7 @@ pub fn ChatInput(
             // Formatting & Action Toolbar
             div { class: "h-8 bg-white/50 border-t border-b {theme.titlebar_border()} px-3 flex items-center justify-between text-xs {theme.titlebar_text()} relative",
                 div { class: "flex items-center space-x-3.5",
-                    button { 
+                    button {
                         class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
                         title: "Fonte e Cor",
                         onclick: move |_| {
@@ -110,7 +105,7 @@ pub fn ChatInput(
                         span { class: "text-[7px] text-slate-500", "▼" }
                     }
 
-                    button { 
+                    button {
                         class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
                         title: "Emojis",
                         onclick: move |_| {
@@ -126,7 +121,7 @@ pub fn ChatInput(
                         span { class: "text-[7px] text-slate-500", "▼" }
                     }
 
-                    button { 
+                    button {
                         class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
                         title: "Piscadelas (Winks)",
                         onclick: move |_| {
@@ -142,7 +137,7 @@ pub fn ChatInput(
                         span { class: "text-[7px] text-slate-500", "▼" }
                     }
 
-                    button { 
+                    button {
                         class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
                         title: "Enviar Arquivo",
                         onclick: move |_| {
@@ -159,7 +154,7 @@ pub fn ChatInput(
                     }
 
                     if !is_group {
-                        button { 
+                        button {
                             class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center transition-colors",
                             title: "Desafiar para Jogo da Velha",
                             onclick: {
@@ -179,7 +174,7 @@ pub fn ChatInput(
                         }
                     }
 
-                    button { 
+                    button {
                         class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center transition-colors active:scale-90",
                         title: "Chamar a Atenção (Nudge)",
                         onclick: handle_send_nudge,
@@ -203,7 +198,7 @@ pub fn ChatInput(
                                         onclick: move |_| {
                                             selected_font.set(font_name.to_string());
                                         },
-                                        span { 
+                                        span {
                                             class: if selected_font() == *font_name { "font-bold" } else { "" },
                                             "{font_name}"
                                         }
@@ -211,9 +206,9 @@ pub fn ChatInput(
                                 }
                             }
                         }
-                        
+
                         div { class: "border-t border-slate-100" }
-                        
+
                         div { class: "flex flex-col space-y-1",
                             span { class: "font-bold text-[10px] text-slate-400 uppercase tracking-wider", "Cor" }
                             div { class: "grid grid-cols-4 gap-1.5",
@@ -235,7 +230,7 @@ pub fn ChatInput(
                 }
 
                 if show_emoticon_panel() {
-                    div { 
+                    div {
                         class: "absolute left-10 bottom-9 w-60 max-h-52 overflow-y-auto bg-white border {theme.titlebar_border()} rounded shadow-lg z-50 p-2 grid grid-cols-6 gap-1 text-base scrollbar-thin scrollbar-thumb-slate-300",
                         for (code, emoji_name) in &[
                             (":-)", "slightly-smiling-face"),
@@ -389,7 +384,7 @@ pub fn ChatInput(
                                 src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/framed-picture.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
-                            span { "Enviar Foto (.jpg)" }
+                            span { "Enviar Foto" }
                         }
                         button {
                             class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
@@ -404,7 +399,7 @@ pub fn ChatInput(
                                 src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/musical-note.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
-                            span { "Enviar Música (.mp3)" }
+                            span { "Enviar Música" }
                         }
                         button {
                             class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
@@ -419,7 +414,7 @@ pub fn ChatInput(
                                 src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/floppy-disk.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
-                            span { "Enviar Programa (.exe)" }
+                            span { "Enviar Arquivo" }
                         }
                     }
                 }
@@ -455,7 +450,7 @@ pub fn ChatInput(
                             }
                         }
                     }
-                    
+
                     button {
                         class: "w-16 h-full {theme.btn_primary()} rounded font-bold text-xs shadow cursor-pointer flex items-center justify-center active:scale-95 transition-transform",
                         onclick: {

@@ -142,7 +142,6 @@ impl AppState {
     pub fn load_initial_data(&mut self) {
         let mut contacts_sig = self.contacts;
         let mut chat_messages_sig = self.chat_messages;
-        let mut message_counter_sig = self.message_counter;
         let mut detached_sig = self.detached_chats;
         let mut name_sig = self.user_name;
         let mut music_sig = self.user_music;
@@ -153,17 +152,43 @@ impl AppState {
         let mut theme_sig = self.theme;
         let mut chat_mode_sig = self.chat_mode;
         let mut pending_sig = self.pending_requests;
-        let mut density_sig = self.contact_density;
-        let mut fav_density_sig = self.fav_density;
-        let mut online_density_sig = self.online_density;
-        let mut offline_density_sig = self.offline_density;
-        let mut groups_density_sig = self.groups_density;
         let mut group_chats_sig = self.group_chats;
 
         let token_opt = self.auth_token();
         let self_user_id = self.server_user_id();
+        let mut self_clone = *self;
 
         spawn(async move {
+            // 0. Carrega contatos e conversas locais do SQLite imediatamente (Offline-first!)
+            if let Ok(local_contacts) = crate::services::db::DatabaseService::load_contacts().await {
+                if !local_contacts.is_empty() {
+                    *contacts_sig.write() = local_contacts;
+                }
+            }
+            if let Ok(local_conversations) = crate::services::db::DatabaseService::load_conversations().await {
+                let mut all_messages = std::collections::HashMap::new();
+                let mut groups = Vec::new();
+                for conv in local_conversations {
+                    if conv.is_group {
+                        groups.push(conv.clone());
+                    }
+                    if let Ok(local_messages) = crate::services::db::DatabaseService::load_messages(conv.id.clone()).await {
+                        let mut normalized_messages = Vec::new();
+                        for mut msg in local_messages {
+                            if let Some(ref s_id) = self_user_id {
+                                if &msg.sender_id == s_id {
+                                    msg.sender_id = "0".to_string();
+                                }
+                            }
+                            normalized_messages.push(msg);
+                        }
+                        all_messages.insert(conv.id.clone(), normalized_messages);
+                    }
+                }
+                *chat_messages_sig.write() = all_messages;
+                *group_chats_sig.write() = groups;
+            }
+
             if let Ok((scale, custom_bar, theme, chat_mode, density)) =
                 crate::services::db::DatabaseService::load_settings().await
             {
@@ -171,40 +196,7 @@ impl AppState {
                 *custom_bar_sig.write() = custom_bar;
                 *theme_sig.write() = theme;
                 *chat_mode_sig.write() = chat_mode;
-                *density_sig.write() = density.clone();
-
-                // Parse da densidade por categoria
-                let (fav, online, offline, groups) = if density.contains(':') {
-                    let mut f = "medium".to_string();
-                    let mut o = "medium".to_string();
-                    let mut off = "medium".to_string();
-                    let mut g = "medium".to_string();
-                    for part in density.split(',') {
-                        let subparts: Vec<&str> = part.split(':').collect();
-                        if subparts.len() == 2 {
-                            match subparts[0] {
-                                "fav" => f = subparts[1].to_string(),
-                                "online" => o = subparts[1].to_string(),
-                                "offline" => off = subparts[1].to_string(),
-                                "groups" => g = subparts[1].to_string(),
-                                _ => {}
-                            }
-                        }
-                    }
-                    (f, o, off, g)
-                } else {
-                    let d = density.as_str();
-                    let f = if d == "large" { "large".to_string() } else { "medium".to_string() };
-                    let o = if d == "small" { "small".to_string() } else { "medium".to_string() };
-                    let off = if d == "small" { "small".to_string() } else { "medium".to_string() };
-                    let g = "medium".to_string();
-                    (f, o, off, g)
-                };
-
-                *fav_density_sig.write() = fav;
-                *online_density_sig.write() = online;
-                *offline_density_sig.write() = offline;
-                *groups_density_sig.write() = groups;
+                self_clone.update_densities_from_serialized(density);
             }
 
             // Sincronização de rede se autenticado
@@ -799,6 +791,41 @@ impl AppState {
             )
             .await;
         });
+    }
+
+    pub fn update_densities_from_serialized(&mut self, density: String) {
+        *self.contact_density.write() = density.clone();
+        let (fav, online, offline, groups) = if density.contains(':') {
+            let mut f = "medium".to_string();
+            let mut o = "medium".to_string();
+            let mut off = "medium".to_string();
+            let mut g = "medium".to_string();
+            for part in density.split(',') {
+                let subparts: Vec<&str> = part.split(':').collect();
+                if subparts.len() == 2 {
+                    match subparts[0] {
+                        "fav" => f = subparts[1].to_string(),
+                        "online" => o = subparts[1].to_string(),
+                        "offline" => off = subparts[1].to_string(),
+                        "groups" => g = subparts[1].to_string(),
+                        _ => {}
+                    }
+                }
+            }
+            (f, o, off, g)
+        } else {
+            let d = density.as_str();
+            let f = if d == "large" { "large".to_string() } else { "medium".to_string() };
+            let o = if d == "small" { "small".to_string() } else { "medium".to_string() };
+            let off = if d == "small" { "small".to_string() } else { "medium".to_string() };
+            let g = "medium".to_string();
+            (f, o, off, g)
+        };
+
+        *self.fav_density.write() = fav;
+        *self.online_density.write() = online;
+        *self.offline_density.write() = offline;
+        *self.groups_density.write() = groups;
     }
 
     pub fn active_nudge(&self) -> Option<String> {

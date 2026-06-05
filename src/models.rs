@@ -341,6 +341,8 @@ pub struct Conversation {
     pub id: String,
     pub name: Option<String>,
     pub is_group: bool,
+    pub avatar_url: Option<String>,
+    pub description: Option<String>,
     pub created_at: String,
     pub members: Vec<UserProfile>,
 }
@@ -358,6 +360,7 @@ pub struct UserProfile {
     pub avatar_url: Option<String>,
     pub relation_status: Option<String>,
     pub nickname: Option<String>,
+    pub role: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

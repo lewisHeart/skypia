@@ -182,8 +182,11 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                     // Avatar do cabeçalho com moldura de status clássica do MSN
                     if is_group {
                         div { 
-                            class: "flex-shrink-0 w-9 h-9 rounded bg-sky-200 border border-sky-350 shadow flex items-center justify-center text-lg font-bold text-sky-800 transition-all",
-                            "👥"
+                            class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border border-sky-300/60 bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
+                            div {
+                                class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
+                                {render_avatar(group.as_ref().and_then(|g| g.avatar_url.as_deref()), 36)}
+                            }
                         }
                     } else {
                         {
@@ -301,21 +304,23 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
             let mut state = app_state;
             spawn(async move {
                 // 1. Carrega o token de autenticação do SQLite local
-                if let Ok(Some((token, _user_id))) =
+                if let Ok(Some((token, user_id))) =
                     crate::services::db::DatabaseService::load_auth_token().await
                 {
-                    // 2. Busca o perfil atual no servidor para garantir dados corretos do usuário
+                    // Define o token e o user_id no estado local imediatamente
+                    *state.auth_token.write() = Some(token.clone());
+                    *state.server_user_id.write() = Some(user_id.clone());
+                    *state.logged_in.write() = true;
+
+                    // 2. Carrega os dados locais e inicia conexões em background
+                    state.load_initial_data();
+                    state.connect_websocket();
+
+                    // 3. Busca o perfil atual no servidor em background para garantir dados corretos
                     if let Ok(profile) = crate::services::api::get_profile(&token).await {
-                        state.apply_server_profile(profile, token).await;
-                        *state.logged_in.write() = true;
+                        let _ = state.apply_server_profile(profile, token).await;
                     }
                 }
-                
-                // 3. Carrega os dados de contatos e histórico do servidor
-                state.load_initial_data();
-                
-                // 4. Conecta o websocket para mensagens e status em tempo real
-                state.connect_websocket();
             });
         });
 
@@ -345,7 +350,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                             *state.theme.write() = db_theme;
                         }
                         if db_density != state.contact_density() {
-                            *state.contact_density.write() = db_density;
+                            state.update_densities_from_serialized(db_density);
                         }
                     }
                     
@@ -364,12 +369,6 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
         let theme = app_state.theme();
         let contact_opt = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);
         let group_opt = (app_state.group_chats)().into_iter().find(|g| g.id == props.contact_id);
-        
-        println!("[DEBUG DETACHED] props.contact_id = {}", props.contact_id);
-        println!("[DEBUG DETACHED] contacts count = {}", app_state.contacts().len());
-        println!("[DEBUG DETACHED] group_chats count = {}", (app_state.group_chats)().len());
-        println!("[DEBUG DETACHED] contact_opt found? {}", contact_opt.is_some());
-        println!("[DEBUG DETACHED] group_opt found? {}", group_opt.is_some());
         
         if contact_opt.is_none() && group_opt.is_none() {
             return rsx! {

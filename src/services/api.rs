@@ -1,7 +1,37 @@
 /// Serviço HTTP para comunicação com o skypia-serve (Actix-web)
 use serde::{Deserialize, Serialize};
 
-pub const SERVER_BASE_URL: &str = "http://127.0.0.1:8082";
+use std::fmt;
+use std::ops::Deref;
+use std::sync::LazyLock;
+
+pub struct ServerBaseUrl;
+
+impl Deref for ServerBaseUrl {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &SERVER_BASE_URL_INNER
+    }
+}
+
+impl fmt::Display for ServerBaseUrl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *SERVER_BASE_URL_INNER)
+    }
+}
+
+static SERVER_BASE_URL_INNER: LazyLock<String> = LazyLock::new(|| {
+    if let Ok(url) = std::env::var("SERVER_BASE_URL") {
+        return url;
+    }
+    if let Some(url) = option_env!("SERVER_BASE_URL") {
+        return url.to_string();
+    }
+    "http://192.168.1.16:8082".to_string()
+});
+
+pub static SERVER_BASE_URL: ServerBaseUrl = ServerBaseUrl;
 
 // ── Structs de request/response espelhadas do servidor ────────────────────
 
@@ -51,7 +81,13 @@ pub async fn register(
     display_name: String,
 ) -> Result<AuthResponse, String> {
     let client = reqwest::Client::new();
-    let req = RegisterRequest { email, username, full_name, password, display_name };
+    let req = RegisterRequest {
+        email,
+        username,
+        full_name,
+        password,
+        display_name,
+    };
 
     let resp = client
         .post(format!("{}/auth/register", SERVER_BASE_URL))
@@ -126,10 +162,7 @@ pub async fn get_profile(token: &str) -> Result<UserProfile, String> {
 }
 
 /// Atualiza campos do perfil
-pub async fn update_profile(
-    token: &str,
-    req: UpdateProfileRequest,
-) -> Result<UserProfile, String> {
+pub async fn update_profile(token: &str, req: UpdateProfileRequest) -> Result<UserProfile, String> {
     let client = reqwest::Client::new();
 
     let resp = client
@@ -156,7 +189,11 @@ pub async fn update_profile(
 }
 
 /// Faz upload do avatar (bytes crus da imagem) e retorna a URL pública
-pub async fn upload_avatar(token: &str, image_bytes: Vec<u8>, mime_type: &str) -> Result<String, String> {
+pub async fn upload_avatar(
+    token: &str,
+    image_bytes: Vec<u8>,
+    mime_type: &str,
+) -> Result<String, String> {
     let client = reqwest::Client::new();
 
     let part = reqwest::multipart::Part::bytes(image_bytes)
@@ -178,8 +215,7 @@ pub async fn upload_avatar(token: &str, image_bytes: Vec<u8>, mime_type: &str) -
     let body = resp.text().await.unwrap_or_default();
 
     if status.is_success() {
-        let val: serde_json::Value =
-            serde_json::from_str(&body).map_err(|e| e.to_string())?;
+        let val: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
         val["avatar_url"]
             .as_str()
             .map(|s| format!("{}{}", SERVER_BASE_URL, s))
@@ -265,12 +301,16 @@ pub async fn create_conversation(
     name: Option<String>,
     is_group: bool,
     member_emails: Vec<String>,
+    avatar_url: Option<String>,
+    description: Option<String>,
 ) -> Result<crate::models::Conversation, String> {
     let client = reqwest::Client::new();
     let req = serde_json::json!({
         "name": name,
         "is_group": is_group,
-        "member_emails": member_emails
+        "member_emails": member_emails,
+        "avatar_url": avatar_url,
+        "description": description
     });
 
     let resp = client
@@ -339,7 +379,10 @@ pub async fn get_pending_requests(token: &str) -> Result<Vec<UserProfile>, Strin
         serde_json::from_str::<Vec<UserProfile>>(&body)
             .map_err(|e| format!("Erro ao parsear solicitações pendentes: {}", e))
     } else {
-        Err(format!("Erro ao carregar solicitações pendentes ({})", status))
+        Err(format!(
+            "Erro ao carregar solicitações pendentes ({})",
+            status
+        ))
     }
 }
 
@@ -426,7 +469,11 @@ pub async fn block_friend(token: &str, contact_id: String, block: bool) -> Resul
 }
 
 /// Atualiza o apelido local de um contato
-pub async fn update_contact_nickname(token: &str, contact_id: String, nickname: Option<String>) -> Result<(), String> {
+pub async fn update_contact_nickname(
+    token: &str,
+    contact_id: String,
+    nickname: Option<String>,
+) -> Result<(), String> {
     let client = reqwest::Client::new();
     let req = serde_json::json!({ "contact_id": contact_id, "nickname": nickname });
 
@@ -453,10 +500,16 @@ pub async fn update_contact_nickname(token: &str, contact_id: String, nickname: 
 }
 
 /// Carrega o histórico de mensagens de uma conversa do servidor
-pub async fn get_conversation_messages(token: &str, conversation_id: &str) -> Result<Vec<crate::models::Message>, String> {
+pub async fn get_conversation_messages(
+    token: &str,
+    conversation_id: &str,
+) -> Result<Vec<crate::models::Message>, String> {
     let client = reqwest::Client::new();
     let resp = client
-        .get(format!("{}/conversations/{}/messages", SERVER_BASE_URL, conversation_id))
+        .get(format!(
+            "{}/conversations/{}/messages",
+            SERVER_BASE_URL, conversation_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -484,10 +537,8 @@ pub async fn get_banner() -> Result<crate::models::BannerInfo, String> {
 
     if resp.status().is_success() {
         let body = resp.text().await.unwrap_or_default();
-        serde_json::from_str::<crate::models::BannerInfo>(&body)
-            .map_err(|e| e.to_string())
+        serde_json::from_str::<crate::models::BannerInfo>(&body).map_err(|e| e.to_string())
     } else {
         Err(format!("Status de erro: {}", resp.status()))
     }
 }
-

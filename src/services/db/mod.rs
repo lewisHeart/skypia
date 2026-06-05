@@ -28,47 +28,57 @@ fn is_pid_running(pid: u32) -> bool {
 }
 
 fn get_isolated_db_path() -> String {
-    let data_dir = std::path::Path::new(".skypia_data").join("db");
-    let _ = std::fs::create_dir_all(&data_dir);
+    #[cfg(target_os = "android")]
+    {
+        let data_dir = std::env::temp_dir();
+        let _ = std::fs::create_dir_all(&data_dir);
+        data_dir.join("skypia.db").to_string_lossy().to_string()
+    }
 
-    // Tenta encontrar um slot livre de 1 a 10
-    for slot in 1..=10 {
-        let lock_path = data_dir.join(format!("skypia_{}.lock", slot));
-        let mut take_slot = false;
-        
-        if let Ok(content) = std::fs::read_to_string(&lock_path) {
-            if let Ok(pid) = content.trim().parse::<u32>() {
-                if !is_pid_running(pid) {
+    #[cfg(not(target_os = "android"))]
+    {
+        let data_dir = std::path::Path::new(".skypia_data").join("db");
+        let _ = std::fs::create_dir_all(&data_dir);
+
+        // Tenta encontrar um slot livre de 1 a 10
+        for slot in 1..=10 {
+            let lock_path = data_dir.join(format!("skypia_{}.lock", slot));
+            let mut take_slot = false;
+            
+            if let Ok(content) = std::fs::read_to_string(&lock_path) {
+                if let Ok(pid) = content.trim().parse::<u32>() {
+                    if !is_pid_running(pid) {
+                        take_slot = true;
+                    }
+                } else {
                     take_slot = true;
                 }
             } else {
                 take_slot = true;
             }
-        } else {
-            take_slot = true;
-        }
-        
-        if take_slot {
-            let my_pid = std::process::id();
-            if std::fs::write(&lock_path, my_pid.to_string()).is_ok() {
-                let db_file = if slot == 1 {
-                    data_dir.join("skypia.db")
-                } else {
-                    data_dir.join(format!("skypia_{}.db", slot))
-                };
-                
-                let db_path_str = db_file.to_string_lossy().to_string();
-                if slot == 1 {
-                    println!("🔒 Slot 1 travado (PID {}). Usando {}", my_pid, db_path_str);
-                } else {
-                    println!("🔒 Slot {} travado (PID {}). Usando {}", slot, my_pid, db_path_str);
+            
+            if take_slot {
+                let my_pid = std::process::id();
+                if std::fs::write(&lock_path, my_pid.to_string()).is_ok() {
+                    let db_file = if slot == 1 {
+                        data_dir.join("skypia.db")
+                    } else {
+                        data_dir.join(format!("skypia_{}.db", slot))
+                    };
+                    
+                    let db_path_str = db_file.to_string_lossy().to_string();
+                    if slot == 1 {
+                        println!("🔒 Slot 1 travado (PID {}). Usando {}", my_pid, db_path_str);
+                    } else {
+                        println!("🔒 Slot {} travado (PID {}). Usando {}", slot, my_pid, db_path_str);
+                    }
+                    return db_path_str;
                 }
-                return db_path_str;
             }
         }
+        
+        data_dir.join("skypia.db").to_string_lossy().to_string()
     }
-    
-    data_dir.join("skypia.db").to_string_lossy().to_string()
 }
 
 pub struct DatabaseService;
@@ -222,6 +232,8 @@ impl DatabaseService {
                 id TEXT PRIMARY KEY,
                 name TEXT,
                 is_group INTEGER NOT NULL DEFAULT 0,
+                avatar_url TEXT,
+                description TEXT,
                 created_at TEXT NOT NULL
             );
             "#,
@@ -237,6 +249,7 @@ impl DatabaseService {
                 user_id TEXT NOT NULL,
                 display_name TEXT NOT NULL,
                 avatar_url TEXT,
+                role TEXT,
                 PRIMARY KEY (conversation_id, user_id)
             );
             "#,
@@ -263,6 +276,18 @@ impl DatabaseService {
             .await;
  
         let _ = sqlx::query("ALTER TABLE settings ADD COLUMN contact_density TEXT NOT NULL DEFAULT 'medium'")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN avatar_url TEXT")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN description TEXT")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE conversation_members ADD COLUMN role TEXT")
             .execute(pool)
             .await;
 

@@ -13,6 +13,8 @@ pub fn ContactList(mut state: AppState) -> Element {
     let mut groups_collapsed = use_signal(|| false);
     let mut show_create_group_modal = use_signal(|| false);
     let mut group_name = use_signal(|| String::new());
+    let mut group_desc = use_signal(|| String::new());
+    let mut group_avatar = use_signal(|| String::new());
     let mut selected_emails = use_signal(|| Vec::<String>::new());
     let group_chats = state.group_chats;
     let mut active_category_menu = use_signal(|| Option::<(String, i32, i32)>::None);
@@ -134,7 +136,13 @@ pub fn ContactList(mut state: AppState) -> Element {
             }
 
             // Scroll Area
-            div { class: "flex-1 overflow-y-auto px-1 py-2 space-y-3 bg-white/35",
+            div { 
+                class: "flex-1 overflow-y-auto px-1 py-2 space-y-3 bg-white/35",
+                onmouseup: move |_| {
+                    if (state.dragged_contact_id)().is_some() {
+                        *state.dragged_contact_id.write() = None;
+                    }
+                },
                 // Seção de Solicitações Pendentes (Discreta e Inline na Lista de Contatos!)
                 if !state.pending_requests().is_empty() {
                     div { class: "space-y-1 bg-amber-50/25 border border-amber-200/40 rounded p-1.5 my-1 mx-1.5 shadow-sm",
@@ -180,16 +188,15 @@ pub fn ContactList(mut state: AppState) -> Element {
                 // Group: Favorites
                 div { 
                     class: "space-y-1",
-                    ondragover: move |e| {
-                        e.prevent_default();
-                    },
-                    ondrop: move |_| {
+                    onmouseup: move |e| {
+                        e.stop_propagation();
                         if let Some(cid) = (state.dragged_contact_id)() {
                             if let Some(c) = state.contacts().iter().find(|c| c.id == cid) {
                                 if !c.is_favorite {
                                     state.toggle_favorite(cid);
                                 }
                             }
+                            *state.dragged_contact_id.write() = None;
                         }
                     },
                     div { 
@@ -253,7 +260,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                                 div { class: "text-[10px] text-slate-500/80 italic pl-5 py-1", "Nenhum grupo de chat" }
                             } else {
                                 for group in group_chats() {
-                                    GroupRow { group, state }
+                                    GroupRow { group, state, density: state.groups_density() }
                                 }
                             }
                         }
@@ -263,16 +270,15 @@ pub fn ContactList(mut state: AppState) -> Element {
                 // Group: Online
                 div { 
                     class: "space-y-1",
-                    ondragover: move |e| {
-                        e.prevent_default();
-                    },
-                    ondrop: move |_| {
+                    onmouseup: move |e| {
+                        e.stop_propagation();
                         if let Some(cid) = (state.dragged_contact_id)() {
                             if let Some(c) = state.contacts().iter().find(|c| c.id == cid) {
                                 if c.is_favorite {
                                     state.toggle_favorite(cid);
                                 }
                             }
+                            *state.dragged_contact_id.write() = None;
                         }
                     },
                     div { 
@@ -306,16 +312,15 @@ pub fn ContactList(mut state: AppState) -> Element {
                 // Group: Offline
                 div { 
                     class: "space-y-1",
-                    ondragover: move |e| {
-                        e.prevent_default();
-                    },
-                    ondrop: move |_| {
+                    onmouseup: move |e| {
+                        e.stop_propagation();
                         if let Some(cid) = (state.dragged_contact_id)() {
                             if let Some(c) = state.contacts().iter().find(|c| c.id == cid) {
                                 if c.is_favorite {
                                     state.toggle_favorite(cid);
                                 }
                             }
+                            *state.dragged_contact_id.write() = None;
                         }
                     },
                     div { 
@@ -361,7 +366,13 @@ pub fn ContactList(mut state: AppState) -> Element {
                             }
                             button {
                                 class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors focus:outline-none",
-                                onclick: move |_| show_create_group_modal.set(false),
+                                onclick: move |_| {
+                                    show_create_group_modal.set(false);
+                                    group_name.set(String::new());
+                                    group_desc.set(String::new());
+                                    group_avatar.set(String::new());
+                                    selected_emails.write().clear();
+                                },
                                 "✕"
                             }
                         }
@@ -373,6 +384,26 @@ pub fn ContactList(mut state: AppState) -> Element {
                                 placeholder: "Digite o nome do grupo...",
                                 value: "{group_name}",
                                 oninput: move |e| group_name.set(e.value()),
+                            }
+                        }
+
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Descrição do Grupo (opcional):" }
+                            input {
+                                class: "w-full px-2.5 py-1.5 border {theme.titlebar_border()} rounded bg-white focus:outline-none focus:border-slate-450 text-xs text-slate-800",
+                                placeholder: "Uma breve descrição do grupo...",
+                                value: "{group_desc}",
+                                oninput: move |e| group_desc.set(e.value()),
+                            }
+                        }
+
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "URL da Foto do Grupo (opcional):" }
+                            input {
+                                class: "w-full px-2.5 py-1.5 border {theme.titlebar_border()} rounded bg-white focus:outline-none focus:border-slate-450 text-xs text-slate-800",
+                                placeholder: "https://exemplo.com/foto.jpg",
+                                value: "{group_avatar}",
+                                oninput: move |e| group_avatar.set(e.value()),
                             }
                         }
 
@@ -419,16 +450,29 @@ pub fn ContactList(mut state: AppState) -> Element {
                                 class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow hover:brightness-105 cursor-pointer transition-colors focus:outline-none",
                                 disabled: group_name().trim().is_empty() || selected_emails().is_empty(),
                                 onclick: move |_| {
-                                    state.create_group_chat(group_name().trim().to_string(), selected_emails().clone());
+                                    state.create_group_chat(
+                                        group_name().trim().to_string(),
+                                        group_desc().trim().to_string(),
+                                        group_avatar().trim().to_string(),
+                                        selected_emails().clone()
+                                    );
                                     show_create_group_modal.set(false);
                                     group_name.set(String::new());
+                                    group_desc.set(String::new());
+                                    group_avatar.set(String::new());
                                     selected_emails.write().clear();
                                 },
                                 "Criar"
                             }
                             button {
                                 class: "px-4 py-1.5 bg-gradient-to-b from-slate-200 to-slate-300 hover:from-slate-300 hover:to-slate-400 text-slate-700 rounded font-bold shadow border border-slate-400/40 cursor-pointer transition-all focus:outline-none",
-                                onclick: move |_| show_create_group_modal.set(false),
+                                onclick: move |_| {
+                                    show_create_group_modal.set(false);
+                                    group_name.set(String::new());
+                                    group_desc.set(String::new());
+                                    group_avatar.set(String::new());
+                                    selected_emails.write().clear();
+                                },
                                 "Cancelar"
                             }
                         }
@@ -510,7 +554,7 @@ pub fn ContactList(mut state: AppState) -> Element {
 }
 
 #[component]
-fn GroupRow(group: crate::models::Conversation, mut state: AppState) -> Element {
+fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: String) -> Element {
     let theme = state.theme();
     let group_id = group.id.clone();
     let group_id_double = group_id.clone();
@@ -524,28 +568,33 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState) -> Element 
         .collect::<Vec<String>>()
         .join(", ");
 
+    let container_padding = if density == "small" { "py-0.5 px-1" } else { "p-1" };
+
     rsx! {
         div {
-            class: "flex items-center space-x-2.5 p-1 rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
+            class: "flex items-center space-x-2.5 {container_padding} rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
             ondoubleclick: handle_double_click,
-            ondragover: move |e| e.prevent_default(),
-            ondrop: {
+            onmouseup: {
                 let gid = group_id.clone();
                 let members_list = group.members.clone();
-                move |_| {
+                move |e| {
+                    e.stop_propagation();
                     if let Some(cid) = (state.dragged_contact_id)() {
                         if let Some(c) = state.contacts().iter().find(|c| c.id == cid) {
                             if !members_list.iter().any(|m| m.id == cid) {
                                 state.add_group_member(gid.clone(), c.email.clone());
                             }
                         }
+                        *state.dragged_contact_id.write() = None;
                     }
                 }
             },
             
-            div {
-                class: "flex-shrink-0 w-6 h-6 rounded bg-sky-200 flex items-center justify-center text-xs font-bold text-sky-800 shadow-sm border border-sky-300/65",
-                "👥"
+            if density != "small" {
+                div {
+                    class: "flex-shrink-0 w-6 h-6 rounded bg-sky-200 flex items-center justify-center text-xs font-bold text-sky-800 shadow-sm border border-sky-300/65",
+                    "👥"
+                }
             }
 
             div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",

@@ -1,23 +1,23 @@
-use dioxus::prelude::*;
 use crate::models::FileTransferState;
 use crate::state::AppState;
+use dioxus::prelude::*;
 use std::collections::HashSet;
 
 #[component]
 pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     let theme = state.theme();
     let mut show_images = use_signal(|| HashSet::new());
-    
+
     let mut limit = use_signal(|| 15);
     let mut last_contact_id = use_signal(|| contact_id.clone());
     if last_contact_id() != contact_id {
         *last_contact_id.write() = contact_id.clone();
         limit.set(15);
     }
-    
+
     let messages = state.chat_messages();
     let chat_history = messages.get(&contact_id).cloned().unwrap_or_default();
-    
+
     let total_messages = chat_history.len();
     let show_load_more = total_messages > limit();
     let start_idx = if total_messages > limit() {
@@ -31,7 +31,7 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     let feed_id = format!("chat-feed-{}", contact_id);
     let eval_feed_id = feed_id.clone();
     let contact_id_scroll = contact_id.clone();
-    
+
     use_effect(move || {
         let _last_id = last_msg_id.clone();
         let _cid = contact_id_scroll.clone();
@@ -52,7 +52,9 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     });
 
     let contact = state.contacts().into_iter().find(|c| c.id == contact_id);
-    let group = (state.group_chats)().into_iter().find(|g| g.id == contact_id);
+    let group = (state.group_chats)()
+        .into_iter()
+        .find(|g| g.id == contact_id);
     if contact.is_none() && group.is_none() {
         return rsx! {};
     }
@@ -60,7 +62,12 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     let display_name = if let Some(ref c) = contact {
         c.display_name.clone()
     } else {
-        group.as_ref().unwrap().name.clone().unwrap_or_else(|| "Grupo sem nome".to_string())
+        group
+            .as_ref()
+            .unwrap()
+            .name
+            .clone()
+            .unwrap_or_else(|| "Grupo sem nome".to_string())
     };
 
     let format_message_text = |text: &str| -> Element {
@@ -109,7 +116,6 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
             ("(e)", "envelope"),
             ("(C)", "hot-beverage"),
             ("(c)", "hot-beverage"),
-            
             // Novos atalhos inseridos via barra de ferramentas (Maiúsculas/Minúsculas)
             ("(HE)", "smiling-face-with-heart-eyes"),
             ("(he)", "smiling-face-with-heart-eyes"),
@@ -206,7 +212,6 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
             ("(money)", "money-bag"),
             ("(TROPHY)", "trophy"),
             ("(trophy)", "trophy"),
-
             // Emojis unicode normais
             ("😀", "grinning-face-with-big-eyes"),
             ("😃", "grinning-face-with-big-eyes"),
@@ -315,7 +320,6 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
             ("👽", "alien"),
             ("👾", "alien-monster"),
             ("🤖", "robot"),
-            
             // Gestos e mãos
             ("👍", "thumbs-up"),
             ("👎", "thumbs-down"),
@@ -342,7 +346,6 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
             ("🫶", "heart-hands"),
             ("👏", "clapping-hands"),
             ("🙌", "raising-hands"),
-            
             // Outros comuns
             ("🎈", "balloon"),
             ("🎉", "party-popper"),
@@ -480,13 +483,13 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     };
 
     rsx! {
-        div { 
+        div {
             id: "{feed_id}",
             class: "flex-1 overflow-y-auto p-4 space-y-3 bg-white/40 min-h-0",
-            
+
             if chat_history.is_empty() {
                 div { class: "h-full flex items-center justify-center text-slate-400 text-xs italic",
-                    "Inicie uma conversa nostálgica com {display_name}!"
+                    "Inicie uma conversa em {display_name}!"
                 }
             } else {
                 if show_load_more {
@@ -501,7 +504,7 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                 for msg in visible_messages {
                     {
                         let name_color = if msg.sender_id == "0" { theme.titlebar_text() } else { "text-[#e6007e]" };
-                        
+
                         rsx! {
                             div { class: "flex flex-col space-y-0.5 text-xs text-slate-800 select-text",
                                 if msg.is_nudge {

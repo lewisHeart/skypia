@@ -19,6 +19,11 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
     let game_states = state.game_states();
     let active_game = game_states.get(&contact_id);
 
+    let self_id = state.server_user_id();
+    let is_local_user_admin = group.as_ref().map(|g| {
+        g.members.iter().any(|m| Some(m.id.clone()) == self_id && m.role.as_deref() == Some("admin"))
+    }).unwrap_or(false);
+
     rsx! {
         if is_group {
             {
@@ -40,16 +45,37 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                         let member_id = member.id.clone();
                                         let member_name = member.nickname.clone().unwrap_or(member.display_name.clone());
                                         let gid = contact_id.clone();
-                                        let self_id = state.server_user_id();
                                         let is_self = Some(member_id.clone()) == self_id;
+                                        
+                                        let member_status = if is_self {
+                                            state.user_status()
+                                        } else if let Some(c) = state.contacts().iter().find(|c| c.id == member_id) {
+                                            c.status
+                                        } else {
+                                            match member.status.as_str() {
+                                                "Online" => crate::models::UserStatus::Online,
+                                                "Ocupado" => crate::models::UserStatus::Ocupado,
+                                                "Ausente" => crate::models::UserStatus::Ausente,
+                                                "Invisivel" => crate::models::UserStatus::Invisivel,
+                                                _ => crate::models::UserStatus::Offline,
+                                            }
+                                        };
                                         
                                         rsx! {
                                             div { class: "flex items-center justify-between p-1 hover:bg-white/35 rounded group transition-all",
                                                 div { class: "flex items-center space-x-1.5 min-w-0 flex-1",
-                                                    div { class: "w-4 h-4 rounded bg-sky-100 flex items-center justify-center text-[10px] border border-sky-250 flex-shrink-0 font-bold", "👤" }
+                                                    div { class: "relative flex-shrink-0",
+                                                        div { class: "w-[18px] h-[18px] rounded overflow-hidden border border-slate-300 flex items-center justify-center bg-white shadow-sm",
+                                                            {render_avatar(member.avatar_url.as_deref(), 18)}
+                                                        }
+                                                        div { class: "absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full {member_status.color_class()} border border-white" }
+                                                    }
                                                     span { class: "truncate font-medium text-[10.5px]", "{member_name}" }
+                                                    if member.role.as_deref() == Some("admin") {
+                                                        span { class: "text-[8px] bg-sky-650 text-white font-extrabold px-1 rounded ml-1 scale-90 flex-shrink-0", "Dono" }
+                                                    }
                                                 }
-                                                if !is_self {
+                                                if !is_self && is_local_user_admin {
                                                     button {
                                                         class: "w-4 h-4 rounded hover:bg-red-500 hover:text-white flex items-center justify-center text-[9px] font-bold border border-transparent cursor-pointer opacity-0 group-hover:opacity-100 transition-all focus:outline-none flex-shrink-0",
                                                         title: "Remover do grupo",
@@ -68,55 +94,57 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                         }
 
                         div { class: "flex flex-col space-y-1.5 border-t {theme.titlebar_border()}/40 pt-2 flex-shrink-0",
-                            if show_add_member() {
-                                div { class: "flex flex-col space-y-1 p-1 bg-white/20 rounded border border-white/20",
-                                    input {
-                                        class: "w-full px-1.5 py-0.75 text-[10px] rounded border {theme.titlebar_border()} bg-white focus:outline-none focus:border-slate-400 text-slate-800",
-                                        placeholder: "Email do contato...",
-                                        value: "{new_member_email}",
-                                        oninput: move |e| new_member_email.set(e.value()),
-                                        onkeydown: {
-                                            let gid = gid_add.clone();
-                                            move |e| {
-                                                if e.key() == Key::Enter {
-                                                    let email = new_member_email();
-                                                    if !email.trim().is_empty() {
-                                                        state.add_group_member(gid.clone(), email.trim().to_string());
-                                                        new_member_email.set(String::new());
-                                                        show_add_member.set(false);
+                            if is_local_user_admin {
+                                if show_add_member() {
+                                    div { class: "flex flex-col space-y-1 p-1 bg-white/20 rounded border border-white/20",
+                                        input {
+                                            class: "w-full px-1.5 py-0.75 text-[10px] rounded border {theme.titlebar_border()} bg-white focus:outline-none focus:border-slate-400 text-slate-800",
+                                            placeholder: "Email do contato...",
+                                            value: "{new_member_email}",
+                                            oninput: move |e| new_member_email.set(e.value()),
+                                            onkeydown: {
+                                                let gid = gid_add.clone();
+                                                move |e| {
+                                                    if e.key() == Key::Enter {
+                                                        let email = new_member_email();
+                                                        if !email.trim().is_empty() {
+                                                            state.add_group_member(gid.clone(), email.trim().to_string());
+                                                            new_member_email.set(String::new());
+                                                            show_add_member.set(false);
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                    div { class: "flex items-center space-x-1 justify-end",
-                                        button {
-                                            class: "px-1.5 py-0.5 bg-green-600 text-white rounded text-[9px] font-bold cursor-pointer hover:bg-green-700",
-                                            onclick: {
-                                                let gid = gid_add.clone();
-                                                move |_| {
-                                                    let email = new_member_email();
-                                                    if !email.trim().is_empty() {
-                                                        state.add_group_member(gid.clone(), email.trim().to_string());
-                                                        new_member_email.set(String::new());
-                                                        show_add_member.set(false);
+                                        div { class: "flex items-center space-x-1 justify-end",
+                                            button {
+                                                class: "px-1.5 py-0.5 bg-green-600 text-white rounded text-[9px] font-bold cursor-pointer hover:bg-green-700",
+                                                onclick: {
+                                                    let gid = gid_add.clone();
+                                                    move |_| {
+                                                        let email = new_member_email();
+                                                        if !email.trim().is_empty() {
+                                                            state.add_group_member(gid.clone(), email.trim().to_string());
+                                                            new_member_email.set(String::new());
+                                                            show_add_member.set(false);
+                                                        }
                                                     }
-                                                }
-                                            },
-                                            "Adicionar"
-                                        }
-                                        button {
-                                            class: "px-1.5 py-0.5 bg-slate-350 text-slate-700 rounded text-[9px] font-bold cursor-pointer hover:bg-slate-400",
-                                            onclick: move |_| show_add_member.set(false),
-                                            "Cancelar"
+                                                },
+                                                "Adicionar"
+                                            }
+                                            button {
+                                                class: "px-1.5 py-0.5 bg-slate-350 text-slate-700 rounded text-[9px] font-bold cursor-pointer hover:bg-slate-400",
+                                                onclick: move |_| show_add_member.set(false),
+                                                "Cancelar"
+                                            }
                                         }
                                     }
-                                }
-                            } else {
-                                button {
-                                    class: "w-full py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold transition-all text-[10px] cursor-pointer text-center",
-                                    onclick: move |_| show_add_member.set(true),
-                                    "+ Adicionar Membro"
+                                } else {
+                                    button {
+                                        class: "w-full py-1 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold transition-all text-[10px] cursor-pointer text-center mb-1",
+                                        onclick: move |_| show_add_member.set(true),
+                                        "+ Adicionar Membro"
+                                    }
                                 }
                             }
                             

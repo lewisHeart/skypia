@@ -85,21 +85,24 @@ impl DatabaseService {
         let _ = sqlx::query("DELETE FROM conversation_members").execute(pool).await;
 
         for conv in conversations {
-            sqlx::query("INSERT INTO conversations (id, name, is_group, created_at) VALUES (?, ?, ?, ?)")
+            sqlx::query("INSERT INTO conversations (id, name, is_group, avatar_url, description, created_at) VALUES (?, ?, ?, ?, ?, ?)")
                 .bind(&conv.id)
                 .bind(&conv.name)
                 .bind(conv.is_group as i32)
+                .bind(&conv.avatar_url)
+                .bind(&conv.description)
                 .bind(&conv.created_at)
                 .execute(pool)
                 .await
                 .map_err(|e| e.to_string())?;
 
             for member in conv.members {
-                sqlx::query("INSERT INTO conversation_members (conversation_id, user_id, display_name, avatar_url) VALUES (?, ?, ?, ?)")
+                sqlx::query("INSERT INTO conversation_members (conversation_id, user_id, display_name, avatar_url, role) VALUES (?, ?, ?, ?, ?)")
                     .bind(&conv.id)
                     .bind(&member.id)
                     .bind(&member.display_name)
                     .bind(&member.avatar_url)
+                    .bind(&member.role)
                     .execute(pool)
                     .await
                     .map_err(|e| e.to_string())?;
@@ -112,7 +115,7 @@ impl DatabaseService {
     pub async fn load_conversations() -> Result<Vec<crate::models::Conversation>, String> {
         let pool = get_pool();
         
-        let rows = sqlx::query("SELECT id, name, is_group, created_at FROM conversations ORDER BY id DESC")
+        let rows = sqlx::query("SELECT id, name, is_group, avatar_url, description, created_at FROM conversations ORDER BY id DESC")
             .fetch_all(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -123,9 +126,11 @@ impl DatabaseService {
             let id: String = row.get("id");
             let name: Option<String> = row.get("name");
             let is_group: i32 = row.get("is_group");
+            let avatar_url: Option<String> = row.get("avatar_url");
+            let description: Option<String> = row.get("description");
             let created_at: String = row.get("created_at");
 
-            let member_rows = sqlx::query("SELECT user_id, display_name, avatar_url FROM conversation_members WHERE conversation_id = ?")
+            let member_rows = sqlx::query("SELECT user_id, display_name, avatar_url, role FROM conversation_members WHERE conversation_id = ?")
                 .bind(&id)
                 .fetch_all(pool)
                 .await
@@ -136,6 +141,7 @@ impl DatabaseService {
                 let u_id: String = m_row.get("user_id");
                 let display_name: String = m_row.get("display_name");
                 let avatar_url: Option<String> = m_row.get("avatar_url");
+                let role: Option<String> = m_row.get("role");
 
                 members.push(crate::models::UserProfile {
                     id: u_id,
@@ -149,6 +155,7 @@ impl DatabaseService {
                     avatar_url,
                     relation_status: None,
                     nickname: None,
+                    role,
                 });
             }
 
@@ -156,6 +163,8 @@ impl DatabaseService {
                 id,
                 name,
                 is_group: is_group != 0,
+                avatar_url,
+                description,
                 created_at,
                 members,
             });
