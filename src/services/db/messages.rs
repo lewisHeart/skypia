@@ -159,7 +159,7 @@ impl DatabaseService {
                     relation_status: None,
                     nickname: None,
                     role,
-                    is_favorite: todo!(),
+                    is_favorite: None,
                 });
             }
 
