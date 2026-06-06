@@ -227,6 +227,7 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
 
     let final_url = match url {
         Some(ref u) if u.starts_with("http") => u.to_string(),
+        Some(ref u) if u.starts_with("/assets/") || u.starts_with("assets/") || u.starts_with("dioxus-asset://") => u.to_string(),
         Some(ref u) if !u.is_empty() => format!("{}{}", crate::services::api::SERVER_BASE_URL, u),
         _ => "".to_string(),
     };
@@ -349,6 +350,12 @@ pub enum ClientAction {
     SetTyping {
         conversation_id: String,
         is_typing: bool,
+    },
+    UpdatePresence {
+        status: Option<String>,
+        personal_message: Option<String>,
+        music: Option<Option<String>>,
+        display_name: Option<String>,
     },
 }
 

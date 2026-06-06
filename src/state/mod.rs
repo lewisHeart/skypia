@@ -278,16 +278,30 @@ impl AppState {
 
     pub fn set_user_name(&mut self, name: String) {
         *self.user_name.write() = name.clone();
+        
+        // Atualiza via WebSocket em tempo real se conectado
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::UpdatePresence {
+                status: None,
+                personal_message: None,
+                music: None,
+                display_name: Some(name.clone()),
+            });
+        }
+        
         let token_opt = self.auth_token();
+        let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_user_name(name.clone()).await;
-            if let Some(token) = token_opt {
-                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                    display_name: Some(name),
-                    personal_message: None,
-                    status: None,
-                    music: None,
-                }).await;
+            if !has_ws {
+                if let Some(token) = token_opt {
+                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                        display_name: Some(name),
+                        personal_message: None,
+                        status: None,
+                        music: None,
+                    }).await;
+                }
             }
         });
     }
@@ -297,23 +311,38 @@ impl AppState {
         if status == UserStatus::Offline {
             *self.logged_in.write() = false;
         }
+        
+        let status_str = match status {
+            UserStatus::Online => "Online",
+            UserStatus::Ocupado => "Ocupado",
+            UserStatus::Ausente => "Ausente",
+            UserStatus::Invisivel => "Invisivel",
+            UserStatus::Offline => "Offline",
+        };
+        
+        // Atualiza via WebSocket em tempo real se conectado
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::UpdatePresence {
+                status: Some(status_str.to_string()),
+                personal_message: None,
+                music: None,
+                display_name: None,
+            });
+        }
+        
         let token_opt = self.auth_token();
+        let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_user_status(status).await;
-            if let Some(token) = token_opt {
-                let status_str = match status {
-                    UserStatus::Online => "Online",
-                    UserStatus::Ocupado => "Ocupado",
-                    UserStatus::Ausente => "Ausente",
-                    UserStatus::Invisivel => "Invisivel",
-                    UserStatus::Offline => "Offline",
-                };
-                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                    display_name: None,
-                    personal_message: None,
-                    status: Some(status_str.to_string()),
-                    music: None,
-                }).await;
+            if !has_ws {
+                if let Some(token) = token_opt {
+                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                        display_name: None,
+                        personal_message: None,
+                        status: Some(status_str.to_string()),
+                        music: None,
+                    }).await;
+                }
             }
         });
     }
@@ -327,32 +356,60 @@ impl AppState {
 
     pub fn set_user_personal_message(&mut self, msg: String) {
         *self.user_personal_message.write() = msg.clone();
+        
+        // Atualiza via WebSocket em tempo real se conectado
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::UpdatePresence {
+                status: None,
+                personal_message: Some(msg.clone()),
+                music: None,
+                display_name: None,
+            });
+        }
+        
         let token_opt = self.auth_token();
+        let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_personal_message(msg.clone()).await;
-            if let Some(token) = token_opt {
-                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                    display_name: None,
-                    personal_message: Some(msg),
-                    status: None,
-                    music: None,
-                }).await;
+            if !has_ws {
+                if let Some(token) = token_opt {
+                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                        display_name: None,
+                        personal_message: Some(msg),
+                        status: None,
+                        music: None,
+                    }).await;
+                }
             }
         });
     }
 
     pub fn set_user_music(&mut self, music: Option<String>) {
         *self.user_music.write() = music.clone();
+        
+        // Atualiza via WebSocket em tempo real se conectado
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::UpdatePresence {
+                status: None,
+                personal_message: None,
+                music: Some(music.clone()),
+                display_name: None,
+            });
+        }
+        
         let token_opt = self.auth_token();
+        let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_user_music(music.clone()).await;
-            if let Some(token) = token_opt {
-                let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
-                    display_name: None,
-                    personal_message: None,
-                    status: None,
-                    music: Some(music),
-                }).await;
+            if !has_ws {
+                if let Some(token) = token_opt {
+                    let _ = crate::services::api::update_profile(&token, crate::services::api::UpdateProfileRequest {
+                        display_name: None,
+                        personal_message: None,
+                        status: None,
+                        music: Some(music),
+                    }).await;
+                }
             }
         });
     }

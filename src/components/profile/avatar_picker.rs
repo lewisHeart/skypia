@@ -41,19 +41,21 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                             span { "⚠️" }
                             span { "{err}" }
                         }
-                              // Seção 1: GIFs Clássicos do MSN
+                    }
+
+                    // Seção 1: GIFs Clássicos do MSN
                     div { class: "flex flex-col space-y-2 border-b border-white/20 pb-4",
                         p { class: "text-xs font-bold text-[#1b324d]", "Escolha uma imagem predefinida" }
                         div { class: "grid grid-cols-4 gap-2",
-                            for &(name, url) in &[
-                                ("Margarida", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/daisy.png"),
-                                ("Cachorrinho", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/dog.png"),
-                                ("Gatinho", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/kitten.png"),
-                                ("Robozinho", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/robot.png"),
-                                ("Futebol", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/soccer.gif"),
-                                ("Sol", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/summer.gif"),
-                                ("Flores", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/spring.gif"),
-                                ("Outono", "https://raw.githubusercontent.com/clrgia/windows-live-messenger/main/public/assets/usertiles/fall.gif"),
+                            for &(name, rel_path, mime) in &[
+                                ("Margarida", "daisy.png", "image/png"),
+                                ("Cachorrinho", "dog.png", "image/png"),
+                                ("Gatinho", "kitten.png", "image/png"),
+                                ("Robozinho", "robot.png", "image/png"),
+                                ("Futebol", "soccer.gif", "image/gif"),
+                                ("Sol", "summer.gif", "image/gif"),
+                                ("Flores", "spring.gif", "image/gif"),
+                                ("Outono", "fall.gif", "image/gif"),
                             ] {
                                 button {
                                     class: "relative aspect-square rounded-lg border border-slate-350 bg-white/60 p-1 hover:border-[#5c98d6] hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group overflow-hidden shadow-sm",
@@ -62,55 +64,45 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                         let mut state = state;
                                         let mut uploading = is_uploading;
                                         let mut err_sig = upload_error;
-                                        let gif_url = url.to_string();
 
-                                        // 1. Atualização otimista local instantânea na tela
-                                        *state.user_avatar_url.write() = Some(gif_url.clone());
+                                        // 1. Atualização otimista local instantânea na tela usando a URL do asset
+                                        let local_src = match rel_path {
+                                            "daisy.png" => asset!("/assets/usertiles/daisy.png").to_string(),
+                                            "dog.png" => asset!("/assets/usertiles/dog.png").to_string(),
+                                            "kitten.png" => asset!("/assets/usertiles/kitten.png").to_string(),
+                                            "robot.png" => asset!("/assets/usertiles/robot.png").to_string(),
+                                            "soccer.gif" => asset!("/assets/usertiles/soccer.gif").to_string(),
+                                            "summer.gif" => asset!("/assets/usertiles/summer.gif").to_string(),
+                                            "spring.gif" => asset!("/assets/usertiles/spring.gif").to_string(),
+                                            "fall.gif" => asset!("/assets/usertiles/fall.gif").to_string(),
+                                            _ => "".to_string(),
+                                        };
+                                        *state.user_avatar_url.write() = Some(local_src);
 
-                                        // 2. Se estiver autenticado, sincroniza com o servidor em background
+                                        // 2. Se estiver autenticado, faz o upload dos bytes locais em background
                                         if let Some(token) = state.auth_token() {
                                             spawn(async move {
                                                 uploading.set(true);
                                                 err_sig.set(None);
 
-                                                let client = reqwest::Client::builder()
-                                                    .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                                                    .build()
-                                                    .unwrap_or_else(|_| reqwest::Client::new());
-
-                                                match client.get(&gif_url).send().await {
-                                                    Ok(resp) => {
-                                                        if resp.status().is_success() {
-                                                            match resp.bytes().await {
-                                                                Ok(bytes_data) => {
-                                                                    let bytes_vec = bytes_data.to_vec();
-                                                                    let mime = if gif_url.ends_with(".png") { "image/png" } else { "image/gif" };
-                                                                    
-                                                                    match api::upload_avatar(&token, bytes_vec, mime).await {
-                                                                        Ok(uploaded_url) => {
-                                                                            *state.user_avatar_url.write() = Some(uploaded_url);
-                                                                            uploading.set(false);
-                                                                            state.show_avatar_picker.set(false);
-                                                                        }
-                                                                        Err(e) => {
-                                                                            uploading.set(false);
-                                                                            err_sig.set(Some(format!("Falha no upload: {}", e)));
-                                                                        }
-                                                                    }
-                                                                }
-                                                                Err(e) => {
-                                                                    uploading.set(false);
-                                                                    err_sig.set(Some(format!("Erro ao ler bytes: {}", e)));
-                                                                }
+                                                let filepath = format!("assets/usertiles/{}", rel_path);
+                                                match std::fs::read(&filepath) {
+                                                    Ok(bytes_vec) => {
+                                                        match api::upload_avatar(&token, bytes_vec, mime).await {
+                                                            Ok(uploaded_url) => {
+                                                                *state.user_avatar_url.write() = Some(uploaded_url);
+                                                                uploading.set(false);
+                                                                state.show_avatar_picker.set(false);
                                                             }
-                                                        } else {
-                                                            uploading.set(false);
-                                                            err_sig.set(Some(format!("Erro ao baixar (Código: {})", resp.status())));
+                                                            Err(e) => {
+                                                                uploading.set(false);
+                                                                err_sig.set(Some(format!("Falha no upload: {}", e)));
+                                                            }
                                                         }
                                                     }
                                                     Err(e) => {
                                                         uploading.set(false);
-                                                        err_sig.set(Some(format!("Erro de rede: {}", e)));
+                                                        err_sig.set(Some(format!("Erro ao ler arquivo: {}", e)));
                                                     }
                                                 }
                                             });
@@ -119,7 +111,17 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                                         }
                                     },
                                     img {
-                                        src: "{url}",
+                                        src: match rel_path {
+                                            "daisy.png" => asset!("/assets/usertiles/daisy.png").to_string(),
+                                            "dog.png" => asset!("/assets/usertiles/dog.png").to_string(),
+                                            "kitten.png" => asset!("/assets/usertiles/kitten.png").to_string(),
+                                            "robot.png" => asset!("/assets/usertiles/robot.png").to_string(),
+                                            "soccer.gif" => asset!("/assets/usertiles/soccer.gif").to_string(),
+                                            "summer.gif" => asset!("/assets/usertiles/summer.gif").to_string(),
+                                            "spring.gif" => asset!("/assets/usertiles/spring.gif").to_string(),
+                                            "fall.gif" => asset!("/assets/usertiles/fall.gif").to_string(),
+                                            _ => "".to_string(),
+                                        },
                                         class: "w-full h-full object-cover rounded-md group-hover:scale-105 transition-transform",
                                         alt: name
                                     }
@@ -127,7 +129,6 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                             }
                         }
                     }
-                   }
 
                     // Seção 2: Upload de foto real
                     div { class: "flex flex-col space-y-2",
