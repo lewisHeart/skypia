@@ -48,6 +48,8 @@ pub struct AppState {
     pub show_settings_modal: Signal<bool>,
     pub show_add_contact_modal: Signal<bool>,
     pub show_music_player_modal: Signal<bool>,
+    pub show_profile_modal: Signal<bool>,
+    pub profile_modal_contact_id: Signal<Option<String>>,
     pub recommended_songs: Signal<Vec<String>>,
 
     // Autenticação real com o servidor
@@ -99,6 +101,8 @@ impl AppState {
             show_settings_modal: Signal::new(false),
             show_add_contact_modal: Signal::new(false),
             show_music_player_modal: Signal::new(false),
+            show_profile_modal: Signal::new(false),
+            profile_modal_contact_id: Signal::new(None),
             recommended_songs: Signal::new(Vec::new()),
 
             auth_token: Signal::new(None),
@@ -149,6 +153,16 @@ impl AppState {
             if let Some(token) = token_opt {
                 // 1. Busca contatos do servidor e salva em memória
                 if let Ok(srv_contacts) = crate::services::api::get_contacts(&token).await {
+                    // Carrega favoritos locais do SQLite
+                    let local_favorites = if let Ok(local_list) = crate::services::db::DatabaseService::load_contacts().await {
+                        local_list.into_iter()
+                            .filter(|c| c.is_favorite)
+                            .map(|c| c.id)
+                            .collect::<std::collections::HashSet<String>>()
+                    } else {
+                        std::collections::HashSet::new()
+                    };
+
                     let mut contacts_mapped = Vec::new();
                     for profile in srv_contacts {
                         let status_enum = match profile.status.as_str() {
@@ -158,15 +172,16 @@ impl AppState {
                             "Invisivel" => UserStatus::Invisivel,
                             _ => UserStatus::Offline,
                         };
+                        let is_fav = local_favorites.contains(&profile.id);
                         contacts_mapped.push(Contact {
-                            id: profile.id,
+                            id: profile.id.clone(),
                             email: profile.email,
                             display_name: profile.display_name,
                             status: status_enum,
                             personal_message: profile.personal_message,
                             music_listening: profile.music,
                             avatar_url: profile.avatar_url,
-                            is_favorite: false,
+                            is_favorite: is_fav,
                             relation_status: profile.relation_status.unwrap_or_else(|| "Aceito".to_string()),
                             nickname: profile.nickname,
                         });
@@ -253,8 +268,10 @@ impl AppState {
                 *songs_sig.write() = songs;
             }
 
-            if let Ok(banner) = crate::services::db::DatabaseService::get_banner_info().await {
+            if let Ok(banner) = crate::services::api::get_banner().await {
                 *banner_sig.write() = Some(banner);
+            } else {
+                *banner_sig.write() = None;
             }
         });
     }
@@ -483,6 +500,24 @@ impl AppState {
 
     pub fn show_music_player_modal(&self) -> bool {
         (self.show_music_player_modal)()
+    }
+
+    pub fn show_profile_modal(&self) -> bool {
+        (self.show_profile_modal)()
+    }
+
+    pub fn profile_modal_contact_id(&self) -> Option<String> {
+        self.profile_modal_contact_id.read().clone()
+    }
+
+    pub fn open_my_profile(&mut self) {
+        *self.profile_modal_contact_id.write() = None;
+        self.show_profile_modal.set(true);
+    }
+
+    pub fn open_contact_profile(&mut self, contact_id: String) {
+        *self.profile_modal_contact_id.write() = Some(contact_id);
+        self.show_profile_modal.set(true);
     }
 
     pub fn recommended_songs(&self) -> Vec<String> {

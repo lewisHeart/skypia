@@ -308,32 +308,6 @@ impl DatabaseService {
                 .map_err(|e| e.to_string())?;
         }
 
-        // Seed banners se tabela vazia
-        let banner_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM banners")
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if banner_count == 0 {
-            let banners = vec![
-                ("Navegue na web com muito mais velocidade e segurança!", "Instalar Skypia Browser", "https://skypia.io/browser", "🌐"),
-                ("Ouça as melhores músicas retrô com alta fidelidade!", "Skypia Music Premium", "https://skypia.io/music", "🎵"),
-                ("Seus e-mails e arquivos protegidos em um só lugar.", "Acessar Skypia Mail", "https://skypia.io/mail", "📧"),
-                ("Espaço gratuito ilimitado para suas fotos e dados na nuvem.", "Conhecer Skypia Drive", "https://skypia.io/drive", "💾"),
-            ];
-
-            for (text, action, link, icon) in banners {
-                sqlx::query("INSERT INTO banners (text, action_label, link, icon) VALUES (?, ?, ?, ?)")
-                    .bind(text)
-                    .bind(action)
-                    .bind(link)
-                    .bind(icon)
-                    .execute(pool)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-        }
-
         // Seed recommended songs se tabela vazia
         let song_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM recommended_songs")
             .fetch_one(pool)

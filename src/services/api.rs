@@ -473,3 +473,21 @@ pub async fn get_conversation_messages(token: &str, conversation_id: &str) -> Re
     }
 }
 
+/// Busca o banner de anúncios ativo do servidor
+pub async fn get_banner() -> Result<crate::models::BannerInfo, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/banner", SERVER_BASE_URL))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        serde_json::from_str::<crate::models::BannerInfo>(&body)
+            .map_err(|e| e.to_string())
+    } else {
+        Err(format!("Status de erro: {}", resp.status()))
+    }
+}
+

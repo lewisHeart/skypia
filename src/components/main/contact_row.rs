@@ -39,20 +39,23 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             ondoubleclick: handle_double_click,
             oncontextmenu: move |e| {
                 e.prevent_default();
-                menu_x.set(e.client_coordinates().x as i32);
-                menu_y.set(e.client_coordinates().y as i32);
+                let scale = state.interface_scale();
+                menu_x.set((e.client_coordinates().x as f64 / scale) as i32);
+                menu_y.set((e.client_coordinates().y as f64 / scale) as i32);
                 show_context_menu.set(true);
                 show_tooltip.set(false);
             },
             onmouseenter: move |e| {
                 if !show_context_menu() {
-                    tooltip_y.set(e.client_coordinates().y as i32);
+                    let scale = state.interface_scale();
+                    tooltip_y.set((e.client_coordinates().y as f64 / scale) as i32);
                     show_tooltip.set(true);
                 }
             },
             onmousemove: move |e| {
                 if !show_context_menu() {
-                    tooltip_y.set(e.client_coordinates().y as i32);
+                    let scale = state.interface_scale();
+                    tooltip_y.set((e.client_coordinates().y as f64 / scale) as i32);
                 }
             },
             onmouseleave: move |_| show_tooltip.set(false),
@@ -114,12 +117,12 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
             // Menu de Contexto MSN Style
             if show_context_menu() {
                 div { 
-                    class: "fixed w-44 bg-white border border-slate-300 rounded shadow-2xl z-[9999] p-1 flex flex-col text-xs text-slate-700",
+                    class: "fixed w-44 bg-white/95 border border-slate-300 rounded-lg shadow-2xl backdrop-blur-md z-[9999] p-1 flex flex-col text-[11px] text-slate-700 transition-all",
                     style: "left: {menu_x}px; top: {menu_y}px;",
                     onmouseleave: move |_| show_context_menu.set(false),
                     
                     button { 
-                        class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
+                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
                         onclick: {
                             let cid = cid_context_open.clone();
                             move |_| {
@@ -131,7 +134,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                         span { "Enviar mensagem" }
                     }
                     button { 
-                        class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
+                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
                         onclick: move |_| {
                             show_context_menu.set(false);
                             show_rename_modal.set(true);
@@ -139,9 +142,44 @@ pub fn ContactRow(contact: Contact, mut state: AppState) -> Element {
                         span { "✏️" }
                         span { "Renomear (Apelido)" }
                     }
+                    button { 
+                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
+                        onclick: {
+                            let cid = contact_id.clone();
+                            move |_| {
+                                show_context_menu.set(false);
+                                state.open_contact_profile(cid.clone());
+                            }
+                        },
+                        span { "👤" }
+                        span { "Ver perfil" }
+                    }
+
+                    // Divisor
+                    div { class: "h-[1px] bg-slate-200/60 my-0.5" }
+
+                    // Botão Favorito
+                    {
+                        let cid = contact_id.clone();
+                        let is_fav = contact.is_favorite;
+                        rsx! {
+                            button { 
+                                class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
+                                onclick: move |_| {
+                                    show_context_menu.set(false);
+                                    state.toggle_favorite(cid.clone());
+                                },
+                                span { if is_fav { "⭐" } else { "☆" } }
+                                span { if is_fav { "Remover dos favoritos" } else { "Adicionar aos favoritos" } }
+                            }
+                        }
+                    }
+
+                    // Divisor
+                    div { class: "h-[1px] bg-slate-200/60 my-0.5" }
                     
                     button { 
-                        class: "px-3 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full",
+                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
                         onclick: {
                             let cid = cid_context_block.clone();
                             move |_| {

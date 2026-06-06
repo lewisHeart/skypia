@@ -153,7 +153,7 @@ pub fn Register(mut state: AppState) -> Element {
                         input {
                             r#type: "text",
                             class: "w-full px-2.5 py-1.5 text-xs msn-input rounded-lg",
-                            placeholder: "Ex: Wellington Moreira",
+                            placeholder: "Ex: João Silva",
                             value: "{full_name}",
                             maxlength: 80,
                             oninput: move |e| full_name.set(e.value()),

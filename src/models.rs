@@ -215,23 +215,32 @@ impl AppTheme {
     }
 }
 
-pub fn render_avatar(url_opt: Option<&str>, size_px: usize) -> Element {
-    let final_url = match url_opt {
-        Some(url) if url.starts_with("http") => url.to_string(),
-        Some(url) => format!("{}{}", crate::services::api::SERVER_BASE_URL, url),
-        None => "".to_string(),
+#[component]
+pub fn Avatar(url: Option<String>, size: usize) -> Element {
+    let mut is_error = use_signal(|| false);
+    let mut prev_url = use_signal(|| url.clone());
+
+    if *prev_url.read() != url {
+        *prev_url.write() = url.clone();
+        is_error.set(false);
+    }
+
+    let final_url = match url {
+        Some(ref u) if u.starts_with("http") => u.to_string(),
+        Some(ref u) if !u.is_empty() => format!("{}{}", crate::services::api::SERVER_BASE_URL, u),
+        _ => "".to_string(),
     };
 
-    if !final_url.is_empty() {
+    if !final_url.is_empty() && !is_error() {
         rsx! {
             img {
                 src: "{final_url}",
-                width: "{size_px}px",
-                height: "{size_px}px",
+                width: "{size}px",
+                height: "{size}px",
                 class: "rounded-md object-cover flex-shrink-0 border border-slate-350 shadow-inner",
                 alt: "Avatar",
                 onerror: move |_| {
-                    // Se falhar o carregamento, renderiza o fallback (nada a fazer pois final_url não é editável na hora, mas é um bom placeholder)
+                    is_error.set(true);
                 }
             }
         }
@@ -239,8 +248,8 @@ pub fn render_avatar(url_opt: Option<&str>, size_px: usize) -> Element {
         rsx! {
             svg {
                 view_box: "0 0 100 100",
-                width: "{size_px}px",
-                height: "{size_px}px",
+                width: "{size}px",
+                height: "{size}px",
                 class: "rounded-md flex-shrink-0 border border-slate-300 shadow-sm",
                 defs {
                     linearGradient { id: "msnGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%",
@@ -259,6 +268,15 @@ pub fn render_avatar(url_opt: Option<&str>, size_px: usize) -> Element {
                 // Corpo verde
                 path { d: "M48 76 C48 64, 84 64, 84 76 Z", fill: "#22c55e" }
             }
+        }
+    }
+}
+
+pub fn render_avatar(url_opt: Option<&str>, size_px: usize) -> Element {
+    rsx! {
+        Avatar {
+            url: url_opt.map(|s| s.to_string()),
+            size: size_px,
         }
     }
 }

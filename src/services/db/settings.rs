@@ -1,4 +1,4 @@
-use crate::models::{AppTheme, BannerInfo};
+use crate::models::AppTheme;
 use crate::services::db::{get_pool, DatabaseService, theme_to_str, str_to_theme};
 use sqlx::Row;
 
@@ -67,33 +67,6 @@ impl DatabaseService {
             let id: String = r.get("contact_id");
             id
         }).collect())
-    }
-
-    pub async fn get_banner_info() -> Result<BannerInfo, String> {
-        let pool = get_pool();
-        let rows = sqlx::query("SELECT text, action_label, link, icon FROM banners ORDER BY id")
-            .fetch_all(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if rows.is_empty() {
-            return Err("Nenhum banner cadastrado".to_string());
-        }
-
-        // Rotaciona baseado no tempo atual
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let idx = (now / 15) as usize % rows.len();
-        let row = &rows[idx];
-
-        Ok(BannerInfo {
-            text: row.get("text"),
-            action_label: row.get("action_label"),
-            link: row.get("link"),
-            icon: row.get("icon"),
-        })
     }
 
     pub async fn get_recommended_songs() -> Result<Vec<String>, String> {

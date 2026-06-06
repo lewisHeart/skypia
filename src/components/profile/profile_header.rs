@@ -29,6 +29,12 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
             div { class: "absolute right-2 top-2 flex items-center space-x-1",
                 button {
                     class: "w-5 h-5 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors",
+                    title: "Meu Perfil",
+                    onclick: move |_| state.open_my_profile(),
+                    "👤"
+                }
+                button {
+                    class: "w-5 h-5 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 text-[#1e395b] cursor-pointer text-xs transition-colors",
                     title: "Configurações",
                     onclick: move |_| state.show_settings_modal.set(true),
                     "⚙️"

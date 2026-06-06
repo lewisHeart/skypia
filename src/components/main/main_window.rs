@@ -27,13 +27,15 @@ pub fn MainWindow(mut state: AppState) -> Element {
 
     let mut handle_search = move || {
         let query = add_contact_email().trim().to_string();
-        if query.is_empty() { return; }
-        
+        if query.is_empty() {
+            return;
+        }
+
         let token_opt = state.auth_token();
         is_searching.set(true);
         search_error.set(None);
         search_result.set(None);
-        
+
         spawn(async move {
             if let Some(token) = token_opt {
                 match crate::services::api::search_user(&token, &query).await {
@@ -225,7 +227,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                     onclick: move |e| e.stop_propagation(),
 
                     div { class: "flex items-center justify-between border-b border-white/40 pb-2",
-                        span { class: "font-bold text-sm flex items-center space-x-1.5", 
+                        span { class: "font-bold text-sm flex items-center space-x-1.5",
                             span { "➕" }
                             span { "Adicionar Novo Contato" }
                         }
@@ -242,7 +244,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                         div { class: "flex space-x-1.5",
                             input {
                                 class: "flex-1 p-1.5 border border-[#a6b9cd] rounded msn-input text-xs focus:outline-none focus:border-[#5c98d6] bg-white",
-                                placeholder: "Ex: wellington ou wk.scbd@skypia.io",
+                                placeholder: "Joao ou joao@mail.com",
                                 value: "{add_contact_email}",
                                 oninput: move |e| add_contact_email.set(e.value()),
                                 onkeydown: move |e| {
@@ -285,7 +287,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                 rsx! {
                                     div { class: "w-full flex items-center space-x-3.5",
                                         // Avatar com moldura de status do MSN
-                                        div { 
+                                        div {
                                             class: "flex-shrink-0 p-[2px] rounded-[7px] border {status_enum.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md",
                                             div {
                                                 class: "rounded-[4px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",

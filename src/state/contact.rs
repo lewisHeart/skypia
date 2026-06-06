@@ -5,8 +5,27 @@ use dioxus::prelude::*;
 impl AppState {
     pub fn toggle_favorite(&mut self, contact_id: String) {
         let mut list = self.contacts.write();
+        let mut contact_info = None;
         if let Some(contact) = list.iter_mut().find(|c| c.id == contact_id) {
             contact.is_favorite = !contact.is_favorite;
+            contact_info = Some((
+                contact.id.clone(),
+                contact.email.clone(),
+                contact.display_name.clone(),
+                contact.is_favorite,
+            ));
+        }
+
+        if let Some((cid, email, name, is_fav)) = contact_info {
+            spawn(async move {
+                let _ = crate::services::db::DatabaseService::save_contact_favorite(
+                    cid,
+                    email,
+                    name,
+                    is_fav,
+                )
+                .await;
+            });
         }
     }
 

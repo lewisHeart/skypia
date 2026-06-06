@@ -251,19 +251,49 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
         *app_state.logged_in.write() = true;
         *app_state.selected_chat_id.write() = Some(props.contact_id.clone());
         
-        // Abre o chat localmente no estado da nova janela
-        app_state.open_chat(props.contact_id.clone());
+        // Adiciona à lista de chats ativos no estado local sem disparar open_chat
+        {
+            let mut chats = app_state.active_chats.write();
+            if !chats.contains(&props.contact_id) {
+                chats.push(props.contact_id.clone());
+            }
+        }
 
         use_effect(move || {
             let mut state = app_state;
-            state.load_initial_data();
+            spawn(async move {
+                // 1. Carrega o token de autenticação do SQLite local
+                if let Ok(Some((token, _user_id))) =
+                    crate::services::db::DatabaseService::load_auth_token().await
+                {
+                    // 2. Busca o perfil atual no servidor para garantir dados corretos do usuário
+                    if let Ok(profile) = crate::services::api::get_profile(&token).await {
+                        state.apply_server_profile(profile, token).await;
+                        *state.logged_in.write() = true;
+                    }
+                }
+                
+                // 3. Carrega os dados de contatos e histórico do servidor
+                state.load_initial_data();
+                
+                // 4. Conecta o websocket para mensagens e status em tempo real
+                state.connect_websocket();
+            });
+        });
+
+        // Sincroniza decorações da janela nativa flutuante
+        let desktop_dec = desktop.clone();
+        use_effect(move || {
+            let use_custom = app_state.use_custom_titlebar();
+            desktop_dec.set_decorations(!use_custom);
         });
 
         // Verificação periódica para fechar janela se o chat for acoplado de volta
         let c_id = props.contact_id.clone();
+        let desktop_close = desktop.clone();
         use_effect(move || {
             let cid = c_id.clone();
-            let desktop_clone = desktop.clone();
+            let desktop_clone = desktop_close.clone();
             spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
@@ -281,8 +311,22 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
 
 
         let theme = app_state.theme();
-        let contact = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);
-        let contact_name = contact.map(|c| c.nickname.unwrap_or(c.display_name)).unwrap_or_else(|| "Contato".to_string());
+        let contact_opt = app_state.contacts().into_iter().find(|c| c.id == props.contact_id);
+        
+        if contact_opt.is_none() {
+            return rsx! {
+                document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
+                document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
+                div { 
+                    class: "w-screen h-screen flex flex-col items-center justify-center bg-gradient-to-br {theme.bg_gradient()} text-[#1e395b] font-bold text-xs select-none",
+                    span { class: "text-2xl mb-2 animate-bounce", "🦋" }
+                    span { class: "animate-pulse", "Carregando conversa..." }
+                }
+            };
+        }
+        
+        let contact = contact_opt.unwrap();
+        let contact_name = contact.nickname.clone().unwrap_or(contact.display_name.clone());
 
         rsx! {
             document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }

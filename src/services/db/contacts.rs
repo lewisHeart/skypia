@@ -151,15 +151,30 @@ impl DatabaseService {
 
     pub async fn save_contact_favorite(
         contact_id: String,
+        email: String,
+        display_name: String,
         is_favorite: bool,
     ) -> Result<(), String> {
         let pool = get_pool();
-        sqlx::query("UPDATE contacts SET is_favorite = ? WHERE id = ?")
+        let result = sqlx::query("UPDATE contacts SET is_favorite = ? WHERE id = ?")
             .bind(is_favorite as i32)
-            .bind(contact_id)
+            .bind(&contact_id)
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
+
+        if result.rows_affected() == 0 {
+            sqlx::query(
+                "INSERT INTO contacts (id, email, display_name, status, personal_message, is_favorite, relation_status) VALUES (?, ?, ?, 'Offline', '', ?, 'Aceito')",
+            )
+            .bind(&contact_id)
+            .bind(&email)
+            .bind(&display_name)
+            .bind(is_favorite as i32)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
         Ok(())
     }
 }

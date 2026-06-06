@@ -361,6 +361,15 @@ fn App() -> Element {
                             button { 
                                 class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
                                 onclick: move |_| {
+                                    app_state.open_my_profile();
+                                    show_options_menu.set(false);
+                                },
+                                span { "👤" }
+                                span { "Meu Perfil..." }
+                            }
+                            button { 
+                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
+                                onclick: move |_| {
                                     app_state.show_settings_modal.set(true);
                                     show_options_menu.set(false);
                                 },
@@ -479,6 +488,15 @@ fn App() -> Element {
                                 },
                                 span { "🎵" }
                                 span { "Definir Música..." }
+                            }
+                            button { 
+                                class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
+                                onclick: move |_| {
+                                    app_state.open_my_profile();
+                                    show_options_menu.set(false);
+                                },
+                                span { "👤" }
+                                span { "Meu Perfil..." }
                             }
                             button { 
                                 class: "px-2 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer",
@@ -667,6 +685,11 @@ fn App() -> Element {
                     }
                 }
             }
+        }
+
+        // Modal de Perfil Pessoal
+        if app_state.show_profile_modal() {
+            crate::components::profile::profile_modal::ProfileModal { state: app_state }
         }
     }
 }
