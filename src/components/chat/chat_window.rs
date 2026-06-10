@@ -1,7 +1,6 @@
 use crate::components::chat::chat_feed::ChatFeed;
 use crate::components::chat::chat_input::ChatInput;
 use crate::components::chat::chat_sidebar::ChatSidebar;
-use crate::models::render_avatar;
 use crate::state::AppState;
 use dioxus::prelude::*;
 
@@ -80,6 +79,8 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
         contact.as_ref().unwrap().status.as_str().to_string()
     };
 
+    let display_status = if is_group { "".to_string() } else { format!("({})", status_text) };
+
     let personal_message_text = if let Some(ref g) = group {
         let member_names = g
             .members
@@ -92,11 +93,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
         contact.as_ref().unwrap().personal_message.clone()
     };
 
-    let status_color_class = if is_group {
-        "bg-sky-600"
-    } else {
-        contact.as_ref().unwrap().status.color_class()
-    };
+
 
     let active_nudge = state.active_nudge();
     let is_nudge_active = active_nudge.as_ref() == Some(&contact_id);
@@ -129,20 +126,19 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
         }
 
         div {
-            class: "w-full h-full flex flex-col select-none bg-bubbles {shake_class} overflow-hidden",
-            style: "background: {theme.bg_chat()};",
+            class: "w-full h-full flex flex-col select-none bg-transparent {shake_class} overflow-hidden",
 
             // Abas para chats ativos
             if contact_id_prop.is_none() && active_chats.len() > 1 {
-                div { class: "h-8 bg-white/20 border-b {theme.titlebar_border()} flex items-center px-2 space-x-1 flex-shrink-0 overflow-x-auto",
+                div { class: "h-8 bg-transparent flex items-center px-2 space-x-1 flex-shrink-0 overflow-x-auto",
                     for chat_id in active_chats {
                         if let Some(c) = state.contacts().into_iter().find(|c| c.id == chat_id) {
                             {
                                 let is_active = chat_id == contact_id;
                                 let active_tab_style = if is_active {
-                                    format!("bg-white/80 {theme_border} {theme_text} font-bold", theme_border = theme.glass_border_color(), theme_text = theme.titlebar_text())
+                                    format!("bg-white border-t border-l border-r border-[#96badb] {theme_text} font-bold z-10", theme_text = theme.titlebar_text())
                                 } else {
-                                    format!("bg-white/30 border-transparent {theme_text}/80 hover:bg-white/50", theme_text = theme.titlebar_text())
+                                    format!("bg-[#d8e8f6]/70 border border-transparent {theme_text}/80 hover:bg-[#d8e8f6]", theme_text = theme.titlebar_text())
                                 };
                                 let name_to_show = c.nickname.clone().unwrap_or(c.display_name.clone());
                                 let chat_id_select = chat_id.clone();
@@ -150,7 +146,7 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
 
                                 rsx! {
                                     button {
-                                        class: "px-3 h-6 flex items-center space-x-1.5 border rounded-t text-[11px] transition-all cursor-pointer truncate max-w-[120px] {active_tab_style}",
+                                        class: "px-3 h-6 flex items-center space-x-1.5 rounded-t text-[11px] transition-all cursor-pointer truncate max-w-[120px] {active_tab_style}",
                                         onclick: move |_| {
                                             *state.selected_chat_id.write() = Some(chat_id_select.clone());
                                         },
@@ -172,92 +168,147 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                 }
             }
 
-            // Painel Superior de Status (Informações do contato atual)
-            div { class: "p-3 flex items-center space-x-3 bg-white/10 border-b {theme.titlebar_border()} flex-shrink-0 justify-between",
-                div { class: "flex items-center space-x-3 min-w-0 flex-1",
+            // Layout Principal do Chat
+            div { class: "flex-1 flex min-h-0 w-full relative",
 
-                    if contact_id_prop.is_none() {
-                        button {
-                            class: "md:hidden px-2 py-1 bg-white/30 hover:bg-white/50 border border-white/20 {theme.titlebar_text()} text-[11px] rounded font-bold cursor-pointer mr-1 flex items-center space-x-0.5 flex-shrink-0 transition-colors",
-                            title: "Voltar para Lista de Contatos",
-                            onclick: move |_| {
-                                *state.selected_chat_id.write() = None;
-                            },
-                            span { "⬅️" }
-                        }
-                    }
+                // Coluna Esquerda: Avatars grandes de perfil ou Jogo da Velha (ChatSidebar)
+                ChatSidebar { contact_id: contact_id.clone(), state }
 
-                    // Avatar do cabeçalho com moldura de status clássica do MSN
-                    if is_group {
-                        div {
-                            class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border border-sky-300/60 bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
-                            div {
-                                class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
-                                {render_avatar(group.as_ref().and_then(|g| g.avatar_url.as_deref()), 36)}
+                // Coluna Direita: Cabeçalho de Status, Histórico e Input de texto
+                div { class: "flex-1 flex flex-col min-w-0 h-full bg-transparent relative",
+
+                    // Painel Superior de Status (Informações do contato atual)
+                    div { class: "p-3 flex items-center bg-transparent flex-shrink-0 justify-between",
+                        div { class: "flex items-center space-x-3 min-w-0 flex-1",
+
+                            if contact_id_prop.is_none() {
+                                button {
+                                    class: "md:hidden px-2 py-1 bg-white/60 hover:bg-white border border-slate-300 {theme.titlebar_text()} text-[11px] rounded font-bold cursor-pointer mr-1 flex items-center space-x-0.5 flex-shrink-0 transition-colors",
+                                    title: "Voltar para Lista de Contatos",
+                                    onclick: move |_| {
+                                        *state.selected_chat_id.write() = None;
+                                    },
+                                    span { "⬅️" }
+                                }
+                            }
+
+
+
+                            div { class: "flex-1 min-w-0 flex flex-col justify-center",
+                                div { class: "flex items-baseline space-x-2.5",
+                                    span { class: "font-normal text-[32px] text-[#2d517a] truncate", "{display_name_to_show}" }
+                                    span { class: "text-sm text-[#a5a5a5] font-normal flex-shrink-0", "{display_status}" }
+                                }
+                                p { class: "text-sm text-[#a5a5a5] truncate mt-0.5", "{personal_message_text}" }
                             }
                         }
-                    } else {
-                        {
-                            let c = contact.as_ref().unwrap();
-                            rsx! {
-                                div {
-                                    class: "relative p-[1.5px] flex-shrink-0 shadow rounded-[6px] border {c.status.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
-                                    div {
-                                        class: "rounded-[3px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
-                                        {render_avatar(c.avatar_url.as_deref(), 36)}
+
+                        // Ícones de ação clássicos no topo direito (Games, Busca, Voz, Dropdown)
+                        div { class: "flex items-center space-x-3 mr-2 flex-shrink-0",
+                            button {
+                                class: "hover:bg-white/40 p-1.5 rounded transition-all focus:outline-none cursor-pointer flex items-center justify-center",
+                                title: "Jogos e Atividades",
+                                onclick: move |_| {
+                                    state.show_games_modal.set(true);
+                                },
+                                svg {
+                                    class: "w-5 h-5 select-none pointer-events-none",
+                                    view_box: "0 0 100 100",
+                                    circle { cx: "40", cy: "35", r: "14", fill: "#3a90f0" }
+                                    path { d: "M15 75 C15 55, 65 55, 65 75 Z", fill: "#3a90f0" }
+                                    circle { cx: "65", cy: "48", r: "11", fill: "#5cd63a" }
+                                    path { d: "M45 78 C45 62, 85 62, 85 78 Z", fill: "#5cd63a" }
+                                }
+                            }
+                            button {
+                                class: "hover:bg-white/40 p-1.5 rounded transition-all focus:outline-none cursor-pointer flex items-center justify-center",
+                                title: "Buscar nesta conversa",
+                                svg {
+                                    class: "w-5 h-5 text-[#3a90f0] select-none pointer-events-none",
+                                    view_box: "0 0 24 24",
+                                    fill: "none",
+                                    stroke: "currentColor",
+                                    stroke_width: "2.5",
+                                    stroke_linecap: "round",
+                                    circle { cx: "11", cy: "11", r: "5.5" }
+                                    path { d: "M15 15l5 5" }
+                                }
+                            }
+                            button {
+                                class: "hover:bg-white/40 p-1.5 rounded transition-all focus:outline-none cursor-pointer flex items-center justify-center",
+                                title: "Iniciar chamada de áudio",
+                                svg {
+                                    class: "w-5 h-5 text-[#e81123] select-none pointer-events-none",
+                                    view_box: "0 0 24 24",
+                                    fill: "currentColor",
+                                    path { d: "M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z" }
+                                }
+                            }
+                            svg {
+                                class: "w-4 h-4 text-slate-500 cursor-pointer hover:text-slate-700",
+                                view_box: "0 0 24 24",
+                                fill: "currentColor",
+                                path { d: "M7 10l5 5 5-5z" }
+                            }
+                        }
+
+                        if contact_id_prop.is_none() {
+                            {
+                                let contact_id_detach = contact_id.clone();
+                                rsx! {
+                                    button {
+                                        class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/45 border border-transparent hover:border-slate-300 {theme.titlebar_text()} cursor-pointer text-xs transition-colors flex-shrink-0",
+                                        title: "Desvincular conversa",
+                                        onclick: move |_| {
+                                            state.detach_chat(contact_id_detach.clone());
+                                            let dom = VirtualDom::new_with_props(
+                                                DetachedChatWindow,
+                                                DetachedChatWindowProps { contact_id: contact_id_detach.clone() }
+                                            );
+
+                                            #[cfg(feature = "desktop")]
+                                            spawn(async move {
+                                                let mut config = dioxus::desktop::Config::new().with_menu(None);
+                                                let my_pid = std::process::id();
+                                                let db_dir = std::path::Path::new(".skypia_data").join("db");
+                                                let mut active_slot = None;
+                                                for slot in 1..=10 {
+                                                    let lock_path = db_dir.join(format!("skypia_{}.lock", slot));
+                                                    if let Ok(content) = std::fs::read_to_string(&lock_path) {
+                                                        if let Ok(pid) = content.trim().parse::<u32>() {
+                                                            if pid == my_pid {
+                                                                active_slot = Some(slot);
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if let Some(slot) = active_slot {
+                                                    let data_dir = std::env::current_dir()
+                                                        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                                                        .join(".skypia_data")
+                                                        .join("webview")
+                                                        .join(format!("slot_{}", slot));
+                                                    let _ = std::fs::create_dir_all(&data_dir);
+                                                    config = config.with_data_directory(data_dir);
+                                                }
+                                                let _ = dioxus::desktop::window().new_window(
+                                                    dom,
+                                                    config
+                                                ).await;
+                                            });
+                                            #[cfg(not(feature = "desktop"))]
+                                            {
+                                                let _ = dom;
+                                            }
+                                        },
+                                        "↗"
                                     }
                                 }
                             }
                         }
                     }
 
-                    div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
-                        div { class: "flex items-center space-x-2",
-                            span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{display_name_to_show}" }
-                            span { class: "text-[10px] px-1 py-0.1 {status_color_class} text-white rounded font-medium", "{status_text}" }
-                        }
-                        p { class: "text-xs {theme.titlebar_text()}/85 italic truncate", "“{personal_message_text}”" }
-                    }
-                }
-
-                if contact_id_prop.is_none() {
-                    {
-                        let contact_id_detach = contact_id.clone();
-                        rsx! {
-                            button {
-                                class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 {theme.titlebar_text()} cursor-pointer text-xs transition-colors flex-shrink-0",
-                                title: "Desvincular conversa",
-                                onclick: move |_| {
-                                    state.detach_chat(contact_id_detach.clone());
-                                    let dom = VirtualDom::new_with_props(
-                                        DetachedChatWindow,
-                                        DetachedChatWindowProps { contact_id: contact_id_detach.clone() }
-                                    );
-
-                                    #[cfg(feature = "desktop")]
-                                    spawn(async move {
-                                        let _ = dioxus::desktop::window().new_window(
-                                            dom,
-                                            dioxus::desktop::Config::default().with_menu(None)
-                                        ).await;
-                                    });
-                                    #[cfg(not(feature = "desktop"))]
-                                    {
-                                        let _ = dom;
-                                    }
-                                },
-                                "↗"
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Layout Principal do Chat
-            div { class: "flex-1 flex min-h-0 w-full",
-
-                // Coluna Esquerda: Histórico e Input de texto
-                div { class: "flex-1 flex flex-col sm:border-r border-white/20 min-w-0 h-full",
                     // Histórico do Chat (ChatFeed)
                     ChatFeed { contact_id: contact_id.clone(), state }
 
@@ -276,9 +327,6 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                         }
                     }
                 }
-
-                // Coluna Direita: Avatars grandes de perfil ou Jogo da Velha (ChatSidebar)
-                ChatSidebar { contact_id: contact_id.clone(), state }
             }
         }
     }
@@ -491,7 +539,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                     // Barra de título Aero personalizada para janela desvinculada
                     if app_state.use_custom_titlebar() {
                         div {
-                            class: "w-full h-8 bg-gradient-to-b {theme.titlebar_gradient()} flex items-center justify-between z-50 flex-shrink-0 select-none border-b {theme.titlebar_border()} px-3 relative rounded-t-2xl shadow-sm cursor-default",
+                            class: "w-full h-8 bg-transparent flex items-center justify-between z-50 flex-shrink-0 select-none px-3 relative rounded-t-2xl cursor-default",
                             style: "-webkit-app-region: drag;",
                             onmousedown: move |_| {
                                 #[cfg(feature = "desktop")]
@@ -563,8 +611,8 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                     } else {
                         // Barra de Controle simplificada caso use decorações do sistema nativo
                         div {
-                            class: "h-8 bg-gradient-to-b {theme.titlebar_gradient()} px-3 flex items-center justify-between text-[#1b324d] font-bold text-xs select-none border-b {theme.titlebar_border()}",
-                            div { class: "flex items-center space-x-1.5 {theme.titlebar_text()}",
+                            class: "h-8 bg-transparent px-3 flex items-center justify-between {theme.titlebar_text()} font-bold text-xs select-none",
+                            div { class: "flex items-center space-x-1.5",
                                 span { "💬" }
                                 span { "Conversa com {contact_name}" }
                             }

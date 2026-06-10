@@ -5376,6 +5376,8 @@ dependencies = [
  "dioxus",
  "dotenvy",
  "futures-util",
+ "jni 0.21.1",
+ "ndk-context",
  "reqwest 0.13.4",
  "rfd",
  "serde",

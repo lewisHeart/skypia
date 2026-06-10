@@ -101,9 +101,9 @@ fn App() -> Element {
             let has_selected_chat =
                 app_state.selected_chat_id().is_some() && app_state.chat_mode() == "integrated";
             if has_selected_chat {
-                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(850.0, 620.0));
+                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(886.0, 735.0));
             } else {
-                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(350.0, 620.0));
+                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(373.0, 735.0));
             }
         }
     });
@@ -240,7 +240,7 @@ fn App() -> Element {
             // 2. Custom Title Bar for Windows 7 Aero-like custom styling (Escala 100%)
             if app_state.use_custom_titlebar() {
                 div {
-                    class: "w-full h-8 bg-gradient-to-b {theme.titlebar_gradient()} flex items-center justify-between z-50 flex-shrink-0 select-none border-b {theme.titlebar_border()} px-3 relative rounded-t-2xl shadow-sm cursor-default",
+                    class: "w-full h-10 bg-transparent flex items-center justify-between z-50 flex-shrink-0 select-none px-4 relative rounded-t-2xl cursor-default",
                     style: "-webkit-app-region: drag;",
                     onmousedown: move |_| {
                         #[cfg(feature = "desktop")]
@@ -248,30 +248,30 @@ fn App() -> Element {
                     },
 
                     // Icon and Title
-                    div { class: "flex items-center space-x-1.5 font-bold text-xs pointer-events-none {theme.titlebar_text()} select-none",
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/busts-in-silhouette.webp",
-                            class: "w-4 h-4 object-contain pointer-events-none"
-                        }
-                        span { "Skypia" }
+                    div { class: "flex items-center space-x-1.5 font-normal text-sm pointer-events-none {theme.titlebar_text()} select-none",
+                        span { class: "text-[#0d1825] font-sans text-sm", "Skypia Messenger" }
                     }
 
                     // Controls (X)
                     div {
-                        class: "flex items-center space-x-2.5",
+                        class: "flex items-center",
                         style: "-webkit-app-region: no-drag;",
                         onmousedown: move |e| e.stop_propagation(),
 
-                        // Close [X] Button (Matches user screenshot exactly)
+                        // Close [X] Button (Matches user design exactly)
                         button {
-                            class: "h-[22px] px-3.5 bg-white border border-[#f2d3ce] rounded font-bold text-xs text-[#8c2222] shadow-sm cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white flex items-center justify-center focus:outline-none",
+                            class: "w-[31px] h-[20px] bg-white border border-[#d1d1d1] rounded-[4px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none",
                             title: "Fechar",
                             onclick: move |e| {
                                 e.stop_propagation();
                                 #[cfg(feature = "desktop")]
                                 dioxus::desktop::use_window().close();
                             },
-                            "X"
+                            svg {
+                                view_box: "0 0 12 12",
+                                class: "w-2.5 h-2.5 stroke-current",
+                                path { d: "M2 2 L10 10 M10 2 L2 10", stroke_width: "1.5", stroke_linecap: "round" }
+                            }
                         }
                     }
                 }
@@ -297,7 +297,7 @@ fn App() -> Element {
                                 let is_integrated = app_state.chat_mode() == "integrated";
                                 let has_selected_chat = app_state.selected_chat_id().is_some() && is_integrated;
                                 let sidebar_class = if has_selected_chat {
-                                    "hidden md:flex w-[350px] h-full flex-col flex-shrink-0 border-r border-[#7baad4]/30"
+                                    "hidden md:flex w-[220px] h-full flex-col flex-shrink-0"
                                 } else {
                                     "w-full h-full flex flex-col flex-shrink-0"
                                 };

@@ -55,7 +55,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
 
     rsx! {
         div {
-            class: "w-full h-full flex flex-col select-none bg-bubbles bg-gradient-to-b {theme.modal_gradient()} bg-opacity-90 overflow-hidden",
+            class: "w-full h-full flex flex-col select-none bg-transparent overflow-hidden",
 
             // Header do Perfil do usuário
             ProfileHeader { state }
@@ -81,20 +81,9 @@ pub fn MainWindow(mut state: AppState) -> Element {
                 }
             }
 
-            // Rodapé com o botão Adicionar contato fixo
-            div { class: "h-9 bg-white/45 border-t border-white/20 px-3 flex items-center justify-between text-xs {theme.titlebar_text()}/90 flex-shrink-0",
-                button {
-                    class: "hover:underline font-semibold flex items-center space-x-1 transition-colors cursor-pointer",
-                    onclick: move |_| {
-                        state.show_add_contact_modal.set(true);
-                    },
-                    img {
-                        src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/plus.webp",
-                        class: "w-3 h-3 object-contain pointer-events-none mr-1 inline-block align-middle"
-                    }
-                    span { "Adicionar contato" }
-                }
-                span { class: "text-slate-400 text-[10px]", "v0.0.1" }
+            // Rodapé
+            div { class: "h-6 bg-white/10 border-t border-[#d1d1d1]/30 px-3 flex items-center justify-center text-[10px] text-slate-400 flex-shrink-0",
+                span { "Skypia Messenger v0.0.1" }
             }
         }
 

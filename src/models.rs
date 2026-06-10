@@ -63,7 +63,7 @@ impl UserStatus {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FileTransferState {
     Waiting,
-    Downloading(u8), // progresso de 0 a 100
+    Downloading(u8),   // progresso de 0 a 100
     Completed(String), // nome da imagem/arquivo
     Rejected,
 }
@@ -121,8 +121,8 @@ pub struct Message {
     pub text: String,
     pub timestamp: String,
     pub is_nudge: bool,
-    pub font_color: String,  // hex code, e.g., "#0000ff"
-    pub font_family: String, // e.g., "Segoe UI", "Comic Sans MS"
+    pub font_color: String,      // hex code, e.g., "#0000ff"
+    pub font_family: String,     // e.g., "Segoe UI", "Comic Sans MS"
     pub is_wink: Option<String>, // Some("kiss", "hammer", "pig")
     pub file_transfer: Option<FileTransferState>,
     pub is_game_invite: bool,
@@ -156,10 +156,10 @@ impl AppTheme {
 
     pub fn bg_gradient(&self) -> &'static str {
         match self {
-            AppTheme::AeroBlue => "from-[#d3e5f5] via-[#aed2f2] to-[#7eb5e6]",
-            AppTheme::RubyPink => "from-[#fde2e4] via-[#ffb5a7] to-[#fcd5ce]",
-            AppTheme::ForestGreen => "from-[#e8f5e9] via-[#c8e6c9] to-[#a5d6a7]",
-            AppTheme::SilverMetallic => "from-[#f5f5f7] via-[#e5e5ea] to-[#d1d1d6]",
+            AppTheme::AeroBlue => "from-[#c2ddf4] via-[#ffffff] to-[#eff8fa]",
+            AppTheme::RubyPink => "from-[#fcd5ce] via-[#ffffff] to-[#fde2e4]",
+            AppTheme::ForestGreen => "from-[#c8e6c9] via-[#ffffff] to-[#e8f5e9]",
+            AppTheme::SilverMetallic => "from-[#e5e5ea] via-[#ffffff] to-[#f5f5f7]",
         }
     }
 
@@ -209,7 +209,7 @@ impl AppTheme {
 
     pub fn titlebar_text(&self) -> &'static str {
         match self {
-            AppTheme::AeroBlue => "text-[#1b324d]",
+            AppTheme::AeroBlue => "text-[#2d517a]",
             AppTheme::RubyPink => "text-[#5a2024]",
             AppTheme::ForestGreen => "text-[#1d3d20]",
             AppTheme::SilverMetallic => "text-[#333333]",
@@ -218,7 +218,7 @@ impl AppTheme {
 
     pub fn bg_chat(&self) -> &'static str {
         match self {
-            AppTheme::AeroBlue => "linear-gradient(180deg, rgba(230, 241, 252, 0.95) 0%, rgba(190, 215, 240, 0.9) 100%)",
+            AppTheme::AeroBlue => "linear-gradient(180deg, #c2ddf4 0%, #ffffff 15%, #ffffff 89%, #eff8fa 100%)",
             AppTheme::RubyPink => "linear-gradient(180deg, rgba(254, 230, 232, 0.95) 0%, rgba(253, 203, 196, 0.9) 100%)",
             AppTheme::ForestGreen => "linear-gradient(180deg, rgba(232, 245, 233, 0.95) 0%, rgba(175, 224, 177, 0.9) 100%)",
             AppTheme::SilverMetallic => "linear-gradient(180deg, rgba(245, 245, 247, 0.95) 0%, rgba(209, 209, 214, 0.9) 100%)",
@@ -251,7 +251,7 @@ impl AppTheme {
             AppTheme::SilverMetallic => "bg-gradient-to-b from-[#d1d1d6] via-[#aeaea2] to-[#3a3a3c] hover:from-[#e5e5ea] hover:via-[#c7c7cc] hover:to-[#48484a] text-white border-[#3a3a3c]",
         }
     }
-    
+
     pub fn tooltip_bg(&self) -> &'static str {
         match self {
             AppTheme::AeroBlue => "from-sky-50 to-sky-100/95 border-[#a6b9cd]",
@@ -283,7 +283,15 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
 
     let final_url = match url {
         Some(ref u) if u.starts_with("http") => u.to_string(),
-        Some(ref u) if u.starts_with("/assets/") || u.starts_with("assets/") || u.starts_with("dioxus-asset://") => u.to_string(),
+        Some(ref u)
+            if u.starts_with("/assets/")
+                || u.starts_with("assets/")
+                || u.starts_with("/_assets/")
+                || u.starts_with("_assets/")
+                || u.starts_with("dioxus-asset://") =>
+        {
+            u.to_string()
+        }
         Some(ref u) if !u.is_empty() => format!("{}{}", crate::services::api::SERVER_BASE_URL, u),
         _ => "".to_string(),
     };
@@ -294,7 +302,7 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
                 src: "{final_url}",
                 width: "{size}px",
                 height: "{size}px",
-                class: "rounded-md object-cover flex-shrink-0 border border-slate-350 shadow-inner",
+                class: "rounded-[4px] object-cover flex-shrink-0 border border-slate-350 shadow-inner",
                 alt: "Avatar",
                 onerror: move |_| {
                     is_error.set(true);
@@ -307,14 +315,14 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
                 view_box: "0 0 100 100",
                 width: "{size}px",
                 height: "{size}px",
-                class: "rounded-md flex-shrink-0 border border-slate-300 shadow-sm",
+                class: "rounded-[4px] flex-shrink-0 border border-slate-300 shadow-sm",
                 defs {
                     linearGradient { id: "msnGrad", x1: "0%", y1: "0%", x2: "100%", y2: "100%",
                         stop { offset: "0%", stop_color: "#e6f2ff" }
                         stop { offset: "100%", stop_color: "#bcd6f7" }
                     }
                 }
-                rect { width: "100", height: "100", rx: "10", fill: "url(#msnGrad)" }
+                rect { width: "100", height: "100", rx: "4", fill: "url(#msnGrad)" }
                 // Boneco clássico do MSN azul/verde
                 // Cabeça azul
                 circle { cx: "44", cy: "38", r: "13", fill: "#3b82f6" }
@@ -462,4 +470,3 @@ pub enum ClientAction {
         is_favorite: bool,
     },
 }
-

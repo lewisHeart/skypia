@@ -218,7 +218,7 @@ pub async fn upload_avatar(
         let val: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
         val["avatar_url"]
             .as_str()
-            .map(|s| format!("{}{}", SERVER_BASE_URL, s))
+            .map(|s| s.to_string())
             .ok_or_else(|| "Campo avatar_url ausente na resposta.".to_string())
     } else {
         Err(format!("Erro no upload ({}): {}", status, body))

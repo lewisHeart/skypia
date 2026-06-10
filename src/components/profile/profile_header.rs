@@ -1,4 +1,4 @@
-use crate::models::{render_avatar, UserStatus, AppTheme};
+use crate::models::{render_avatar, AppTheme, UserStatus};
 use crate::services::api;
 use crate::state::AppState;
 use dioxus::prelude::*;
@@ -25,7 +25,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
 
     rsx! {
         // User Profile Section
-        div { class: "px-4 py-3 flex items-center space-x-3 bg-white/20 border-b border-white/20 relative",
+        div { class: "px-4 py-3 flex items-center space-x-3 bg-transparent relative",
 
             // Top Right Tools inside Profile
             div { class: "absolute right-2 top-2 flex items-center z-50",
@@ -33,9 +33,16 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 cursor-pointer transition-colors focus:outline-none",
                     title: "Opções",
                     onclick: move |_| show_actions_menu.set(!show_actions_menu()),
-                    img {
-                        src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/gear.webp",
-                        class: "w-4 h-4 object-contain pointer-events-none"
+                    svg {
+                        class: "w-4 h-4 text-[#7a7a7a] pointer-events-none",
+                        view_box: "0 0 24 24",
+                        fill: "none",
+                        stroke: "currentColor",
+                        stroke_width: "2.5",
+                        stroke_linecap: "round",
+                        stroke_linejoin: "round",
+                        path { d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" }
+                        circle { cx: "12", cy: "12", r: "3" }
                     }
                 }
             }
@@ -63,7 +70,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
             if show_actions_menu() {
                 div {
                     class: "absolute right-2 top-8 w-48 bg-white border border-slate-300 rounded-lg shadow-xl z-50 p-1.5 flex flex-col text-xs text-slate-700 font-normal",
-                    
+
                     button {
                         class: "px-2 py-1.5 text-left hover:bg-slate-100 rounded transition-colors flex items-center space-x-2 cursor-pointer",
                         onclick: move |_| {
@@ -82,9 +89,16 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             show_actions_menu.set(false);
                             state.show_settings_modal.set(true);
                         },
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/gear.webp",
-                            class: "w-3.5 h-3.5 object-contain mr-1.5"
+                        svg {
+                            class: "w-3.5 h-3.5 text-[#7a7a7a] pointer-events-none mr-1.5",
+                            view_box: "0 0 24 24",
+                            fill: "none",
+                            stroke: "currentColor",
+                            stroke_width: "2.5",
+                            stroke_linecap: "round",
+                            stroke_linejoin: "round",
+                            path { d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" }
+                            circle { cx: "12", cy: "12", r: "3" }
                         }
                         span { "Configurações..." }
                     }
@@ -100,10 +114,10 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         }
                         span { "Sobre o Skypia..." }
                     }
-                    
+
                     div { class: "h-[1px] bg-slate-200 my-1" }
-                    
-                    div { class: "px-2 py-0.5 text-slate-400 font-bold text-[9px] uppercase tracking-wider", "Cor da skin" }
+
+                    div { class: "px-2 py-0.5 text-slate-400 font-bold text-[9px]", "Cor da skin" }
                     for (theme_opt, label, color_class) in &[
                         (AppTheme::AeroBlue, "Azul Aero", "bg-sky-400 border-sky-500"),
                         (AppTheme::RubyPink, "Rosa Choque", "bg-pink-400 border-pink-500"),
@@ -120,9 +134,9 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             span { "{label}" }
                         }
                     }
-                    
+
                     div { class: "h-[1px] bg-slate-200 my-1" }
-                    
+
                     button {
                         class: "px-2 py-1.5 text-left hover:bg-red-50 text-red-600 rounded transition-colors flex items-center space-x-2 cursor-pointer font-semibold",
                         onclick: move |_| {
@@ -138,41 +152,30 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 }
             }
 
-            // Avatar Frame — MSN Style color status border
+            // Avatar do cabeçalho com moldura de status clássica do MSN do design do usuário
             div {
-                class: "relative p-[2px] flex-shrink-0 cursor-pointer shadow rounded-[8px] border {state.user_status().avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all hover:brightness-105",
+                class: "msn-avatar-container w-[56px] h-[55px] cursor-pointer hover:brightness-105 transition-all flex-shrink-0 relative",
                 onclick: move |_| {
                     state.show_avatar_picker.set(true);
                 },
+                img {
+                    src: match state.user_status() {
+                        UserStatus::Online => asset!("/assets/status/Disponível Perfil.svg"),
+                        UserStatus::Ocupado => asset!("/assets/status/Ocupado Perfil.svg"),
+                        UserStatus::Ausente => asset!("/assets/status/Ausente Perfil.svg"),
+                        _ => asset!("/assets/status/Offline Perfil.svg"),
+                    },
+                    class: "msn-avatar-frame-img"
+                }
                 div {
-                    class: "rounded-[5px] overflow-hidden border border-white/35 bg-white flex-shrink-0 flex items-center justify-center",
+                    class: "msn-avatar-content w-[48px] h-[47px] rounded-[4px] bg-transparent flex items-center justify-center",
                     {render_avatar(state.user_avatar_url().as_deref(), 48)}
                 }
 
                 // Ícone de edição sobre o avatar
                 div {
-                    class: "absolute inset-[2px] rounded-[5px] bg-black/0 hover:bg-black/25 transition-all flex items-center justify-center opacity-0 hover:opacity-100 z-20",
-                    span { class: "text-white text-sm drop-shadow", "✏️" }
-                }
-
-                // Bolinha de status (toggle de status) no canto inferior direito do avatar
-                div {
-                    class: "absolute -bottom-1 -right-1 w-4.5 h-4.5 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow cursor-pointer hover:scale-115 transition-transform z-30",
-                    title: "Alterar status",
-                    onclick: move |e| {
-                        e.stop_propagation(); // Evita abrir o AvatarPicker
-                        show_status_menu_avatar.set(!show_status_menu_avatar());
-                        show_status_menu_name.set(false);
-                    },
-                    div { class: "w-2.5 h-2.5 rounded-full {state.user_status().color_class()} border border-black/10" }
-
-                    if show_status_menu_avatar() {
-                        StatusDropdown {
-                            state,
-                            show_menu: show_status_menu_avatar,
-                            class: "absolute left-1/2 top-full mt-1 -translate-x-1/2 z-50".to_string()
-                        }
-                    }
+                    class: "absolute inset-0 rounded-[4px] bg-black/0 hover:bg-black/25 transition-all flex items-center justify-center opacity-0 hover:opacity-100 z-20",
+                    span { class: "text-white text-xs drop-shadow", "✏️" }
                 }
             }
 
@@ -189,7 +192,6 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                                     let name = temp_name();
                                     state.set_user_name(name.clone());
                                     is_editing_name.set(false);
-                                    // Sincroniza com servidor
                                     if let Some(token) = state.auth_token() {
                                         spawn(async move {
                                             let _ = api::update_profile(&token, api::UpdateProfileRequest {
@@ -222,7 +224,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     } else {
                         div { class: "flex items-center space-x-1.5 min-w-0 max-w-full",
                             span {
-                                class: "font-bold text-sm {theme.titlebar_text()} truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
+                                class: "font-black text-sm text-black truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
                                 onclick: move |_| {
                                     temp_name.set(state.user_name());
                                     is_editing_name.set(true);
@@ -231,8 +233,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             }
                             div { class: "relative flex items-center flex-shrink-0",
                                 button {
-                                    class: "text-[10px] font-semibold px-1 rounded {theme.titlebar_text()} hover:bg-white/40 cursor-pointer flex items-center space-x-0.5 transition-colors focus:outline-none flex-shrink-0",
-                                    style: "opacity: 0.8;",
+                                    class: "text-[10px] font-normal px-1 rounded text-[#a5a5a5] hover:bg-white/40 cursor-pointer flex items-center space-x-0.5 transition-colors focus:outline-none flex-shrink-0",
                                     onclick: move |_| {
                                         show_status_menu_name.set(!show_status_menu_name());
                                         show_status_menu_avatar.set(false);
@@ -290,8 +291,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         };
                         rsx! {
                             p {
-                                class: "text-xs {theme.titlebar_text()} italic truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
-                                style: "opacity: 0.75;",
+                                class: "text-xs text-[#8a8a8a] truncate cursor-pointer hover:bg-white/40 hover:underline px-1 rounded transition-colors",
                                 onclick: move |_| {
                                     temp_msg.set(state.user_personal_message());
                                     is_editing_msg.set(true);
@@ -304,8 +304,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
 
                 // Music Display
                 div {
-                    class: "flex items-center space-x-1 text-[10px] {theme.titlebar_text()} font-medium truncate cursor-pointer hover:underline",
-                    style: "opacity: 0.90;",
+                    class: "flex items-center space-x-1 text-[10px] text-[#a5a5a5] font-normal truncate cursor-pointer hover:underline",
                     onclick: move |_| state.show_music_player_modal.set(true),
                     img {
                         src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/musical-note.webp",
@@ -314,7 +313,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     if let Some(music) = state.user_music() {
                         span { "{music}" }
                     } else {
-                        span { class: "text-slate-400/80 italic", "Silêncio (Adicionar música)" }
+                        span { "Silêncio (Adicionar música)" }
                     }
                 }
             }
@@ -412,11 +411,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
 }
 
 #[component]
-fn StatusDropdown(
-    mut state: AppState,
-    mut show_menu: Signal<bool>,
-    class: String,
-) -> Element {
+fn StatusDropdown(mut state: AppState, mut show_menu: Signal<bool>, class: String) -> Element {
     rsx! {
         div {
             class: "{class} w-36 bg-white border border-slate-300 rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700 font-normal",

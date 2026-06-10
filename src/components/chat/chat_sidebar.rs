@@ -40,7 +40,7 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                 let gid_leave = contact_id.clone();
                 let gid_add = contact_id.clone();
                 rsx! {
-                    div { class: "hidden sm:flex w-44 flex-col p-2.5 bg-white/15 border-l {theme.titlebar_border()} flex-shrink-0 text-xs {theme.titlebar_text()} space-y-3 justify-between h-full select-none",
+                    div { class: "hidden sm:flex w-[220px] flex-col p-2.5 bg-transparent flex-shrink-0 text-xs {theme.titlebar_text()} space-y-3 justify-between h-full select-none",
                         
                         div { class: "flex flex-col space-y-2 flex-1 min-h-0",
                             div { class: "font-bold text-center border-b {theme.titlebar_border()}/40 pb-1.5 w-full flex items-center justify-center space-x-1 flex-shrink-0",
@@ -71,7 +71,7 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                         };
                                         
                                         rsx! {
-                                            div { class: "flex items-center justify-between p-1 hover:bg-white/35 rounded group transition-all",
+                                            div { class: "flex items-center justify-between p-1 hover:bg-white/70 rounded group transition-all",
                                                 div { class: "flex items-center space-x-1.5 min-w-0 flex-1",
                                                     div { class: "relative flex-shrink-0",
                                                         div { class: "w-[18px] h-[18px] rounded overflow-hidden border border-slate-300 flex items-center justify-center bg-white shadow-sm",
@@ -105,7 +105,7 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                         div { class: "flex flex-col space-y-1.5 border-t {theme.titlebar_border()}/40 pt-2 flex-shrink-0",
                             if is_local_user_admin {
                                 if show_add_member() {
-                                    div { class: "flex flex-col space-y-1 p-1 bg-white/20 rounded border border-white/20",
+                                    div { class: "flex flex-col space-y-1 p-1 bg-[#d8e8f6] rounded border border-[#96badb]",
                                         input {
                                             class: "w-full px-1.5 py-0.75 text-[10px] rounded border {theme.titlebar_border()} bg-white focus:outline-none focus:border-slate-400 text-slate-800",
                                             placeholder: "Email do contato...",
@@ -169,7 +169,7 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                 }
             }
         } else if let Some(game) = active_game {
-            div { class: "hidden sm:flex w-44 flex-col items-center p-3 bg-white/15 border-l {theme.titlebar_border()} flex-shrink-0 text-xs {theme.titlebar_text()} space-y-3 shadow-inner",
+            div { class: "hidden sm:flex w-[220px] flex-col items-center p-3 bg-transparent flex-shrink-0 text-xs {theme.titlebar_text()} space-y-3 shadow-inner",
                 div { class: "font-bold text-center border-b {theme.titlebar_border()}/40 pb-1 w-full flex items-center justify-center space-x-1",
                     span { "🎮" }
                     span { "Jogo da Velha" }
@@ -214,7 +214,7 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                         }
                     }
                 } else {
-                    div { class: "grid grid-cols-3 gap-1.5 w-full aspect-square bg-slate-900/10 p-1.5 rounded-lg border {theme.titlebar_border()}",
+                    div { class: "grid grid-cols-3 gap-1.5 w-full aspect-square bg-[#d8e8f6]/50 p-1.5 rounded-lg border {theme.titlebar_border()}",
                         for (idx, cell) in game.board.iter().enumerate() {
                             {
                                 let cell_text = match cell {
@@ -223,7 +223,7 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                     TicTacToeCell::O => "O",
                                 };
                                 let cell_color = match cell {
-                                    TicTacToeCell::Empty => "bg-white/40 hover:bg-white/60".to_string(),
+                                    TicTacToeCell::Empty => "bg-white hover:bg-[#eff5fb]".to_string(),
                                     TicTacToeCell::X => {
                                         let bg_class = theme.accent_color().split_whitespace().nth(1).unwrap_or("bg-[#3b82f6]");
                                         format!("{} text-white font-black text-sm cursor-default", bg_class)
@@ -285,30 +285,54 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
             {
                 let c = contact.as_ref().unwrap();
                 rsx! {
-                    div { class: "hidden sm:flex w-28 flex-col items-center justify-between p-3 bg-white/10 flex-shrink-0 border-l {theme.titlebar_border()}",
+                    div { class: "hidden sm:flex w-[220px] flex-col items-center justify-between py-6 px-4 bg-transparent flex-shrink-0 select-none h-full",
                         
-                        // Contact's avatar frame with MSN status contour
-                        div { class: "flex flex-col items-center space-y-1.5",
-                            div { 
-                                class: "relative p-[2.5px] rounded-[9px] border {c.status.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md flex-shrink-0",
-                                div {
-                                    class: "rounded-[6px] overflow-hidden border border-white/35 bg-white flex-shrink-0 flex items-center justify-center",
-                                    {render_avatar(c.avatar_url.as_deref(), 64)}
+                        // Contact's avatar
+                        div { class: "flex flex-col items-center space-y-2.5",
+                            {
+                                let frame_src = match c.status {
+                                    crate::models::UserStatus::Online => asset!("/assets/status/Disponível Conversa.svg"),
+                                    crate::models::UserStatus::Ocupado => asset!("/assets/status/Ocupado Conversa.svg"),
+                                    crate::models::UserStatus::Ausente => asset!("/assets/status/Ausente Conversa.svg"),
+                                    _ => asset!("/assets/status/Offline Conversa.svg"),
+                                };
+                                rsx! {
+                                    div { class: "msn-avatar-container w-[160px] h-[160px] flex-shrink-0 relative",
+                                        img {
+                                            src: frame_src,
+                                            class: "msn-avatar-frame-img"
+                                        }
+                                        div {
+                                            class: "msn-avatar-content w-[140px] h-[140px] rounded-[10px] bg-transparent flex items-center justify-center",
+                                            {render_avatar(c.avatar_url.as_deref(), 140)}
+                                        }
+                                    }
                                 }
                             }
-                            span { class: "text-[10px] text-slate-500 font-bold max-w-[85px] truncate text-center", "{c.display_name}" }
                         }
 
-                        // User's own avatar frame with MSN status contour
-                        div { class: "flex flex-col items-center space-y-1.5",
-                            div { 
-                                class: "relative p-[2.5px] rounded-[9px] border {state.user_status().avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md flex-shrink-0",
-                                div {
-                                    class: "rounded-[6px] overflow-hidden border border-white/35 bg-white flex-shrink-0 flex items-center justify-center",
-                                    {render_avatar(state.user_avatar_url().as_deref(), 64)}
+                        // User's own avatar
+                        div { class: "flex flex-col items-center space-y-2.5",
+                            {
+                                let frame_src = match state.user_status() {
+                                    crate::models::UserStatus::Online => asset!("/assets/status/Disponível Conversa.svg"),
+                                    crate::models::UserStatus::Ocupado => asset!("/assets/status/Ocupado Conversa.svg"),
+                                    crate::models::UserStatus::Ausente => asset!("/assets/status/Ausente Conversa.svg"),
+                                    _ => asset!("/assets/status/Offline Conversa.svg"),
+                                };
+                                rsx! {
+                                    div { class: "msn-avatar-container w-[160px] h-[160px] flex-shrink-0 relative",
+                                        img {
+                                            src: frame_src,
+                                            class: "msn-avatar-frame-img"
+                                        }
+                                        div {
+                                            class: "msn-avatar-content w-[140px] h-[140px] rounded-[10px] bg-transparent flex items-center justify-center",
+                                            {render_avatar(state.user_avatar_url().as_deref(), 140)}
+                                        }
+                                    }
                                 }
                             }
-                            span { class: "text-[10px] text-slate-500 font-bold max-w-[85px] truncate text-center", "Você" }
                         }
                     }
                 }

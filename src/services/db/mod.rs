@@ -27,19 +27,66 @@ fn is_pid_running(pid: u32) -> bool {
     }
 }
 
-fn get_isolated_db_path() -> String {
+#[cfg(target_os = "android")]
+fn get_android_files_dir() -> Result<std::path::PathBuf, String> {
+    use jni::objects::JObject;
+    use jni::JavaVM;
+    
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { JavaVM::from_raw(ctx.vm().cast()) }
+        .map_err(|e| format!("Failed to get JavaVM: {:?}", e))?;
+    
+    let mut env = vm.attach_current_thread()
+        .map_err(|e| format!("Failed to attach thread: {:?}", e))?;
+    
+    let context_obj = unsafe { JObject::from_raw(ctx.context() as jni::sys::jobject) };
+    
+    let files_dir = env.call_method(&context_obj, "getFilesDir", "()Ljava/io/File;", &[])
+        .map_err(|e| format!("Failed to call getFilesDir: {:?}", e))?
+        .l()
+        .map_err(|e| format!("Failed to get getFilesDir object: {:?}", e))?;
+        
+    let path_obj = env.call_method(&files_dir, "getAbsolutePath", "()Ljava/lang/String;", &[])
+        .map_err(|e| format!("Failed to call getAbsolutePath: {:?}", e))?
+        .l()
+        .map_err(|e| format!("Failed to get path string object: {:?}", e))?;
+        
+    let path_jstr: jni::objects::JString = path_obj.into();
+    let path_str: String = env.get_string(&path_jstr)
+        .map_err(|e| format!("Failed to convert path string: {:?}", e))?
+        .into();
+        
+    Ok(std::path::PathBuf::from(path_str))
+}
+
+pub fn get_app_data_dir() -> std::path::PathBuf {
     #[cfg(target_os = "android")]
     {
-        let data_dir = std::env::temp_dir();
-        let _ = std::fs::create_dir_all(&data_dir);
+        match get_android_files_dir() {
+            Ok(path) => path,
+            Err(e) => {
+                eprintln!("⚠️ Falha ao obter files_dir do Android via JNI: {}. Usando temp_dir.", e);
+                std::env::temp_dir()
+            }
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        std::path::Path::new(".skypia_data").join("db")
+    }
+}
+
+fn get_isolated_db_path() -> String {
+    let data_dir = get_app_data_dir();
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    #[cfg(target_os = "android")]
+    {
         data_dir.join("skypia.db").to_string_lossy().to_string()
     }
 
     #[cfg(not(target_os = "android"))]
     {
-        let data_dir = std::path::Path::new(".skypia_data").join("db");
-        let _ = std::fs::create_dir_all(&data_dir);
-
         // Tenta encontrar um slot livre de 1 a 10
         for slot in 1..=10 {
             let lock_path = data_dir.join(format!("skypia_{}.lock", slot));
@@ -80,6 +127,7 @@ fn get_isolated_db_path() -> String {
         data_dir.join("skypia.db").to_string_lossy().to_string()
     }
 }
+
 
 pub struct DatabaseService;
 
@@ -149,7 +197,8 @@ impl DatabaseService {
                 avatar_id INTEGER NOT NULL DEFAULT 0,
                 is_favorite INTEGER NOT NULL DEFAULT 0,
                 relation_status TEXT NOT NULL DEFAULT 'Aceito',
-                nickname TEXT
+                nickname TEXT,
+                avatar_url TEXT
             )
             "#,
         )
@@ -288,6 +337,14 @@ impl DatabaseService {
             .await;
 
         let _ = sqlx::query("ALTER TABLE conversation_members ADD COLUMN role TEXT")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE user_profile ADD COLUMN avatar_url TEXT")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE contacts ADD COLUMN avatar_url TEXT")
             .execute(pool)
             .await;
 

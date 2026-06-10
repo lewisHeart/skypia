@@ -6,7 +6,7 @@ impl DatabaseService {
     pub async fn load_contacts() -> Result<Vec<Contact>, String> {
         let pool = get_pool();
         let rows = sqlx::query(
-            "SELECT id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname FROM contacts ORDER BY id",
+            "SELECT id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, avatar_url FROM contacts ORDER BY id",
         )
         .fetch_all(pool)
         .await
@@ -27,7 +27,7 @@ impl DatabaseService {
                     status: str_to_status(&status_str),
                     personal_message: row.get("personal_message"),
                     music_listening: row.get("music_listening"),
-                    avatar_url: None,
+                    avatar_url: row.get("avatar_url"),
                     is_favorite: is_fav != 0,
                     relation_status: row.get("relation_status"),
                     nickname: row.get("nickname"),
@@ -174,6 +174,46 @@ impl DatabaseService {
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    pub async fn save_contact(contact: &Contact) -> Result<(), String> {
+        let pool = get_pool();
+        let status_str = status_to_str(&contact.status);
+        
+        let result = sqlx::query("UPDATE contacts SET email = ?, display_name = ?, status = ?, personal_message = ?, music_listening = ?, is_favorite = ?, relation_status = ?, nickname = ?, avatar_url = ? WHERE id = ?")
+            .bind(&contact.email)
+            .bind(&contact.display_name)
+            .bind(&status_str)
+            .bind(&contact.personal_message)
+            .bind(&contact.music_listening)
+            .bind(contact.is_favorite as i32)
+            .bind(&contact.relation_status)
+            .bind(&contact.nickname)
+            .bind(&contact.avatar_url)
+            .bind(&contact.id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if result.rows_affected() == 0 {
+            let avatar_id = (contact.id.as_bytes().iter().map(|&b| b as usize).sum::<usize>()) % 7;
+            sqlx::query("INSERT INTO contacts (id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(&contact.id)
+                .bind(&contact.email)
+                .bind(&contact.display_name)
+                .bind(&status_str)
+                .bind(&contact.personal_message)
+                .bind(&contact.music_listening)
+                .bind(avatar_id as i64)
+                .bind(contact.is_favorite as i32)
+                .bind(&contact.relation_status)
+                .bind(&contact.nickname)
+                .bind(&contact.avatar_url)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
         }
         Ok(())
     }

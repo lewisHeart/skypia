@@ -12,11 +12,8 @@ impl AppState {
         if let Some(music) = profile.music.clone() {
             *self.user_music.write() = Some(music);
         }
-        if let Some(url) = profile.avatar_url.clone() {
-            *self.user_avatar_url.write() = Some(url);
-        }
         // Salva token e perfil no SQLite local para auto-login e consistência
-        let user_id = profile.id;
+        let user_id = profile.id.clone();
         let display_name = profile.display_name.clone();
         let email = profile.email.clone();
         let pm = profile.personal_message.clone();
@@ -29,6 +26,23 @@ impl AppState {
             pm,
             music,
         ).await;
+
+        let is_local = if let Ok(Some(local_url)) = crate::services::db::DatabaseService::load_user_avatar_url().await {
+            local_url.starts_with("/assets/")
+                || local_url.starts_with("assets/")
+                || local_url.starts_with("/_assets/")
+                || local_url.starts_with("_assets/")
+                || local_url.starts_with("dioxus-asset://")
+        } else {
+            false
+        };
+
+        if !is_local {
+            if let Some(url) = profile.avatar_url {
+                *self.user_avatar_url.write() = Some(url.clone());
+                let _ = crate::services::db::DatabaseService::save_user_avatar_url(Some(url)).await;
+            }
+        }
     }
 
     /// Estabelece a conexão com o WebSocket do servidor

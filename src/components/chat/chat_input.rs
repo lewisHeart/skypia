@@ -86,27 +86,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 }
             }
 
-            // Formatting & Action Toolbar
-            div { class: "h-8 bg-white/50 border-t border-b {theme.titlebar_border()} px-3 flex items-center justify-between text-xs {theme.titlebar_text()} relative",
-                div { class: "flex items-center space-x-3.5",
+            // Barra de Ações e Formatação Clássica do MSN
+            div { class: "h-8 bg-transparent px-3 flex items-center justify-between text-xs {theme.titlebar_text()} relative select-none",
+                // Lado Esquerdo: Emojis, Winks, Compartilhamento, Sino de Atenção
+                div { class: "flex items-center space-x-2.5",
+                    // Emojis
                     button {
-                        class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
-                        title: "Fonte e Cor",
-                        onclick: move |_| {
-                            show_font_panel.set(!show_font_panel());
-                            show_emoticon_panel.set(false);
-                            show_wink_panel.set(false);
-                            show_file_panel.set(false);
-                        },
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/input-latin-uppercase.webp",
-                            class: "w-4.5 h-4.5 object-contain pointer-events-none"
-                        }
-                        span { class: "text-[7px] text-slate-500", "▼" }
-                    }
-
-                    button {
-                        class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
+                        class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center space-x-1.5 transition-colors focus:outline-none",
                         title: "Emojis",
                         onclick: move |_| {
                             show_emoticon_panel.set(!show_emoticon_panel());
@@ -114,15 +100,20 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             show_wink_panel.set(false);
                             show_file_panel.set(false);
                         },
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/grinning-face-with-big-eyes.webp",
-                            class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                        svg {
+                            class: "w-5 h-5 select-none pointer-events-none",
+                            view_box: "0 0 24 24",
+                            circle { cx: "12", cy: "12", r: "9", fill: "#ffcd0f", stroke: "#2b3e51", stroke_width: "1.5" }
+                            circle { cx: "9", cy: "10", r: "1.2", fill: "#2b3e51" }
+                            circle { cx: "15", cy: "10", r: "1.2", fill: "#2b3e51" }
+                            path { d: "M8 14.5 C 9 17, 15 17, 16 14.5", stroke: "#2b3e51", stroke_width: "1.5", stroke_linecap: "round", fill: "none" }
                         }
-                        span { class: "text-[7px] text-slate-500", "▼" }
+                        span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
 
+                    // Piscadelas (Winks)
                     button {
-                        class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
+                        class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center space-x-1.5 transition-colors focus:outline-none",
                         title: "Piscadelas (Winks)",
                         onclick: move |_| {
                             show_wink_panel.set(!show_wink_panel());
@@ -130,15 +121,18 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             show_emoticon_panel.set(false);
                             show_file_panel.set(false);
                         },
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/sparkles.webp",
-                            class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                        svg {
+                            class: "w-5 h-5 select-none pointer-events-none",
+                            view_box: "0 0 24 24",
+                            circle { cx: "12", cy: "12", r: "5", fill: "#ffd700", stroke: "#b8860b", stroke_width: "1" }
+                            path { d: "M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2 2", stroke: "#b8860b", stroke_width: "1.5", stroke_linecap: "round" }
                         }
-                        span { class: "text-[7px] text-slate-500", "▼" }
+                        span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
 
+                    // Enviar Arquivo (Pasta)
                     button {
-                        class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center space-x-0.5 transition-colors",
+                        class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center space-x-1.5 transition-colors focus:outline-none",
                         title: "Enviar Arquivo",
                         onclick: move |_| {
                             show_file_panel.set(!show_file_panel());
@@ -146,16 +140,33 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             show_font_panel.set(false);
                             show_emoticon_panel.set(false);
                         },
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/file-folder.webp",
-                            class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                        svg {
+                            class: "w-5 h-5 select-none pointer-events-none",
+                            view_box: "0 0 24 24",
+                            path { d: "M2 6a2 2 0 0 1 2-2h4l2 3h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z", fill: "#4fa8e3", stroke: "#1c5d8c", stroke_width: "1" }
+                            path { d: "M2 10h20v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8z", fill: "#8bd0ff", stroke: "#1c5d8c", stroke_width: "1" }
                         }
-                        span { class: "text-[7px] text-slate-500", "▼" }
+                        span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
 
+                    // Chamar a Atenção (Nudge)
+                    button {
+                        class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center transition-colors focus:outline-none",
+                        title: "Chamar a Atenção (Nudge)",
+                        onclick: handle_send_nudge,
+                        svg {
+                            class: "w-5 h-5 select-none pointer-events-none",
+                            view_box: "0 0 24 24",
+                            path { d: "M12 2A5 5 0 0 0 7 7v5l-2 2v2h14v-2l-2-2V7a5 5 0 0 0-5-5z", fill: "#ffd700", stroke: "#b8860b", stroke_width: "1" }
+                            path { d: "M10 17a2 2 0 0 0 4 0h-4z", fill: "#c59a00", stroke: "#b8860b", stroke_width: "1" }
+                        }
+                        span { class: "text-[11px] text-[#2b3e51] font-semibold ml-1.5", "Chamar atenção" }
+                    }
+
+                    // Skypia Jogos
                     if !is_group {
                         button {
-                            class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center transition-colors",
+                            class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center transition-colors focus:outline-none",
                             title: "Skypia Jogos",
                             onclick: move |_| {
                                 state.show_games_modal.set(true);
@@ -164,21 +175,44 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 show_font_panel.set(false);
                                 show_emoticon_panel.set(false);
                             },
-                            img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/video-game.webp",
-                                class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                            svg {
+                                view_box: "0 0 24 24",
+                                class: "w-5 h-5 select-none pointer-events-none",
+                                rect { x: "3", y: "6", width: "18", height: "12", rx: "3", fill: "#0fafff", stroke: "#0066cc", stroke_width: "1" }
+                                circle { cx: "7", cy: "12", r: "1.5", fill: "#fff" }
+                                circle { cx: "17", cy: "10", r: "1.2", fill: "#fff" }
+                                circle { cx: "17", cy: "14", r: "1.2", fill: "#fff" }
+                                path { d: "M6 12 H 8 M7 11 V 13", stroke: "#fff", stroke_width: "1" }
                             }
                         }
                     }
+                }
 
+                // Lado Direito: Estilo de Fonte
+                div { class: "flex items-center",
                     button {
-                        class: "hover:bg-black/5 p-1 rounded cursor-pointer flex items-center transition-colors active:scale-90",
-                        title: "Chamar a Atenção (Nudge)",
-                        onclick: handle_send_nudge,
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/bell.webp",
-                            class: "w-4.5 h-4.5 object-contain pointer-events-none animate-bounce"
+                        class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center space-x-1.5 transition-colors focus:outline-none",
+                        title: "Fonte e Cor",
+                        onclick: move |_| {
+                            show_font_panel.set(!show_font_panel());
+                            show_emoticon_panel.set(false);
+                            show_wink_panel.set(false);
+                            show_file_panel.set(false);
+                        },
+                        svg {
+                            class: "w-5 h-5 select-none pointer-events-none",
+                            view_box: "0 0 24 24",
+                            text { x: "4", y: "15", font_family: "Arial", font_weight: "bold", font_size: "14", fill: "#2b3e51", "A" }
+                            rect { x: "3", y: "17", width: "18", height: "3", fill: "url(#textGradient)" }
+                            defs {
+                                linearGradient { id: "textGradient", x1: "0", y1: "0", x2: "1", y2: "0",
+                                    stop { offset: "0%", stop_color: "#eb4824" }
+                                    stop { offset: "50%", stop_color: "#ffcd0f" }
+                                    stop { offset: "100%", stop_color: "#3b82f6" }
+                                }
+                            }
                         }
+                        span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
                 }
 
@@ -186,7 +220,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 if show_font_panel() {
                     div { class: "absolute left-2 bottom-9 w-44 bg-white border {theme.titlebar_border()} rounded shadow-lg z-50 p-2.5 flex flex-col space-y-2.5 text-xs text-slate-700",
                         div { class: "flex flex-col space-y-1",
-                            span { class: "font-bold text-[10px] text-slate-400 uppercase tracking-wider", "Fonte" }
+                            span { class: "font-bold text-[10px] text-slate-400", "Fonte" }
                             div { class: "flex flex-col space-y-0.5",
                                 for font_name in &["Segoe UI", "Comic Sans MS", "Arial", "Courier New"] {
                                     button {
@@ -207,7 +241,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                         div { class: "border-t border-slate-100" }
 
                         div { class: "flex flex-col space-y-1",
-                            span { class: "font-bold text-[10px] text-slate-400 uppercase tracking-wider", "Cor" }
+                            span { class: "font-bold text-[10px] text-slate-400", "Cor" }
                             div { class: "grid grid-cols-4 gap-1.5",
                                 for color in &["#000000", "#0066cc", "#e6007e", "#2e6930", "#e81123", "#ffb900", "#7a7a7a", "#8e24aa"] {
                                     div {
@@ -418,16 +452,16 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
             }
 
             // Chat message input area
-            div { class: "h-20 bg-white border-t {theme.modal_border()} p-2 flex flex-col justify-between relative",
+            div { class: "h-[85px] bg-transparent py-[12.5px] px-[14px] flex flex-col justify-between relative",
                 if is_typing_srv {
-                    div { class: "absolute -top-5 left-2 h-5 text-[10px] text-slate-500 italic flex items-center space-x-1 animate-pulse z-10 bg-white/60 px-2 rounded-t border-t border-l border-r {theme.modal_border()}",
+                    div { class: "absolute -top-5 left-2 h-5 text-[10px] text-slate-500 italic flex items-center space-x-1 animate-pulse z-10 bg-[#eff5fb] px-2 rounded-t border-t border-l border-r border-[#96badb]",
                         span { "✍️" }
                         span { "{typing_name} está digitando..." }
                     }
                 }
-                 div { class: "flex-1 flex space-x-2 w-full",
+                 div { class: "flex-1 flex space-x-2.5 w-full items-center",
                     textarea {
-                        class: "flex-1 resize-none p-1.5 text-xs msn-input rounded border {theme.modal_border()}",
+                        class: "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
                         style: "font-family: {selected_font()}; color: {selected_color()};",
                         placeholder: "Digite sua mensagem aqui...",
                         value: "{input_text}",
@@ -449,7 +483,8 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                     }
 
                     button {
-                        class: "w-16 h-full {theme.btn_primary()} rounded font-bold text-xs shadow cursor-pointer flex items-center justify-center active:scale-95 transition-transform",
+                        class: "w-[60px] h-[60px] bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] transition-colors flex items-center justify-center cursor-pointer text-white focus:outline-none flex-shrink-0 rounded-none border-none",
+                        title: "Enviar (Mensagem de Voz)",
                         onclick: {
                             let cid = contact_id.clone();
                             move |_| {
@@ -461,7 +496,11 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             }
                         },
-                        "Enviar"
+                        svg {
+                            view_box: "0 0 24 24",
+                            class: "w-6 h-6 fill-current",
+                            path { d: "M12 2 A 3 3 0 0 0 9 5 V 11 A 3 3 0 0 0 15 11 V 5 A 3 3 0 0 0 12 2 Z M12 16 A 6 6 0 0 0 18 10 H 20 A 8 8 0 0 1 13 17.9 V 20 H 15 V 22 H 9 V 20 H 11 V 17.9 A 8 8 0 0 1 4 10 H 6 A 6 6 0 0 0 12 16 Z" }
+                        }
                     }
                 }
             }

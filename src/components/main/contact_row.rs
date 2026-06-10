@@ -1,12 +1,12 @@
 use dioxus::prelude::*;
 use crate::state::AppState;
-use crate::models::{Contact, render_avatar};
+use crate::models::{Contact, render_avatar, UserStatus};
 
 #[component]
 pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Element {
     let theme = state.theme();
     let unread_count = state.unread_count_for(&contact.id);
-    let name_font_weight = if unread_count > 0 { "font-extrabold" } else { "font-semibold" };
+    let name_font_weight = if unread_count > 0 { "font-bold" } else { "font-normal" };
     let is_typing = state.typing_contacts().get(&contact.id).map(|ids| !ids.is_empty()).unwrap_or(false);
     let show_msg_or_typing = is_typing || !contact.personal_message.trim().is_empty();
 
@@ -91,69 +91,79 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
             },
             onmouseleave: move |_| show_tooltip.set(false),
             
-            // Small Avatar with MSN 3D border frame representing status or simple dot
-            if density == "small" {
-                div { 
-                    class: "flex-shrink-0 w-6 h-6 flex items-center justify-center",
-                    div { class: "w-2.5 h-2.5 rounded-full {contact.status.color_class()} border border-white/40 shadow-sm" }
+            // Renderização condicional por densidade (Grande com Avatar vs Compacta com Ícone de Status)
+            if density == "large" {
+                {
+                    let frame_src = match contact.status {
+                        UserStatus::Online => asset!("/assets/status/Disponível Perfil.svg"),
+                        UserStatus::Ocupado => asset!("/assets/status/Ocupado Perfil.svg"),
+                        UserStatus::Ausente => asset!("/assets/status/Ausente Perfil.svg"),
+                        _ => asset!("/assets/status/Offline Perfil.svg"),
+                    };
+                    rsx! {
+                        div { class: "msn-avatar-container w-[44px] h-[44px] flex-shrink-0",
+                            img {
+                                src: frame_src,
+                                class: "msn-avatar-frame-img"
+                            }
+                            div {
+                                class: "msn-avatar-content w-[36px] h-[36px] rounded-[3px] bg-transparent flex items-center justify-center",
+                                {render_avatar(contact.avatar_url.as_deref(), 36)}
+                            }
+                        }
+                        div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
+                            div { class: "flex items-center space-x-1",
+                                span { class: "{name_font_weight} text-xs {theme.titlebar_text()} truncate hover:underline", "{name_to_show}" }
+                                if is_blocked {
+                                    span { class: "text-[9px] opacity-75", "🚫" }
+                                }
+                                if unread_count > 0 {
+                                    span { 
+                                        class: "bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.25 rounded-full min-w-[15px] h-3.5 flex items-center justify-center animate-pulse border border-white/80 shadow-sm flex-shrink-0",
+                                        "{unread_count}"
+                                    }
+                                }
+                            }
+                            if is_typing {
+                                span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate", "✍️ digitando..." }
+                            } else {
+                                span { class: "text-[10px] text-[#a5a5a5] truncate font-normal", "{contact.personal_message}" }
+                            }
+                        }
+                    }
                 }
             } else {
                 {
-                    let avatar_size = if density == "large" { 36 } else { 24 };
-                    let frame_rounded = if density == "large" { "rounded-[7px]" } else { "rounded-[5px]" };
-                    let inner_rounded = if density == "large" { "rounded-[4px]" } else { "rounded-[3px]" };
+                    let icon_src = match contact.status {
+                        UserStatus::Online => asset!("/assets/status/Disponível Icone.svg"),
+                        UserStatus::Ocupado => asset!("/assets/status/Ocupado Icone.svg"),
+                        UserStatus::Ausente => asset!("/assets/status/Ausente Icone.svg"),
+                        _ => asset!("/assets/status/Offline Icone.svg"),
+                    };
                     rsx! {
-                        div { 
-                            class: "flex-shrink-0 p-[1.5px] {frame_rounded} border {contact.status.avatar_frame_class()} overflow-hidden bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center transition-all",
-                            div {
-                                class: "{inner_rounded} overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
-                                {render_avatar(contact.avatar_url.as_deref(), avatar_size)}
+                        img {
+                            src: icon_src,
+                            class: "w-3.5 h-3.5 object-contain flex-shrink-0 select-none mr-1"
+                        }
+                        div { class: "flex-1 min-w-0 flex items-center space-x-1.5 text-[10px]",
+                            span { class: "{name_font_weight} {theme.titlebar_text()} truncate hover:underline flex-shrink-0", "{name_to_show}" }
+                            if is_blocked {
+                                span { class: "text-[9px] opacity-75 flex-shrink-0", "🚫" }
+                            }
+                            if unread_count > 0 {
+                                span { 
+                                    class: "bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.25 rounded-full min-w-[15px] h-3.5 flex items-center justify-center animate-pulse border border-white/80 shadow-sm flex-shrink-0",
+                                    "{unread_count}"
+                                }
+                            }
+                            if show_msg_or_typing {
+                                if is_typing {
+                                    span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate flex-1", "✍️ digitando..." }
+                                } else {
+                                    span { class: "text-[10px] text-[#a5a5a5] truncate font-normal flex-1", "{contact.personal_message}" }
+                                }
                             }
                         }
-                    }
-                }
-            }
-            
-            // Name and Sub-status
-            if density == "small" {
-                div { class: "flex-1 min-w-0 flex items-center space-x-1.5 text-xs",
-                    span { class: "{name_font_weight} {theme.titlebar_text()} truncate hover:underline flex-shrink-0", "{name_to_show}" }
-                    if is_blocked {
-                        span { class: "text-[9px] opacity-75 flex-shrink-0", "🚫" }
-                    }
-                    if unread_count > 0 {
-                        span { 
-                            class: "bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.25 rounded-full min-w-[15px] h-3.5 flex items-center justify-center animate-pulse border border-white/80 shadow-sm flex-shrink-0",
-                            "{unread_count}"
-                        }
-                    }
-                    if show_msg_or_typing {
-                        span { class: "text-slate-400/80 flex-shrink-0", "—" }
-                        if is_typing {
-                            span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate flex-1", "✍️ digitando..." }
-                        } else {
-                            span { class: "text-[10px] text-slate-500 truncate italic font-normal flex-1", "{contact.personal_message}" }
-                        }
-                    }
-                }
-            } else {
-                div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
-                    div { class: "flex items-center space-x-1",
-                        span { class: "{name_font_weight} text-xs {theme.titlebar_text()} truncate hover:underline", "{name_to_show}" }
-                        if is_blocked {
-                            span { class: "text-[9px] opacity-75", "🚫" }
-                        }
-                        if unread_count > 0 {
-                            span { 
-                                class: "bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.25 rounded-full min-w-[15px] h-3.5 flex items-center justify-center animate-pulse border border-white/80 shadow-sm flex-shrink-0",
-                                "{unread_count}"
-                            }
-                        }
-                    }
-                    if is_typing {
-                        span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate", "✍️ digitando..." }
-                    } else {
-                        span { class: "text-[10px] text-slate-500 truncate italic font-normal", "{contact.personal_message}" }
                     }
                 }
             }

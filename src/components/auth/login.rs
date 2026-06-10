@@ -12,6 +12,20 @@ pub fn Login(mut state: AppState) -> Element {
     let mut error_msg = use_signal(|| Option::<String>::None);
     let mut remember_me = use_signal(|| true);
 
+    let border_color = match selected_status() {
+        UserStatus::Online => "#4aa333",
+        UserStatus::Ocupado => "#b50a18",
+        UserStatus::Ausente => "#c99200",
+        _ => "#555555"
+    };
+
+    let (bg_color, border_color_status) = match selected_status() {
+        UserStatus::Online => ("#7df25f", "#4aa333"),
+        UserStatus::Ocupado => ("#e81123", "#b50a18"),
+        UserStatus::Ausente => ("#ffb900", "#c99200"),
+        _ => ("#7a7a7a", "#555555"),
+    };
+
     // Tenta auto-login ao montar o componente
     use_effect(move || {
         let mut state = state;
@@ -80,16 +94,27 @@ pub fn Login(mut state: AppState) -> Element {
         });
     };
 
+    let mut show_status_dropdown = use_signal(|| false);
+
     rsx! {
         div {
-            class: "w-full h-full flex flex-col items-center justify-center select-none relative p-4",
-            style: "background: linear-gradient(180deg, rgba(230, 241, 252, 0.95) 0%, rgba(200, 222, 245, 0.9) 100%);",
+            class: "w-full h-full flex flex-col items-center select-none relative p-4",
+            style: "background: linear-gradient(180deg, #c2ddf4 0%, #ffffff 15%, #ffffff 89%, #eff8fa 100%);",
 
+            // Clique fora para fechar o dropdown de status
+            if show_status_dropdown() {
+                div {
+                    class: "fixed inset-0 z-40 bg-transparent cursor-default",
+                    onclick: move |_| show_status_dropdown.set(false),
+                }
+            }
+
+            // Centralizador dos elementos de Login
             div {
-                class: "w-full max-w-[340px] flex flex-col items-center p-6 rounded-xl aero-glass bg-white/30 border border-white/50 shadow-2xl backdrop-blur-md",
+                class: "w-[309px] flex flex-col items-center mt-12",
 
-                // Logo animado
-                div { class: "h-24 flex items-center justify-center relative mb-4",
+                // Logo/Avatar com a Moldura de Status SVG dinâmica
+                div { class: "h-[132px] w-[132px] flex items-center justify-center relative mb-8 flex-shrink-0",
                     if state.signing_in() {
                         div { class: "flex flex-col items-center space-y-2 animate-msn-spin",
                             svg { view_box: "0 0 100 100", class: "w-20 h-20 filter drop-shadow-md",
@@ -104,30 +129,35 @@ pub fn Login(mut state: AppState) -> Element {
                             }
                         }
                     } else {
-                        div { class: "avatar-frame border-2 border-white/70 bg-gradient-to-b from-sky-100 to-sky-200 shadow-md",
-                            svg { view_box: "0 0 100 100", class: "w-16 h-16",
-                                g { fill: "#cbdde8",
-                                    circle { cx: "50", cy: "38", r: "18" }
-                                    path { d: "M20 82 C20 58, 80 58, 80 82 Z" }
-                                }
+                        div {
+                            class: "msn-avatar-container w-[132px] h-[132px] relative flex items-center justify-center",
+                            img {
+                                src: match selected_status() {
+                                    UserStatus::Online => asset!("/assets/status/Disponível Login.svg"),
+                                    UserStatus::Ocupado => asset!("/assets/status/Ocupado Login.svg"),
+                                    UserStatus::Ausente => asset!("/assets/status/Ausente Login.svg"),
+                                    _ => asset!("/assets/status/Offline Login.svg"),
+                                },
+                                class: "msn-avatar-frame-img"
                             }
-                            div { class: "absolute bottom-1 right-1 w-4 h-4 rounded-full bg-white border border-[#a6b9cd] flex items-center justify-center shadow",
-                                div { class: "w-2 h-2 rounded-full {selected_status().color_class()} border border-black/10" }
+                            div {
+                                class: "msn-avatar-content w-[112px] h-[112px] rounded-[10px] bg-white flex items-center justify-center",
+                                style: "border: 2px solid {border_color}",
+                                svg { view_box: "0 0 100 100", class: "w-20 h-20",
+                                    g { fill: "#cbdde8",
+                                        circle { cx: "50", cy: "38", r: "18" }
+                                        path { d: "M20 82 C20 58, 80 58, 80 82 Z" }
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                // Título
-                div { class: "mb-4 text-center",
-                    h1 { class: "text-sm font-bold text-[#1b324d]", "Skypia Messenger" }
-                    p { class: "text-[10px] text-slate-500 mt-0.5", "Entre na sua conta" }
-                }
-
                 if state.signing_in() {
-                    div { class: "w-full text-center space-y-3 mt-2",
-                        p { class: "text-xs text-[#1e395b] font-semibold animate-pulse", "Entrando..." }
-                        div { class: "w-40 h-2 bg-white/80 border border-[#a6b9cd] rounded-full mx-auto overflow-hidden shadow-inner",
+                    div { class: "w-full text-center space-y-4 mt-6",
+                        p { class: "text-xs text-[#1e395b] font-semibold animate-pulse", "Entrando no Skypia..." }
+                        div { class: "w-48 h-2 bg-white/80 border border-[#a6b9cd] rounded-full mx-auto overflow-hidden shadow-inner",
                             div {
                                 class: "h-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-400 rounded-full animate-pulse",
                                 style: "width: 75%;"
@@ -139,23 +169,22 @@ pub fn Login(mut state: AppState) -> Element {
                         }
                     }
                 } else {
-                    div { class: "w-full space-y-3",
+                    div { class: "w-full flex flex-col space-y-3.5",
 
                         // Mensagem de erro
                         if let Some(err) = error_msg() {
-                            div { class: "w-full px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center space-x-2",
+                            div { class: "w-full px-3 py-2 bg-red-50 border border-red-200 rounded text-[11px] text-red-700 flex items-center space-x-2 shadow-sm",
                                 span { "⚠️" }
                                 span { "{err}" }
                             }
                         }
 
                         // Email
-                        div { class: "space-y-1",
-                            label { class: "block text-xs font-semibold text-[#2f4b6c]/90", "Email:" }
+                        div { class: "w-full relative",
                             input {
                                 r#type: "email",
-                                class: "w-full px-2.5 py-1.5 text-xs msn-input rounded-lg",
-                                placeholder: "exemplo@hotmail.com",
+                                class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] focus:border-slate-400 msn-input placeholder-[#a5a5a5] placeholder:text-[10px]",
+                                placeholder: "exemplo@mail.com",
                                 value: "{email}",
                                 oninput: move |e| email.set(e.value()),
                                 onkeydown: move |e| {
@@ -164,66 +193,131 @@ pub fn Login(mut state: AppState) -> Element {
                             }
                         }
 
-                        // Senha
-                        div { class: "space-y-1",
-                            label { class: "block text-xs font-semibold text-[#2f4b6c]/90", "Senha:" }
+                        // Senha e Esqueci a senha
+                        div { class: "w-full flex flex-col space-y-1.5",
                             input {
                                 r#type: "password",
-                                class: "w-full px-2.5 py-1.5 text-xs msn-input rounded-lg",
-                                placeholder: "••••••••",
+                                class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] focus:border-slate-400 msn-input placeholder-[#a5a5a5] placeholder:text-[10px]",
+                                placeholder: "Senha",
                                 value: "{password}",
                                 oninput: move |e| password.set(e.value()),
                                 onkeydown: move |e| {
                                     if e.key() == Key::Enter { do_login(); }
                                 }
                             }
+                            span {
+                                class: "text-[10px] text-[#2e83ed] hover:underline cursor-pointer self-start",
+                                "Esqueci a senha?"
+                            }
                         }
 
-                        // Status
-                        div { class: "space-y-1",
-                            label { class: "block text-xs font-semibold text-[#2f4b6c]/90", "Entrar como:" }
-                            select {
-                                class: "w-full px-2 py-1.5 text-xs msn-input rounded-lg bg-white font-medium text-slate-700",
-                                onchange: move |e| {
-                                    match e.value().as_str() {
-                                        "online" => selected_status.set(UserStatus::Online),
-                                        "busy" => selected_status.set(UserStatus::Ocupado),
-                                        "away" => selected_status.set(UserStatus::Ausente),
-                                        "invisible" => selected_status.set(UserStatus::Invisivel),
-                                        _ => {}
+                        // Status Selection (Logar como:)
+                        div { class: "w-full flex items-center space-x-2 relative text-xs",
+                            span { class: "text-[#0d1825] text-[10px] font-normal", "Logar como: " }
+                            button {
+                                class: "flex items-center space-x-1.5 px-1.5 py-0.5 hover:bg-black/5 rounded cursor-pointer transition-colors focus:outline-none",
+                                onclick: move |_| show_status_dropdown.set(!show_status_dropdown()),
+                                div {
+                                    class: "w-2 h-2 rounded-[2px] border flex-shrink-0",
+                                    style: "background-color: {bg_color}; border-color: {border_color_status};",
+                                }
+                                span { class: "text-[#a5a5a5] text-[10px] font-normal",
+                                    match selected_status() {
+                                        UserStatus::Online => "(Online)",
+                                        UserStatus::Ocupado => "(Ocupado)",
+                                        UserStatus::Ausente => "(Ausente)",
+                                        _ => "(Invisível)"
                                     }
-                                },
-                                option { value: "online", selected: true, "Disponível" }
-                                option { value: "busy", "Ocupado" }
-                                option { value: "away", "Ausente" }
-                                option { value: "invisible", "Invisível" }
+                                }
+                                span { class: "text-[#a5a5a5] text-[8px] ml-0.5", "▼" }
+                            }
+
+                            // Menu Dropdown de Status do Login
+                            if show_status_dropdown() {
+                                div {
+                                    class: "absolute left-[70px] top-full mt-1 w-32 bg-white border border-[#d1d1d1] rounded shadow-lg z-50 p-1 flex flex-col text-[10px] text-slate-700 font-normal",
+                                    button {
+                                        class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none",
+                                        onclick: move |_| {
+                                            selected_status.set(UserStatus::Online);
+                                            show_status_dropdown.set(false);
+                                        },
+                                        div { class: "w-2 h-2 rounded-[2px] bg-[#7df25f] border border-[#4aa333]" }
+                                        span { "Online" }
+                                    }
+                                    button {
+                                        class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none",
+                                        onclick: move |_| {
+                                            selected_status.set(UserStatus::Ocupado);
+                                            show_status_dropdown.set(false);
+                                        },
+                                        div { class: "w-2 h-2 rounded-[2px] bg-[#e81123] border border-[#b50a18]" }
+                                        span { "Ocupado" }
+                                    }
+                                    button {
+                                        class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none",
+                                        onclick: move |_| {
+                                            selected_status.set(UserStatus::Ausente);
+                                            show_status_dropdown.set(false);
+                                        },
+                                        div { class: "w-2 h-2 rounded-[2px] bg-[#ffb900] border border-[#c99200]" }
+                                        span { "Ausente" }
+                                    }
+                                    button {
+                                        class: "px-2 py-1 hover:bg-slate-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none",
+                                        onclick: move |_| {
+                                            selected_status.set(UserStatus::Invisivel);
+                                            show_status_dropdown.set(false);
+                                        },
+                                        div { class: "w-2 h-2 rounded-[2px] bg-gray-400 border border-gray-500" }
+                                        span { "Invisível" }
+                                    }
+                                }
                             }
                         }
 
-                        // Lembrar
-                        label { class: "flex items-center space-x-2 cursor-pointer text-xs text-[#2f4b6c]/90",
-                            input {
-                                r#type: "checkbox",
-                                class: "rounded border-slate-300 text-sky-600",
-                                checked: remember_me(),
-                                onchange: move |e| remember_me.set(e.value() == "true"),
+                        // Lembrar e Entrar Automaticamente
+                        div { class: "w-full flex flex-col space-y-2 text-[10px] text-[#0d1825] font-normal pt-1.5",
+                            label { class: "flex items-center space-x-2 cursor-pointer",
+                                input {
+                                    r#type: "checkbox",
+                                    class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-sky-600 focus:ring-0 focus:outline-none w-3.5 h-3.5",
+                                    checked: remember_me(),
+                                    onchange: move |e| remember_me.set(e.value() == "true"),
+                                }
+                                span { "Lembrar meu email e senha" }
                             }
-                            span { "Lembrar-me nesta máquina" }
+                            div { class: "flex items-center space-x-4",
+                                label { class: "flex items-center space-x-2 cursor-pointer",
+                                    input {
+                                        r#type: "checkbox",
+                                        class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-sky-600 focus:ring-0 focus:outline-none w-3.5 h-3.5",
+                                        // desativado por padrão no novo design
+                                    }
+                                    span { "Logar automaticamente" }
+                                }
+                                span {
+                                    class: "text-[#2e83ed] hover:underline cursor-pointer",
+                                    "Opções"
+                                }
+                            }
                         }
 
-                        // Botão entrar
-                        button {
-                            class: "w-full py-2 bg-gradient-to-b from-[#8fc1e9] via-[#5c98d6] to-[#4585c5] hover:from-[#9bd0fa] hover:via-[#70abeb] hover:to-[#579adf] text-white border border-[#4074a8] rounded-lg font-bold text-xs shadow-md cursor-pointer active:scale-[0.98] transition-all",
-                            onclick: move |_| do_login(),
-                            "Entrar"
+                        // Botão Entrar
+                        div { class: "pt-3",
+                            button {
+                                class: "w-[309px] h-[36px] bg-[#cde3f6] hover:bg-[#b8d6f0] text-[#012d93] border border-transparent rounded-[4px] font-bold text-[10px] shadow-sm cursor-pointer transition-colors flex items-center justify-center focus:outline-none",
+                                onclick: move |_| do_login(),
+                                "Entrar"
+                            }
                         }
                     }
                 }
 
-                // Footer
-                div { class: "w-full flex items-center justify-between mt-4 pt-3 border-t border-white/40 text-[10px] text-slate-500/80",
+                // Footer com link de Criar conta
+                div { class: "w-full flex items-center justify-between mt-6 text-[10px] text-slate-500",
                     button {
-                        class: "hover:underline text-[#245284] font-semibold cursor-pointer",
+                        class: "hover:underline text-[#2e83ed] font-semibold cursor-pointer focus:outline-none",
                         onclick: move |_| state.show_register_modal.set(true),
                         "Criar conta"
                     }

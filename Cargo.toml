@@ -25,9 +25,14 @@ futures-util = "0.3.32"
 uuid = { version = "1.23.2", features = ["v4"] }
 dotenvy = "0.15.7"
 
+[target.'cfg(target_os = "android")'.dependencies]
+ndk-context = "0.1.1"
+jni = { version = "0.21.1", default-features = false }
+
 [features]
 default = ["desktop"]
 web = ["dioxus/web"]
 desktop = ["dioxus/desktop", "rfd"]
 mobile = ["dioxus/mobile"]
 server = ["dioxus/server"]
+

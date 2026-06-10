@@ -120,4 +120,23 @@ impl DatabaseService {
             .map_err(|e| e.to_string())?;
         Ok(())
     }
+
+    pub async fn load_user_avatar_url() -> Result<Option<String>, String> {
+        let pool = get_pool();
+        let url: Option<String> = sqlx::query_scalar("SELECT avatar_url FROM user_profile WHERE id = 1")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(url)
+    }
+
+    pub async fn save_user_avatar_url(url: Option<String>) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE user_profile SET avatar_url = ? WHERE id = 1")
+            .bind(&url)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
 }

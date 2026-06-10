@@ -155,6 +155,7 @@ impl AppState {
         let mut chat_mode_sig = self.chat_mode;
         let mut pending_sig = self.pending_requests;
         let mut group_chats_sig = self.group_chats;
+        let mut avatar_url_sig = self.user_avatar_url;
 
         let token_opt = self.auth_token();
         let self_user_id = self.server_user_id();
@@ -243,7 +244,12 @@ impl AppState {
                             nickname: profile.nickname,
                         });
                     }
-                    *contacts_sig.write() = contacts_mapped;
+                    *contacts_sig.write() = contacts_mapped.clone();
+                    for contact in contacts_mapped {
+                        spawn(async move {
+                            let _ = crate::services::db::DatabaseService::save_contact(&contact).await;
+                        });
+                    }
                 }
 
                 // 1.1 Busca solicitações pendentes do servidor
@@ -347,6 +353,10 @@ impl AppState {
 
             if let Ok(music) = crate::services::db::DatabaseService::load_user_music().await {
                 *music_sig.write() = music;
+            }
+
+            if let Ok(avatar_url) = crate::services::db::DatabaseService::load_user_avatar_url().await {
+                *avatar_url_sig.write() = avatar_url;
             }
 
             if let Ok(songs) = crate::services::db::DatabaseService::get_recommended_songs().await {

@@ -485,7 +485,7 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     rsx! {
         div {
             id: "{feed_id}",
-            class: "flex-1 overflow-y-auto p-4 space-y-3 bg-white/40 min-h-0",
+            class: "flex-1 overflow-y-auto p-4 space-y-3 bg-transparent min-h-0",
 
             if chat_history.is_empty() {
                 div { class: "h-full flex items-center justify-center text-slate-400 text-xs italic",
@@ -508,13 +508,13 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                         rsx! {
                             div { class: "flex flex-col space-y-0.5 text-xs text-slate-800 select-text",
                                 if msg.is_nudge {
-                                    div { class: "py-1.5 px-3 bg-red-100/70 border border-red-200 rounded text-red-700 font-bold flex items-center space-x-2 my-1 animate-pulse shadow-sm",
+                                    div { class: "py-1.5 px-3 bg-red-100 border border-red-200 rounded text-red-700 font-bold flex items-center space-x-2 my-1 animate-pulse shadow-sm",
                                         span { "🔔" }
                                         span { "{msg.text}" }
                                         span { class: "text-[9px] text-red-500 font-normal ml-auto", "{msg.timestamp}" }
                                     }
                                 } else if let Some(ref _wink_type) = msg.is_wink {
-                                    div { class: "py-1.5 px-3 bg-purple-100/70 border border-purple-200 rounded text-purple-700 font-bold flex items-center space-x-2 my-1 animate-pulse shadow-sm",
+                                    div { class: "py-1.5 px-3 bg-purple-100 border border-purple-200 rounded text-purple-700 font-bold flex items-center space-x-2 my-1 animate-pulse shadow-sm",
                                         span { "✨" }
                                         span { "{msg.text}" }
                                         span { class: "text-[9px] text-purple-500 font-normal ml-auto", "{msg.timestamp}" }
@@ -529,7 +529,7 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                                         let cid_reject = contact_id.clone();
                                         
                                         rsx! {
-                                            div { class: "py-2 px-3 bg-emerald-100/80 border border-emerald-200 rounded text-emerald-700 font-bold flex flex-col space-y-1.5 my-1 shadow-sm",
+                                            div { class: "py-2 px-3 bg-emerald-100 border border-emerald-200 rounded text-emerald-700 font-bold flex flex-col space-y-1.5 my-1 shadow-sm",
                                                 div { class: "flex items-center space-x-2",
                                                     span { "🎮" }
                                                     if is_accepted {
@@ -563,7 +563,7 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                                         }
                                     }
                                 } else if let Some(ref transfer) = msg.file_transfer {
-                                    div { class: "py-2 px-3 bg-slate-100/80 border border-slate-200 rounded text-slate-700 font-bold flex flex-col space-y-1.5 my-1 shadow-sm",
+                                    div { class: "py-2 px-3 bg-slate-100 border border-slate-200 rounded text-slate-700 font-bold flex flex-col space-y-1.5 my-1 shadow-sm",
                                         div { class: "flex items-center space-x-2",
                                             span { "📂" }
                                             span { "{msg.sender_name} enviou um convite de arquivo." }
@@ -645,9 +645,8 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                                         }
                                     }
                                 } else {
-                                    div { class: "flex items-baseline space-x-1.5",
-                                        span { class: "font-bold {name_color}", "{msg.sender_name}" }
-                                        span { class: "text-[9px] text-slate-400 font-normal", "[{msg.timestamp}] diz:" }
+                                    div { class: "flex items-baseline space-x-1",
+                                        span { class: "font-bold {name_color}", "{msg.sender_name} diz:" }
                                     }
                                     p {
                                         class: "pl-2 select-text",

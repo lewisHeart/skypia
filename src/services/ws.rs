@@ -212,7 +212,18 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if Some(user_id.clone()) == state.server_user_id() {
                 // Atualiza avatar do próprio usuário
                 if let Some(ref url) = avatar_url {
-                    *state.user_avatar_url.write() = Some(url.clone());
+                    let is_local = if let Some(local_url) = state.user_avatar_url() {
+                        local_url.starts_with("/assets/")
+                            || local_url.starts_with("assets/")
+                            || local_url.starts_with("/_assets/")
+                            || local_url.starts_with("_assets/")
+                            || local_url.starts_with("dioxus-asset://")
+                    } else {
+                        false
+                    };
+                    if !is_local {
+                        *state.user_avatar_url.write() = Some(url.clone());
+                    }
                 }
                 // Atualiza display_name do próprio usuário
                 if !display_name.is_empty() {

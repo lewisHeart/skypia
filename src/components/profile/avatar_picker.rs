@@ -46,23 +46,35 @@ static PRESET_AVATARS: &[(&str, &str, &[u8])] = &[
     ),
 ];
 
-// IDs únicos para os inputs de arquivo HTML (mobile)
-static PRESET_ASSET_PATHS: &[&str] = &[
-    "/assets/usertiles/daisy.png",
-    "/assets/usertiles/dog.png",
-    "/assets/usertiles/kitten.png",
-    "/assets/usertiles/robot.png",
-    "/assets/usertiles/soccer.gif",
-    "/assets/usertiles/summer.gif",
-    "/assets/usertiles/spring.gif",
-    "/assets/usertiles/fall.gif",
-];
+
+
+async fn save_avatar_local_file(bytes: &[u8]) -> Option<String> {
+    let data_dir = crate::services::db::get_app_data_dir();
+    let _ = std::fs::create_dir_all(&data_dir);
+    let file_path = data_dir.join("user_avatar.png");
+    if std::fs::write(&file_path, bytes).is_ok() {
+        let abs_path = std::fs::canonicalize(&file_path).unwrap_or(file_path);
+        return Some(format!("dioxus-asset://{}", abs_path.to_string_lossy()));
+    }
+    None
+}
 
 #[component]
 pub fn AvatarPicker(mut state: AppState) -> Element {
     let theme = state.theme();
     let is_uploading = use_signal(|| false);
     let upload_error = use_signal(|| Option::<String>::None);
+
+    let preset_paths = [
+        asset!("/assets/usertiles/daisy.png").to_string(),
+        asset!("/assets/usertiles/dog.png").to_string(),
+        asset!("/assets/usertiles/kitten.png").to_string(),
+        asset!("/assets/usertiles/robot.png").to_string(),
+        asset!("/assets/usertiles/soccer.gif").to_string(),
+        asset!("/assets/usertiles/summer.gif").to_string(),
+        asset!("/assets/usertiles/spring.gif").to_string(),
+        asset!("/assets/usertiles/fall.gif").to_string(),
+    ];
 
     rsx! {
         div {
@@ -104,43 +116,51 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                         p { class: "text-xs font-bold {theme.titlebar_text()}", "Escolha uma imagem predefinida" }
                         div { class: "grid grid-cols-4 gap-2",
                             for (idx, &(name, mime, _bytes)) in PRESET_AVATARS.iter().enumerate() {
-                                button {
-                                    class: "relative aspect-square rounded-lg border {theme.titlebar_border()} bg-white/60 p-1 hover:border-[#5c98d6] hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group overflow-hidden shadow-sm",
-                                    disabled: is_uploading(),
-                                    onclick: move |_| {
-                                        let mut state = state;
-                                        let mut uploading = is_uploading;
-                                        let mut err_sig = upload_error;
+                                {
+                                    let asset_path = preset_paths[idx].clone();
+                                    let asset_path_click = asset_path.clone();
+                                    rsx! {
+                                        button {
+                                            class: "relative aspect-square rounded-lg border {theme.titlebar_border()} bg-white/60 p-1 hover:border-[#5c98d6] hover:bg-white transition-all cursor-pointer flex flex-col items-center justify-center group overflow-hidden shadow-sm",
+                                            disabled: is_uploading(),
+                                            onclick: move |_| {
+                                                let mut state = state;
+                                                let mut uploading = is_uploading;
+                                                let mut err_sig = upload_error;
+                                                let asset_url = asset_path_click.clone();
+                                                *state.user_avatar_url.write() = Some(asset_url.clone());
+                                                state.show_avatar_picker.set(false);
+                                                spawn(async move {
+                                                    let _ = crate::services::db::DatabaseService::save_user_avatar_url(Some(asset_url)).await;
+                                                });
 
-                                        // Atualização otimista local com a URL do asset (funciona em desktop/web)
-                                        let asset_path = PRESET_ASSET_PATHS[idx];
-                                        *state.user_avatar_url.write() = Some(asset_path.to_string());
-                                        state.show_avatar_picker.set(false);
-
-                                        // Upload dos bytes embutidos para o servidor em background
-                                        if let Some(token) = state.auth_token() {
-                                            let bytes_vec = PRESET_AVATARS[idx].2.to_vec();
-                                            let mime_str = mime.to_string();
-                                            spawn(async move {
-                                                uploading.set(true);
-                                                err_sig.set(None);
-                                                match api::upload_avatar(&token, bytes_vec, &mime_str).await {
-                                                    Ok(uploaded_url) => {
-                                                        *state.user_avatar_url.write() = Some(uploaded_url);
-                                                        uploading.set(false);
-                                                    }
-                                                    Err(e) => {
-                                                        uploading.set(false);
-                                                        err_sig.set(Some(format!("Falha no upload: {}", e)));
-                                                    }
+                                                // Upload dos bytes embutidos para o servidor em background
+                                                if let Some(token) = state.auth_token() {
+                                                    let bytes_vec = PRESET_AVATARS[idx].2.to_vec();
+                                                    let mime_str = mime.to_string();
+                                                    spawn(async move {
+                                                        uploading.set(true);
+                                                        err_sig.set(None);
+                                                        match api::upload_avatar(&token, bytes_vec, &mime_str).await {
+                                                            Ok(uploaded_url) => {
+                                                                *state.user_avatar_url.write() = Some(uploaded_url.clone());
+                                                                uploading.set(false);
+                                                                let _ = crate::services::db::DatabaseService::save_user_avatar_url(Some(uploaded_url)).await;
+                                                            }
+                                                            Err(e) => {
+                                                                uploading.set(false);
+                                                                err_sig.set(Some(format!("Falha no upload: {}", e)));
+                                                            }
+                                                        }
+                                                    });
                                                 }
-                                            });
+                                            },
+                                            img {
+                                                src: "{asset_path}",
+                                                class: "w-full h-full object-cover rounded-md group-hover:scale-105 transition-transform",
+                                                alt: name
+                                            }
                                         }
-                                    },
-                                    img {
-                                        src: PRESET_ASSET_PATHS[idx],
-                                        class: "w-full h-full object-cover rounded-md group-hover:scale-105 transition-transform",
-                                        alt: name
                                     }
                                 }
                             }
@@ -204,16 +224,29 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
 
                                                     match file.read_bytes().await {
                                                         Ok(bytes) => {
+                                                            // 1. Salva localmente em disco no cliente
+                                                            if let Some(local_path) = save_avatar_local_file(&bytes).await {
+                                                                *state.user_avatar_url.write() = Some(local_path.clone());
+                                                                let _ = crate::services::db::DatabaseService::save_user_avatar_url(Some(local_path)).await;
+                                                            } else {
+                                                                eprintln!("⚠️ Falha ao salvar avatar localmente.");
+                                                            }
+
+                                                            // 2. Faz o upload para o servidor em background
                                                             let mime = detect_mime_from_name(&file_name);
                                                             match api::upload_avatar(&token, bytes.to_vec(), &mime).await {
-                                                                Ok(url) => {
-                                                                    *state.user_avatar_url.write() = Some(url);
+                                                                Ok(uploaded_url) => {
+                                                                    // O upload teve sucesso! Os amigos agora podem ver.
+                                                                    // Salva a URL relativa do servidor localmente para sincronização exata
+                                                                    *state.user_avatar_url.write() = Some(uploaded_url.clone());
+                                                                    let _ = crate::services::db::DatabaseService::save_user_avatar_url(Some(uploaded_url)).await;
                                                                     uploading.set(false);
                                                                     state.show_avatar_picker.set(false);
                                                                 }
                                                                 Err(e) => {
+                                                                    eprintln!("❌ Falha no upload do avatar: {}", e);
+                                                                    err_sig.set(Some(format!("Não foi possível enviar ao servidor: {}", e)));
                                                                     uploading.set(false);
-                                                                    err_sig.set(Some(e));
                                                                 }
                                                             }
                                                         }

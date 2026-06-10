@@ -99,7 +99,7 @@ pub fn Register(mut state: AppState) -> Element {
                     div { class: "flex items-center space-x-2",
                         span { class: "text-xl", "🦋" }
                         div {
-                            h2 { class: "font-bold text-sm text-[#1b324d]", "Criar nova conta" }
+                            h2 { class: "font-bold text-sm text-[#2d517a]", "Criar nova conta" }
                             p { class: "text-[10px] text-slate-500", "Junte-se ao Skypia Messenger" }
                         }
                     }

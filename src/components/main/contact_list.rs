@@ -120,24 +120,58 @@ pub fn ContactList(mut state: AppState) -> Element {
         }
     });
 
+    let self_id = state.server_user_id();
+    let online_groups_count = use_memo(move || {
+        let groups = group_chats();
+        let contacts = state.contacts();
+        let s_id = self_id.clone();
+        
+        groups.iter().filter(|g| {
+            g.members.iter().any(|m| {
+                if Some(m.id.clone()) == s_id {
+                    true
+                } else if let Some(c) = contacts.iter().find(|c| c.id == m.id) {
+                    c.status != UserStatus::Offline && c.status != UserStatus::Invisivel
+                } else {
+                    false
+                }
+            })
+        }).count()
+    });
+
     rsx! {
         div { class: "flex flex-col flex-1 min-h-0",
-            // Search Input Container (Barra de busca ocupando toda a largura)
-            div { class: "px-3 py-1.5 flex items-center flex-shrink-0 relative",
+            // Search Input Container com o botão Adicionar Contato do design do usuário
+            div { class: "px-3.5 py-2.5 flex items-center flex-shrink-0 relative",
                 div { class: "relative flex-1 flex items-center",
                     input { 
-                        class: "w-full pl-7 pr-2.5 py-1 text-xs rounded border {theme.titlebar_border()} focus:border-slate-450 msn-input placeholder-slate-400",
-                        placeholder: "Procurar um contato...",
+                        class: "w-full pl-2.5 pr-7 h-[27px] text-[11px] rounded-[4px] border border-[#d1d1d1] focus:border-slate-400 msn-input placeholder-[#a5a5a5]",
+                        placeholder: "Procure um contato...",
                         value: "{search_query}",
                         oninput: move |e| search_query.set(e.value()),
                     }
-                    span { class: "absolute left-2.5 text-xs text-slate-400 pointer-events-none", "🔍" }
+                    span { class: "absolute right-2.5 text-xs text-slate-400 pointer-events-none", "🔍" }
+                }
+                button {
+                    class: "w-[30px] h-[20px] bg-transparent hover:bg-black/5 flex items-center justify-center rounded cursor-pointer transition-colors focus:outline-none flex-shrink-0 ml-2",
+                    title: "Adicionar contato",
+                    onclick: move |_| {
+                        state.show_add_contact_modal.set(true);
+                    },
+                    svg {
+                        view_box: "0 0 24 24",
+                        class: "w-4.5 h-4.5 select-none pointer-events-none stroke-current text-[#4f5d73]/90 fill-none",
+                        path { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", stroke_width: "1.8", stroke_linecap: "round", stroke_linejoin: "round" }
+                        circle { cx: "9", cy: "7", r: "4", stroke_width: "1.8", stroke_linecap: "round", stroke_linejoin: "round" }
+                        line { x1: "19", y1: "8", x2: "19", y2: "14", stroke: "#4aa333", stroke_width: "2.5", stroke_linecap: "round" }
+                        line { x1: "16", y1: "11", x2: "22", y2: "11", stroke: "#4aa333", stroke_width: "2.5", stroke_linecap: "round" }
+                    }
                 }
             }
 
             // Scroll Area
             div { 
-                class: "flex-1 overflow-y-auto px-1 py-2 space-y-3 bg-white/35",
+                class: "flex-1 overflow-y-auto px-1 py-2 space-y-3 bg-transparent",
                 onmouseup: move |_| {
                     if (state.dragged_contact_id)().is_some() {
                         *state.dragged_contact_id.write() = None;
@@ -211,7 +245,8 @@ pub fn ContactList(mut state: AppState) -> Element {
                             active_category_menu.set(Some(("fav".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if fav_collapsed() { "▶" } else { "▼" } }
-                        span { "Favoritos ({favorites_online_count()}/{favorites().len()}){favorites_unread_text}" }
+                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Favoritos" }
+                        span { class: "font-normal text-[10px] text-[#a5a5a5]", "({favorites_online_count()}/{favorites().len()}){favorites_unread_text}" }
                     }
                     
                     if !fav_collapsed() {
@@ -240,17 +275,18 @@ pub fn ContactList(mut state: AppState) -> Element {
                             let y = (e.client_coordinates().y as f64 / scale) as i32;
                             active_category_menu.set(Some(("groups".to_string(), x, y)));
                         },
-                        div { class: "flex items-center space-x-1",
+                        div { class: "flex items-center space-x-1.5",
                             span { class: "w-3 text-center text-[10px] text-slate-500", if groups_collapsed() { "▶" } else { "▼" } }
-                            span { "Grupos ({group_chats().len()})" }
+                            span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Grupos" }
+                            span { class: "font-normal text-[10px] text-[#a5a5a5]", "({online_groups_count()}/{group_chats().len()})" }
                         }
                         button {
-                            class: "text-[10px] text-sky-600 hover:text-sky-850 font-bold px-1.5 py-0.5 rounded hover:bg-white/50 cursor-pointer focus:outline-none transition-colors",
+                            class: "text-[10px] text-[#1f92d6] hover:text-[#1871a6] font-bold px-1.5 py-0.5 rounded hover:bg-white/50 cursor-pointer focus:outline-none transition-colors",
                             onclick: move |e| {
                                 e.stop_propagation();
                                 show_create_group_modal.set(true);
                             },
-                            "+ Novo Grupo"
+                            "Novo Grupo"
                         }
                     }
                     
@@ -293,7 +329,8 @@ pub fn ContactList(mut state: AppState) -> Element {
                             active_category_menu.set(Some(("online".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if online_collapsed() { "▶" } else { "▼" } }
-                        span { "Disponíveis ({online_contacts().len()}){online_unread_text}" }
+                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Disponíveis" }
+                        span { class: "font-normal text-[10px] text-[#a5a5a5]", "({online_contacts().len()}/{online_contacts().len()}){online_unread_text}" }
                     }
                     
                     if !online_collapsed() {
@@ -335,7 +372,8 @@ pub fn ContactList(mut state: AppState) -> Element {
                             active_category_menu.set(Some(("offline".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if offline_collapsed() { "▶" } else { "▼" } }
-                        span { "Offlines ({offline_contacts().len()}){offline_unread_text}" }
+                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Offline" }
+                        span { class: "font-normal text-[10px] text-[#a5a5a5]", "(0/{offline_contacts().len()}){offline_unread_text}" }
                     }
                     
                     if !offline_collapsed() {
@@ -495,7 +533,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                     onclick: move |e| e.stop_propagation(),
                     onmouseleave: move |_| active_category_menu.set(None),
                     
-                    div { class: "px-2 py-1 text-[9px] font-bold text-slate-400 border-b border-slate-100", "MUDAR DENSIDADE" }
+                    div { class: "px-2 py-1 text-[9px] font-bold text-slate-400 border-b border-slate-100", "Mudar Densidade" }
 
                     if cat == "fav" {
                         button { 
@@ -563,16 +601,27 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
         state.open_chat(group_id_double.clone());
     };
 
-    let member_names = group.members.iter()
-        .map(|m| m.nickname.clone().unwrap_or(m.display_name.clone()))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let online_members = group.members.iter().filter(|m| {
+        if Some(m.id.clone()) == state.server_user_id() {
+            state.user_status() != UserStatus::Offline
+        } else if let Some(c) = state.contacts().iter().find(|c| c.id == m.id) {
+            c.status != UserStatus::Offline
+        } else {
+            m.status != "Offline" && m.status != "Invisivel"
+        }
+    }).count();
 
-    let container_padding = if density == "small" { "py-0.5 px-1" } else { "p-1" };
+    let group_svg = if online_members > 0 {
+        asset!("/assets/status/Disponível Grupo.svg")
+    } else {
+        asset!("/assets/status/Offline Grupo.svg")
+    };
+
+    let container_padding = if density == "small" { "py-0.5 px-1.5" } else { "py-1 px-1.5" };
 
     rsx! {
         div {
-            class: "flex items-center space-x-2.5 {container_padding} rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
+            class: "flex items-center space-x-1.5 {container_padding} rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
             ondoubleclick: handle_double_click,
             onmouseup: {
                 let gid = group_id.clone();
@@ -590,21 +639,17 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
                 }
             },
             
-            if density != "small" {
-                div {
-                    class: "flex-shrink-0 w-6 h-6 rounded bg-sky-200 flex items-center justify-center text-xs font-bold text-sky-800 shadow-sm border border-sky-300/65",
-                    "👥"
-                }
+            img {
+                src: group_svg,
+                class: "w-[14px] h-[12px] object-contain flex-shrink-0 select-none mr-1.5"
             }
 
-            div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
-                div { class: "flex items-center space-x-1",
-                    span { class: "font-semibold text-xs {theme.titlebar_text()} truncate hover:underline", 
-                        "{group.name.as_deref().unwrap_or(\"Grupo sem nome\")}" 
-                    }
+            div { class: "flex-1 min-w-0 flex items-center space-x-1 text-xs",
+                span { class: "font-semibold text-xs {theme.titlebar_text()} truncate hover:underline flex-shrink-0", 
+                    "{group.name.as_deref().unwrap_or(\"Grupo sem nome\")}" 
                 }
-                span { class: "text-[10px] text-slate-500 truncate italic font-normal", 
-                    "({group.members.len()}) {member_names}" 
+                span { class: "text-[10px] text-slate-400 font-normal flex-shrink-0", 
+                    "({online_members}/{group.members.len()} Disponível)" 
                 }
             }
         }
