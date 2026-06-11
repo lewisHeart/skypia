@@ -1,3 +1,4 @@
+// Force rebuild to trigger build.rs Android monitoring - 2026
 use crate::components::auth::login::Login;
 use crate::components::chat::chat_window::ChatWindow;
 use crate::components::main::main_window::MainWindow;
