@@ -301,14 +301,6 @@ static AVATAR_CACHE: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(||
 
 #[component]
 pub fn Avatar(url: Option<String>, size: usize) -> Element {
-    let mut is_error = use_signal(|| false);
-    let mut prev_url = use_signal(|| url.clone());
-
-    if *prev_url.read() != url {
-        *prev_url.write() = url.clone();
-        is_error.set(false);
-    }
-
     let final_url = match url {
         Some(ref u) if u.starts_with("http") => u.to_string(),
         Some(ref u)
@@ -324,62 +316,71 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
         _ => "".to_string(),
     };
 
-    let mut base64_data = use_signal(|| {
-        if final_url.is_empty() {
-            None
-        } else {
-            AVATAR_CACHE.lock().unwrap().get(&final_url).cloned()
-        }
-    });
+    // Obter do cache de forma síncrona
+    let cached = if final_url.is_empty() {
+        None
+    } else {
+        AVATAR_CACHE.lock().unwrap().get(&final_url).cloned()
+    };
 
-    let should_fetch = base64_data().is_none() && !final_url.is_empty() && final_url.starts_with("http");
+    let url_to_fetch = final_url.clone();
+    let has_cache = cached.is_some();
 
-    if should_fetch {
-        let url_to_fetch = final_url.clone();
-        spawn(async move {
-            match reqwest::get(&url_to_fetch).await {
+    // Recurso reativo para fazer o fetch assíncrono em segundo plano se não estiver em cache
+    let avatar_resource = use_resource(move || {
+        let url = url_to_fetch.clone();
+        async move {
+            if url.is_empty() || has_cache {
+                return None;
+            }
+            if !url.starts_with("http") {
+                return Some(url);
+            }
+            match reqwest::get(&url).await {
                 Ok(resp) => {
                     if let Ok(bytes) = resp.bytes().await {
                         use base64::Engine;
                         let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                        let mime = if url_to_fetch.contains(".gif") {
+                        let mime = if url.contains(".gif") {
                             "image/gif"
-                        } else if url_to_fetch.contains(".png") {
+                        } else if url.contains(".png") {
                             "image/png"
                         } else {
                             "image/jpeg"
                         };
                         let data_uri = format!("data:{};base64,{}", mime, b64);
-                        AVATAR_CACHE.lock().unwrap().insert(url_to_fetch, data_uri.clone());
-                        base64_data.set(Some(data_uri));
+                        AVATAR_CACHE.lock().unwrap().insert(url.clone(), data_uri.clone());
+                        Some(data_uri)
                     } else {
-                        is_error.set(true);
+                        None
                     }
                 }
-                Err(_) => {
-                    is_error.set(true);
-                }
+                Err(_) => None,
             }
-        });
-    }
+        }
+    });
 
-    let display_url = if let Some(ref data) = base64_data() {
-        data.clone()
+    let display_url = if let Some(ref c) = cached {
+        c.clone()
+    } else if let Some(Some(ref res_url)) = *avatar_resource.value().read() {
+        res_url.clone()
     } else {
         final_url.clone()
     };
 
-    if !display_url.is_empty() && !is_error() {
+    let is_loading = cached.is_none() && final_url.starts_with("http") && avatar_resource.value().read().is_none();
+    
+    // Se o fetch assíncrono terminou e retornou None, consideramos falha e exibimos o fallback.
+    let show_fallback = display_url.is_empty() || (!is_loading && cached.is_none() && final_url.starts_with("http") && avatar_resource.value().read().as_ref().map(|x| x.is_none()).unwrap_or(true));
+
+    if !show_fallback {
         rsx! {
             img {
                 src: "{display_url}",
                 width: "{size}px",
                 height: "{size}px",
                 class: "rounded-[4px] object-cover flex-shrink-0 border border-slate-350 shadow-inner",
-                alt: "Avatar",
-                onerror: move |_| {
-                    is_error.set(true);
-                }
+                alt: "Avatar"
             }
         }
     } else {
@@ -397,13 +398,9 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
                 }
                 rect { width: "100", height: "100", rx: "4", fill: "url(#msnGrad)" }
                 // Boneco clássico do MSN azul/verde
-                // Cabeça azul
                 circle { cx: "44", cy: "38", r: "13", fill: "#3b82f6" }
-                // Corpo azul
                 path { d: "M20 76 C20 58, 68 58, 68 76 Z", fill: "#3b82f6" }
-                // Cabeça verde (parceiro clássico)
                 circle { cx: "66", cy: "48", r: "10", fill: "#22c55e" }
-                // Corpo verde
                 path { d: "M48 76 C48 64, 84 64, 84 76 Z", fill: "#22c55e" }
             }
         }

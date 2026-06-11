@@ -178,7 +178,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
 
                         // Coluna de Conteúdo (Scrollable)
                         div { class: "flex-1 p-4 overflow-y-auto flex flex-col space-y-4 bg-white/10 max-h-[50vh] sm:max-h-none",
-                            
+
                             if active_tab() == "pessoais" {
                                 div { class: "flex flex-col space-y-3",
                                     div { class: "flex flex-col space-y-1",
@@ -453,7 +453,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                         }
                                         span { "Lembrar minhas credenciais (Email e Senha)" }
                                     }
- 
+
                                     label { class: "flex items-center space-x-2 cursor-pointer",
                                         input {
                                             r#type: "checkbox",
@@ -476,7 +476,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                             disabled: true
                                         }
                                     }
- 
+
                                     div { class: "flex items-center space-x-2 pt-2 border-t border-slate-200/50",
                                         span { class: "font-semibold text-slate-700", "Status de Rede:" }
                                         if state.ws_tx.read().is_some() {
