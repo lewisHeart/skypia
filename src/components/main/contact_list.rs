@@ -839,7 +839,8 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
                                     let gid = gid.clone();
                                     move |_| {
                                         show_context_menu.set(false);
-                                        state.open_chat(gid.clone());
+                                        state.group_profile_id.set(Some(gid.clone()));
+                                        state.show_group_profile_modal.set(true);
                                     }
                                 },
                                 span { "ℹ️" }

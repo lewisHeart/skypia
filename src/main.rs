@@ -145,6 +145,51 @@ fn App() -> Element {
         }
     });
 
+    // Loop periódico para verificar e aplicar mudanças de tema/escala no banco SQLite feitas pela janela de configurações nativa
+    use_future(move || {
+        let mut state = app_state;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                if state.logged_in() {
+                    if let Ok(settings) = crate::services::db::DatabaseService::load_settings().await {
+                        let db_theme = crate::services::db::str_to_theme(&settings.theme);
+                        if db_theme != state.theme() {
+                            *state.theme.write() = db_theme;
+                        }
+                        if settings.interface_scale != state.interface_scale() {
+                            *state.interface_scale.write() = settings.interface_scale;
+                        }
+                        if settings.use_custom_titlebar != state.use_custom_titlebar() {
+                            *state.use_custom_titlebar.write() = settings.use_custom_titlebar;
+                        }
+                        if settings.chat_mode != state.chat_mode() {
+                            *state.chat_mode.write() = settings.chat_mode;
+                        }
+                    }
+                    if let Ok(local_contacts) = crate::services::db::DatabaseService::load_contacts().await {
+                        let current = state.contacts();
+                        if current.len() != local_contacts.len() || current != local_contacts {
+                            *state.contacts.write() = local_contacts;
+                        }
+                    }
+                    if let Ok(cats) = crate::services::db::DatabaseService::get_categories().await {
+                        let current = state.categories();
+                        if current != cats {
+                            *state.categories.write() = cats;
+                        }
+                    }
+                    if let Ok(Some(local_banner)) = crate::services::db::DatabaseService::load_banner().await {
+                        let current = state.banner_info();
+                        if current.as_ref() != Some(&local_banner) {
+                            *state.banner_info.write() = Some(local_banner);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
     // Loop periódico para detectar música do Spotify local (Spotify RPC)
     use_future(move || {
         let mut state = app_state;
@@ -392,7 +437,7 @@ fn App() -> Element {
                     div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} bg-white/20",
                         div { class: "flex flex-col items-center text-center space-y-2 py-2",
                             img {
-                                src: "/emojis/butterfly.svg",
+                                src: "/assets/emojis/butterfly.svg",
                                 class: "w-10 h-10 object-contain pointer-events-none"
                             }
                             span { class: "font-bold text-sm", "Skypia Messenger v14.0" }
@@ -421,6 +466,11 @@ fn App() -> Element {
         // Modal de Jogos
         if app_state.show_games_modal() {
             crate::components::chat::games_modal::GamesModal { state: app_state }
+        }
+
+        // Modal de Perfil do Grupo
+        if app_state.show_group_profile_modal() {
+            crate::components::profile::group_profile_modal::GroupProfileModal { state: app_state }
         }
     }
 }

@@ -1077,4 +1077,16 @@ impl AppState {
     pub fn show_friend_requests_modal(&self) -> bool {
         (self.show_friend_requests_modal)()
     }
+
+    pub fn show_group_profile_modal(&self) -> bool {
+        (self.show_group_profile_modal)()
+    }
+
+    pub fn group_profile_id(&self) -> Option<String> {
+        self.group_profile_id.read().clone()
+    }
+
+    pub fn group_chats(&self) -> Vec<crate::models::Conversation> {
+        self.group_chats.read().clone()
+    }
 }

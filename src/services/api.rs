@@ -542,3 +542,33 @@ pub async fn get_banner() -> Result<crate::models::BannerInfo, String> {
         Err(format!("Status de erro: {}", resp.status()))
     }
 }
+
+/// Salva a imagem do anúncio no sistema de arquivos local
+pub async fn save_ad_image_local(bytes: &[u8], name: &str) -> Option<String> {
+    let data_dir = crate::services::db::get_app_data_dir();
+    let _ = std::fs::create_dir_all(&data_dir);
+    let timestamp = chrono::Utc::now().timestamp_millis();
+    let ext = if name.to_lowercase().ends_with(".png") { "png" }
+              else if name.to_lowercase().ends_with(".gif") { "gif" }
+              else if name.to_lowercase().ends_with(".webp") { "webp" }
+              else { "jpg" };
+    let file_name = format!("ad_banner_{}.{}", timestamp, ext);
+    let file_path = data_dir.join(&file_name);
+    
+    // Limpa banners antigos para não acumular lixo
+    if let Ok(entries) = std::fs::read_dir(&data_dir) {
+        for entry in entries.flatten() {
+            if let Some(filename) = entry.file_name().to_str() {
+                if filename.starts_with("ad_banner_") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
+
+    if std::fs::write(&file_path, bytes).is_ok() {
+        let abs = std::fs::canonicalize(&file_path).unwrap_or(file_path);
+        return Some(format!("dioxus-asset://{}", abs.to_string_lossy()));
+    }
+    None
+}
