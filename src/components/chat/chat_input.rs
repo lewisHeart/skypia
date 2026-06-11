@@ -362,7 +362,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/kiss-mark.webp",
+                                src: "/assets/emojis/kiss-mark.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Beijo de Batom" }
@@ -377,7 +377,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/hammer.webp",
+                                src: "/assets/emojis/hammer.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Martelada na Tela" }
@@ -392,7 +392,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/pig-face.webp",
+                                src: "/assets/emojis/pig-face.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Porco Dançarino" }
@@ -412,7 +412,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/framed-picture.webp",
+                                src: "/assets/emojis/framed-picture.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Foto" }
@@ -427,7 +427,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/musical-note.webp",
+                                src: "/assets/emojis/musical-note.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Música" }
@@ -442,7 +442,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/floppy-disk.webp",
+                                src: "/assets/emojis/floppy-disk.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Arquivo" }
@@ -461,7 +461,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 }
                  div { class: "flex-1 flex space-x-2.5 w-full items-center",
                     textarea {
-                        class: "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400 {if is_send_disabled { \"bg-slate-150 text-slate-400\" } else { \"\" }}",
+                        class: if is_send_disabled { "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400 bg-slate-100 text-slate-400" } else { "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400" },
                         style: "font-family: {selected_font()}; color: {selected_color()};",
                         placeholder: if is_send_disabled { "O envio de mensagens foi desativado por um administrador." } else { "Digite sua mensagem aqui..." },
                         disabled: is_send_disabled,
@@ -485,7 +485,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                     }
 
                     button {
-                        class: "w-[60px] h-[60px] bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] transition-colors flex items-center justify-center cursor-pointer text-white focus:outline-none flex-shrink-0 rounded-none border-none {if is_send_disabled { \"bg-slate-300 text-slate-500 cursor-not-allowed opacity-60\" } else { \"bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] cursor-pointer text-white transition-colors\" }}",
+                        class: if is_send_disabled { "w-[60px] h-[60px] flex items-center justify-center focus:outline-none flex-shrink-0 rounded-none border-none bg-slate-300 text-slate-500 cursor-not-allowed opacity-60" } else { "w-[60px] h-[60px] bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] transition-colors flex items-center justify-center cursor-pointer text-white focus:outline-none flex-shrink-0 rounded-none border-none" },
                         title: if is_send_disabled { "Envio desativado" } else { "Enviar (Mensagem de Voz)" },
                         disabled: is_send_disabled,
                         onclick: {

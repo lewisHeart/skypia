@@ -248,7 +248,13 @@ pub fn ContactList(mut state: AppState) -> Element {
                             active_category_menu.set(Some(("fav".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if fav_collapsed() { "▶" } else { "▼" } }
-                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "⭐ Favoritos" }
+                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1 flex items-center space-x-0.5",
+                            img {
+                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Star/SVG/ic_fluent_star_16_color.svg",
+                                class: "w-3.5 h-3.5 object-contain inline-block mr-1 pointer-events-none"
+                            }
+                            span { "Favoritos" }
+                        }
                         span { class: "font-normal text-[10px] text-[#a5a5a5]", "({favorites_online_count()}/{favorites().len()}){favorites_unread_text}" }
                     }
                     
@@ -796,46 +802,81 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
             
             // Menu de Contexto MSN Style para Grupo
             if show_context_menu() {
-                div {
-                    class: "fixed inset-0 z-[9998] bg-transparent cursor-default",
-                    onclick: move |e| {
-                        e.stop_propagation();
-                        show_context_menu.set(false);
-                    }
-                }
-                div { 
-                    class: "fixed w-44 bg-white/95 border border-slate-300 rounded-lg shadow-2xl backdrop-blur-md z-[9999] p-1 flex flex-col text-[11px] text-slate-700 transition-all select-none cursor-default",
-                    style: "left: {menu_x}px; top: {menu_y}px;",
-                    onclick: move |e| e.stop_propagation(),
-                    onmouseleave: move |_| show_context_menu.set(false),
-                    
-                    button { 
-                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
-                        onclick: {
-                            let gid = group_id.clone();
-                            move |_| {
+                {
+                    let self_id = state.server_user_id();
+                    let is_local_user_admin = group.members.iter().any(|m| Some(m.id.clone()) == self_id && m.role.as_deref() == Some("admin"));
+                    let gid = group_id.clone();
+                    rsx! {
+                        div {
+                            class: "fixed inset-0 z-[9998] bg-transparent cursor-default",
+                            onclick: move |e| {
+                                e.stop_propagation();
                                 show_context_menu.set(false);
-                                state.open_chat(gid.clone());
                             }
-                        },
-                        span { "💬" }
-                        span { "Enviar mensagem" }
-                    }
-                    
-                    // Divisor
-                    div { class: "h-[1px] bg-slate-200/60 my-0.5" }
+                        }
+                        div { 
+                            class: "fixed w-44 bg-white/95 border border-slate-300 rounded-lg shadow-2xl backdrop-blur-md z-[9999] p-1 flex flex-col text-[11px] text-slate-700 transition-all select-none cursor-default",
+                            style: "left: {menu_x}px; top: {menu_y}px;",
+                            onclick: move |e| e.stop_propagation(),
+                            onmouseleave: move |_| show_context_menu.set(false),
+                            
+                            button { 
+                                class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
+                                onclick: {
+                                    let gid = gid.clone();
+                                    move |_| {
+                                        show_context_menu.set(false);
+                                        state.open_chat(gid.clone());
+                                    }
+                                },
+                                span { "💬" }
+                                span { "Enviar mensagem" }
+                            }
 
-                    button { 
-                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors text-red-600",
-                        onclick: {
-                            let gid = group_id.clone();
-                            move |_| {
-                                show_context_menu.set(false);
-                                state.leave_group_chat(gid.clone());
+                            button { 
+                                class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
+                                onclick: {
+                                    let gid = gid.clone();
+                                    move |_| {
+                                        show_context_menu.set(false);
+                                        state.open_chat(gid.clone());
+                                    }
+                                },
+                                span { "ℹ️" }
+                                span { "Ver Perfil do Grupo" }
                             }
-                        },
-                        span { "🚪" }
-                        span { "Sair do grupo" }
+                            
+                            // Divisor
+                            div { class: "h-[1px] bg-slate-200/60 my-0.5" }
+
+                            button { 
+                                class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors text-red-600",
+                                onclick: {
+                                    let gid = gid.clone();
+                                    move |_| {
+                                        show_context_menu.set(false);
+                                        state.leave_group_chat(gid.clone());
+                                    }
+                                },
+                                span { "🚪" }
+                                span { "Sair do grupo" }
+                            }
+
+                            if is_local_user_admin {
+                                button { 
+                                    class: "px-2.5 py-1.5 hover:bg-rose-100 hover:text-rose-700 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-bold transition-colors text-rose-600",
+                                    onclick: {
+                                        let gid = gid.clone();
+                                        move |_| {
+                                            show_context_menu.set(false);
+                                            state.delete_group_chat(gid.clone());
+                                        }
+                                    },
+                                    span { "🗑️" }
+                                    span { "Excluir Grupo" }
+                                }
+                            }
+                        }
                     }
                 }
             }

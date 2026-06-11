@@ -107,10 +107,10 @@ fn App() -> Element {
                 last_has_chat.set(has_selected_chat);
                 if has_selected_chat {
                     desktop
-                        .set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(886.0, 735.0));
+                        .set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(926.0, 735.0));
                 } else {
                     desktop
-                        .set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(373.0, 735.0));
+                        .set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(413.0, 735.0));
                 }
             }
         }
@@ -326,7 +326,7 @@ fn App() -> Element {
                                 let is_integrated = app_state.chat_mode() == "integrated";
                                 let has_selected_chat = app_state.selected_chat_id().is_some() && is_integrated;
                                 let sidebar_class = if has_selected_chat {
-                                    "hidden md:flex w-[220px] h-full flex-col flex-shrink-0"
+                                    "hidden md:flex w-[260px] h-full flex-col flex-shrink-0"
                                 } else {
                                     "w-full h-full flex flex-col flex-shrink-0"
                                 };
@@ -392,7 +392,7 @@ fn App() -> Element {
                     div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} bg-white/20",
                         div { class: "flex flex-col items-center text-center space-y-2 py-2",
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/butterfly.webp",
+                                src: "/assets/emojis/butterfly.svg",
                                 class: "w-10 h-10 object-contain pointer-events-none"
                             }
                             span { class: "font-bold text-sm", "Skypia Messenger v14.0" }

@@ -211,7 +211,6 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                 {
                                     let allow_send = g.allow_member_send.unwrap_or(true);
                                     let allow_invite = g.allow_member_invite.unwrap_or(true);
-                                    let gid_perms = contact_id.clone();
                                     rsx! {
                                         div { class: "flex flex-col space-y-1 p-1.5 bg-slate-50/80 border border-slate-200 rounded mt-1.5 flex-shrink-0",
                                             span { class: "font-bold text-[8.5px] uppercase tracking-wide text-slate-500", "Permissões do Grupo" }
@@ -220,8 +219,11 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                                     r#type: "checkbox",
                                                     class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-[#1d528f] focus:ring-0 focus:outline-none w-3 h-3",
                                                     checked: allow_send,
-                                                    onchange: move |_| {
-                                                        state.update_group_permissions(gid_perms.clone(), !allow_send, allow_invite);
+                                                    onchange: {
+                                                        let gid = contact_id.clone();
+                                                        move |_| {
+                                                            state.update_group_permissions(gid.clone(), !allow_send, allow_invite);
+                                                        }
                                                     }
                                                 }
                                                 span { "Membros podem enviar msg" }
@@ -231,8 +233,11 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                                     r#type: "checkbox",
                                                     class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-[#1d528f] focus:ring-0 focus:outline-none w-3 h-3",
                                                     checked: allow_invite,
-                                                    onchange: move |_| {
-                                                        state.update_group_permissions(gid_perms.clone(), allow_send, !allow_invite);
+                                                    onchange: {
+                                                        let gid = contact_id.clone();
+                                                        move |_| {
+                                                            state.update_group_permissions(gid.clone(), allow_send, !allow_invite);
+                                                        }
                                                     }
                                                 }
                                                 span { "Membros podem convidar" }
@@ -448,14 +453,14 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                     _ => asset!("/assets/status/offline_conversa.svg"),
                                 };
                                 rsx! {
-                                    div { class: "msn-avatar-container w-[160px] h-[160px] flex-shrink-0 relative",
+                                    div { class: "msn-avatar-container w-[120px] h-[120px] flex-shrink-0 relative",
                                         img {
                                             src: frame_src,
                                             class: "msn-avatar-frame-img"
                                         }
                                         div {
-                                            class: "msn-avatar-content w-[140px] h-[140px] rounded-[10px] bg-transparent flex items-center justify-center",
-                                            {render_avatar(c.avatar_url.as_deref(), 140)}
+                                            class: "msn-avatar-content w-[100px] h-[100px] rounded-[10px] bg-transparent flex items-center justify-center",
+                                            {render_avatar(c.avatar_url.as_deref(), 100)}
                                         }
                                     }
                                 }
@@ -472,14 +477,14 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                                     _ => asset!("/assets/status/offline_conversa.svg"),
                                 };
                                 rsx! {
-                                    div { class: "msn-avatar-container w-[160px] h-[160px] flex-shrink-0 relative",
+                                    div { class: "msn-avatar-container w-[120px] h-[120px] flex-shrink-0 relative",
                                         img {
                                             src: frame_src,
                                             class: "msn-avatar-frame-img"
                                         }
                                         div {
-                                            class: "msn-avatar-content w-[140px] h-[140px] rounded-[10px] bg-transparent flex items-center justify-center",
-                                            {render_avatar(state.user_avatar_url().as_deref(), 140)}
+                                            class: "msn-avatar-content w-[100px] h-[100px] rounded-[10px] bg-transparent flex items-center justify-center",
+                                            {render_avatar(state.user_avatar_url().as_deref(), 100)}
                                         }
                                     }
                                 }

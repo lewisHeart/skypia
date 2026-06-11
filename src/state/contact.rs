@@ -481,4 +481,38 @@ impl AppState {
                 .await;
         });
     }
+
+    pub fn delete_group_chat(&mut self, group_id: String) {
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        let gid = group_id.clone();
+        spawn(async move {
+            if let Some(token) = token_opt {
+                let client = reqwest::Client::new();
+                let _ = client
+                    .delete(format!("{}/conversations/{}", crate::services::api::SERVER_BASE_URL, gid))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .send()
+                    .await;
+                
+                let pool = crate::services::db::get_pool();
+                let _ = sqlx::query("DELETE FROM conversations WHERE id = ?").bind(&gid).execute(pool).await;
+                let _ = sqlx::query("DELETE FROM conversation_members WHERE conversation_id = ?").bind(&gid).execute(pool).await;
+                let _ = sqlx::query("DELETE FROM messages WHERE conversation_id = ?").bind(&gid).execute(pool).await;
+                
+                state_clone.add_toast(
+                    "Excluir Grupo".to_string(),
+                    "Grupo excluído com sucesso.".to_string(),
+                    None,
+                );
+                
+                if state_clone.selected_chat_id() == Some(gid.clone()) {
+                    *state_clone.selected_chat_id.write() = None;
+                }
+                state_clone.active_chats.write().retain(|id| id != &gid);
+                state_clone.detached_chats.write().retain(|id| id != &gid);
+                state_clone.load_initial_data();
+            }
+        });
+    }
 }
