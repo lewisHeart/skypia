@@ -342,7 +342,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 title: code,
                                 onclick: move |_| insert_emoticon(code),
                                 img {
-                                    src: "/assets/emojis_anim/{emoji_name}.webp",
+                                    src: "/emojis_anim/{emoji_name}.webp",
                                     class: "w-6 h-6 object-contain pointer-events-none"
                                 }
                             }
@@ -362,7 +362,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/kiss-mark.svg",
+                                src: "/emojis/kiss-mark.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Beijo de Batom" }
@@ -377,7 +377,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/hammer.svg",
+                                src: "/emojis/hammer.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Martelada na Tela" }
@@ -392,7 +392,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/pig-face.svg",
+                                src: "/emojis/pig-face.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Porco Dançarino" }
@@ -412,7 +412,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/framed-picture.svg",
+                                src: "/emojis/framed-picture.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Foto" }
@@ -427,7 +427,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/musical-note.svg",
+                                src: "/emojis/musical-note.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Música" }
@@ -442,7 +442,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/assets/emojis/floppy-disk.svg",
+                                src: "/emojis/floppy-disk.svg",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Arquivo" }

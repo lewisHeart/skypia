@@ -612,7 +612,7 @@ pub fn parse_emoticons_inline(text: &str, size_class: &str) -> Element {
             }
             parts.push(rsx! {
                 img {
-                    src: "/assets/emojis/{emoji_name}.svg",
+                    src: "/emojis/{emoji_name}.svg",
                     class: "{size_class} inline-block align-middle mx-0.5",
                     alt: "{emoji_name}"
                 }

@@ -90,6 +90,8 @@ pub struct AppState {
     pub save_chat_history: Signal<bool>,
     pub categories: Signal<Vec<String>>,
     pub show_friend_requests_modal: Signal<bool>,
+    pub show_group_profile_modal: Signal<bool>,
+    pub group_profile_id: Signal<Option<String>>,
 }
 
 impl AppState {
@@ -168,6 +170,8 @@ impl AppState {
             save_chat_history: Signal::new(true),
             categories: Signal::new(Vec::new()),
             show_friend_requests_modal: Signal::new(false),
+            show_group_profile_modal: Signal::new(false),
+            group_profile_id: Signal::new(None),
         }
     }
 

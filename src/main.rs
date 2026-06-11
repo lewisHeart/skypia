@@ -392,7 +392,7 @@ fn App() -> Element {
                     div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} bg-white/20",
                         div { class: "flex flex-col items-center text-center space-y-2 py-2",
                             img {
-                                src: "/assets/emojis/butterfly.svg",
+                                src: "/emojis/butterfly.svg",
                                 class: "w-10 h-10 object-contain pointer-events-none"
                             }
                             span { class: "font-bold text-sm", "Skypia Messenger v14.0" }
