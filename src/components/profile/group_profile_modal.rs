@@ -154,9 +154,22 @@ pub fn GroupProfileModal(mut state: AppState) -> Element {
                                 if editing() {
                                     button {
                                         class: "flex-1 px-3 py-1.5 text-[10px] font-semibold bg-sky-500 text-white rounded hover:bg-sky-600 transition-colors cursor-pointer",
-                                        onclick: move |_| {
-                                            editing.set(false);
-                                            // TODO: Salvar alterações no servidor
+                                        onclick: {
+                                            let gid = group.id.clone();
+                                            move |_| {
+                                                editing.set(false);
+                                                state.update_group_info(
+                                                    gid.clone(),
+                                                    temp_name(),
+                                                    temp_desc(),
+                                                    group.avatar_url.clone(),
+                                                );
+                                                state.update_group_permissions(
+                                                    gid.clone(),
+                                                    temp_allow_send(),
+                                                    temp_allow_invite(),
+                                                );
+                                            }
                                         },
                                         "Salvar"
                                     }
@@ -187,7 +200,7 @@ pub fn GroupProfileModal(mut state: AppState) -> Element {
                         }
 
                         for member in &group.members {
-                            {render_member_row(state, &member, is_admin, &local_user_id)}
+                            {render_member_row(state, &member, is_admin, &local_user_id, group.id.clone())}
                         }
                     }
 
@@ -204,10 +217,11 @@ pub fn GroupProfileModal(mut state: AppState) -> Element {
 }
 
 fn render_member_row(
-    state: AppState,
+    mut state: AppState,
     member: &crate::models::UserProfile,
     is_admin: bool,
     local_user_id: &str,
+    group_id: String,
 ) -> Element {
     let theme = state.theme();
     let is_self = member.id == local_user_id;
@@ -260,11 +274,20 @@ fn render_member_row(
 
             // Ações (admin pode remover membros que não são ele)
             if is_admin && !is_self {
-                div { class: "opacity-0 group-hover:opacity-100 transition-opacity",
-                    button {
-                        class: "text-[9px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer",
-                        title: "Remover do grupo",
-                        "✕"
+                {
+                    let gid = group_id.clone();
+                    let uid = member.id.clone();
+                    rsx! {
+                        div { class: "opacity-0 group-hover:opacity-100 transition-opacity",
+                            button {
+                                class: "text-[9px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer",
+                                title: "Remover do grupo",
+                                onclick: move |_| {
+                                    state.remove_group_member(gid.clone(), uid.clone());
+                                },
+                                "✕"
+                            }
+                        }
                     }
                 }
             }

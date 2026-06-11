@@ -194,10 +194,30 @@ fn App() -> Element {
     use_future(move || {
         let mut state = app_state;
         async move {
+            #[allow(unused_mut, unused_variables)]
+            let mut mock_song_index = 0;
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 if state.logged_in() && state.spotify_rpc_enabled() {
-                    if let Some(music) = crate::services::spotify::detect_current_song().await {
+                    #[allow(unused_mut)]
+                    let mut detected = crate::services::spotify::detect_current_song().await;
+                    
+                    #[cfg(target_os = "android")]
+                    {
+                        if detected.is_none() {
+                            let songs = state.recommended_songs();
+                            if !songs.is_empty() {
+                                let song = songs[mock_song_index % songs.len()].clone();
+                                detected = Some(song);
+                                // Alterna a música de tempos em tempos
+                                if chrono::Utc::now().timestamp() % 15 < 3 {
+                                    mock_song_index += 1;
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(music) = detected {
                         if state.user_music() != Some(music.clone()) {
                             state.set_user_music(Some(music));
                         }
@@ -218,7 +238,7 @@ fn App() -> Element {
 
         // Main Application Screen
         div {
-            class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-br {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
+            class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-b {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
             onmousemove: move |_| {
                 if logged_in {
                     app_state.record_activity();
@@ -437,7 +457,7 @@ fn App() -> Element {
                     div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} bg-white/20",
                         div { class: "flex flex-col items-center text-center space-y-2 py-2",
                             img {
-                                src: "/assets/emojis/butterfly.svg",
+                                src: "/emojis/butterfly.svg",
                                 class: "w-10 h-10 object-contain pointer-events-none"
                             }
                             span { class: "font-bold text-sm", "Skypia Messenger v14.0" }

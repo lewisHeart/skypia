@@ -42,7 +42,7 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
         }
     });
 
-    let close_action = move || {
+    let mut close_action = move || {
         if props.is_native_window {
             #[cfg(feature = "desktop")]
             {
@@ -58,7 +58,9 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
             // Coluna de Abas (Horizontal com scroll no mobile, Vertical no desktop)
             div { class: "w-full sm:w-[160px] border-b sm:border-b-0 sm:border-r {theme.titlebar_border()} bg-white/40 flex flex-row sm:flex-col p-1.5 sm:p-2 space-x-1 sm:space-x-0 sm:space-y-1 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto select-none flex-shrink-0 scrollbar-none",
                 {
-                    let is_admin = state.user_email().contains("admin") || state.user_email() == "wk.scbd@skypia.io";
+                    let is_admin = state.user_email().contains("admin") 
+                        || state.user_email() == "wk.scbd@skypia.io" 
+                        || state.user_email() == "wk.scbd@protonmail.com";
                     let mut tab_list = vec![
                         ("pessoais", "Pessoal", "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Person/SVG/ic_fluent_person_20_color.svg"),
                         ("gerais", "Geral", "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Settings/SVG/ic_fluent_settings_20_color.svg"),

@@ -515,4 +515,67 @@ impl AppState {
             }
         });
     }
+
+    pub fn update_group_info(&mut self, group_id: String, name: String, description: String, avatar_url: Option<String>) {
+        if let Some(group) = self.group_chats.write().iter_mut().find(|g| g.id == group_id) {
+            group.name = Some(name.clone());
+            group.description = Some(description.clone());
+            group.avatar_url = avatar_url.clone();
+        }
+        let pool = crate::services::db::get_pool();
+        let gid = group_id.clone();
+        let n = name.clone();
+        let d = description.clone();
+        let av = avatar_url.clone();
+        spawn(async move {
+            let _ = sqlx::query("UPDATE conversations SET name = ?, description = ?, avatar_url = ? WHERE id = ?")
+                .bind(n)
+                .bind(d)
+                .bind(av)
+                .bind(gid)
+                .execute(pool)
+                .await;
+        });
+
+        let token_opt = self.auth_token();
+        let mut state_clone = *self;
+        let gid = group_id.clone();
+        let name_val = name.clone();
+        let desc_val = description.clone();
+        let av_val = avatar_url.clone();
+        spawn(async move {
+            if let Some(token) = token_opt {
+                let client = reqwest::Client::new();
+                let body = serde_json::json!({
+                    "name": name_val,
+                    "description": desc_val,
+                    "avatar_url": av_val,
+                });
+                let resp = client
+                    .put(format!("{}/conversations/{}", crate::services::api::SERVER_BASE_URL, gid))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .json(&body)
+                    .send()
+                    .await;
+
+                match resp {
+                    Ok(r) if r.status().is_success() => {
+                        state_clone.add_toast(
+                            "Grupo Atualizado".to_string(),
+                            "As informações do grupo foram salvas.".to_string(),
+                            None,
+                        );
+                        state_clone.load_initial_data();
+                    }
+                    _ => {
+                        state_clone.add_toast(
+                            "Erro".to_string(),
+                            "Não foi possível salvar as alterações no servidor.".to_string(),
+                            None,
+                        );
+                    }
+                }
+            }
+        });
+    }
 }

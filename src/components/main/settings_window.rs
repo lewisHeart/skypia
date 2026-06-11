@@ -62,14 +62,17 @@ pub fn SettingsWindow() -> Element {
             document::Link { rel: "stylesheet", href: TAILWIND_CSS }
 
             div {
-                class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-br {theme.bg_gradient()} font-segoe select-none border border-[#7baad4]/40 shadow-2xl relative",
+                class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-b {theme.bg_gradient()} font-segoe select-none border border-[#7baad4]/40 shadow-2xl relative",
                 
                 if app_state.use_custom_titlebar() {
                     div {
                         class: "w-full h-10 bg-transparent flex items-center justify-between z-50 flex-shrink-0 select-none px-4 relative cursor-default",
                         style: "-webkit-app-region: drag;",
-                        onmousedown: move |_| {
-                            desktop.drag_window();
+                        onmousedown: {
+                            let desktop = desktop.clone();
+                            move |_| {
+                                desktop.drag_window();
+                            }
                         },
                         div { class: "flex items-center space-x-1.5 font-normal text-sm pointer-events-none {theme.titlebar_text()} select-none",
                             span { class: "text-[#0d1825] font-sans text-sm", "Opções" }
@@ -81,8 +84,11 @@ pub fn SettingsWindow() -> Element {
                             button {
                                 class: "w-[31px] h-[20px] bg-white border border-[#d1d1d1] rounded-[4px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] focus:outline-none",
                                 title: "Fechar",
-                                onclick: move |_| {
-                                    desktop.close();
+                                onclick: {
+                                    let desktop = desktop.clone();
+                                    move |_| {
+                                        desktop.close();
+                                    }
                                 },
                                 svg {
                                     view_box: "0 0 12 12",

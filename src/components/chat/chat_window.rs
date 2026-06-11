@@ -423,7 +423,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                 document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
                 document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
                 div {
-                    class: "w-screen h-screen flex flex-col items-center justify-center bg-gradient-to-br {theme.bg_gradient()} text-[#1e395b] font-bold text-xs select-none",
+                    class: "w-screen h-screen flex flex-col items-center justify-center bg-gradient-to-b {theme.bg_gradient()} text-[#1e395b] font-bold text-xs select-none",
                     span { class: "text-2xl mb-2 animate-bounce", "🦋" }
                     span { class: "animate-pulse", "Carregando conversa..." }
                 }
@@ -446,7 +446,7 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
             document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
 
             div {
-                class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-br {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
+                class: "w-screen h-screen overflow-hidden flex flex-col bg-gradient-to-b {theme.bg_gradient()} relative font-segoe select-none rounded-t-2xl border border-[#7baad4]/40 shadow-2xl",
 
                 // Bordas e Cantos para Redimensionamento Nativo da Janela Flutuante (Escala 100%!)
                 if app_state.use_custom_titlebar() {
