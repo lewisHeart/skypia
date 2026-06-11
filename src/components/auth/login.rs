@@ -133,10 +133,10 @@ pub fn Login(mut state: AppState) -> Element {
                             class: "msn-avatar-container w-[132px] h-[132px] relative flex items-center justify-center",
                             img {
                                 src: match selected_status() {
-                                    UserStatus::Online => asset!("/assets/status/Disponível Login.svg"),
-                                    UserStatus::Ocupado => asset!("/assets/status/Ocupado Login.svg"),
-                                    UserStatus::Ausente => asset!("/assets/status/Ausente Login.svg"),
-                                    _ => asset!("/assets/status/Offline Login.svg"),
+                                    UserStatus::Online => asset!("/assets/status/disponivel_login.svg"),
+                                    UserStatus::Ocupado => asset!("/assets/status/ocupado_login.svg"),
+                                    UserStatus::Ausente => asset!("/assets/status/ausente_login.svg"),
+                                    _ => asset!("/assets/status/offline_login.svg"),
                                 },
                                 class: "msn-avatar-frame-img"
                             }

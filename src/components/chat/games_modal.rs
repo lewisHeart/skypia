@@ -16,7 +16,7 @@ pub fn GamesModal(mut state: AppState) -> Element {
 
     rsx! {
         div {
-            class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 pointer-events-auto",
+            class: "fixed inset-0 bg-black/10 z-[9999] flex items-center justify-center p-4 pointer-events-auto",
             onclick: move |_| state.show_games_modal.set(false),
             div {
                 class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto select-none",
@@ -51,7 +51,7 @@ pub fn GamesModal(mut state: AppState) -> Element {
                             }
                         }
                         button {
-                            class: "px-3 py-1 bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white rounded font-bold cursor-pointer transition-colors focus:outline-none flex-shrink-0 text-[10px]",
+                            class: "px-3 py-1 {theme.btn_primary()} rounded font-bold cursor-pointer transition-colors focus:outline-none flex-shrink-0 text-[10px]",
                             onclick: move |_| {
                                 state.start_game(contact_id.clone());
                                 state.show_games_modal.set(false);

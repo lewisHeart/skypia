@@ -33,16 +33,9 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     class: "w-6 h-6 flex items-center justify-center rounded hover:bg-white/40 border border-transparent hover:border-white/50 cursor-pointer transition-colors focus:outline-none",
                     title: "Opções",
                     onclick: move |_| show_actions_menu.set(!show_actions_menu()),
-                    svg {
-                        class: "w-4 h-4 text-[#7a7a7a] pointer-events-none",
-                        view_box: "0 0 24 24",
-                        fill: "none",
-                        stroke: "currentColor",
-                        stroke_width: "2.5",
-                        stroke_linecap: "round",
-                        stroke_linejoin: "round",
-                        path { d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" }
-                        circle { cx: "12", cy: "12", r: "3" }
+                    img {
+                        src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Settings/SVG/ic_fluent_settings_24_color.svg",
+                        class: "w-4 h-4 pointer-events-none"
                     }
                 }
             }
@@ -89,16 +82,9 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             show_actions_menu.set(false);
                             state.show_settings_modal.set(true);
                         },
-                        svg {
-                            class: "w-3.5 h-3.5 text-[#7a7a7a] pointer-events-none mr-1.5",
-                            view_box: "0 0 24 24",
-                            fill: "none",
-                            stroke: "currentColor",
-                            stroke_width: "2.5",
-                            stroke_linecap: "round",
-                            stroke_linejoin: "round",
-                            path { d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" }
-                            circle { cx: "12", cy: "12", r: "3" }
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Settings/SVG/ic_fluent_settings_24_color.svg",
+                            class: "w-3.5 h-3.5 pointer-events-none mr-1.5"
                         }
                         span { "Configurações..." }
                     }
@@ -160,10 +146,10 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 },
                 img {
                     src: match state.user_status() {
-                        UserStatus::Online => asset!("/assets/status/Disponível Perfil.svg"),
-                        UserStatus::Ocupado => asset!("/assets/status/Ocupado Perfil.svg"),
-                        UserStatus::Ausente => asset!("/assets/status/Ausente Perfil.svg"),
-                        _ => asset!("/assets/status/Offline Perfil.svg"),
+                        UserStatus::Online => asset!("/assets/status/disponivel_perfil.svg"),
+                        UserStatus::Ocupado => asset!("/assets/status/ocupado_perfil.svg"),
+                        UserStatus::Ausente => asset!("/assets/status/ausente_perfil.svg"),
+                        _ => asset!("/assets/status/offline_perfil.svg"),
                     },
                     class: "msn-avatar-frame-img"
                 }

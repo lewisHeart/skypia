@@ -42,7 +42,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
     let container_padding = match density.as_str() {
         "large" => "py-2 px-1.5",
         "small" => "py-0.5 px-1.5",
-        _ => "p-1",
+        _ => "py-1 px-1.5",
     };
 
     let dragged_cid = (state.dragged_contact_id)();
@@ -91,24 +91,29 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
             },
             onmouseleave: move |_| show_tooltip.set(false),
             
-            // Renderização condicional por densidade (Grande com Avatar vs Compacta com Ícone de Status)
-            if density == "large" {
+            // Renderização condicional por densidade (Grande e Média com Avatar vs Compacta com Ícone de Status)
+            if density == "large" || density == "medium" {
                 {
                     let frame_src = match contact.status {
-                        UserStatus::Online => asset!("/assets/status/Disponível Perfil.svg"),
-                        UserStatus::Ocupado => asset!("/assets/status/Ocupado Perfil.svg"),
-                        UserStatus::Ausente => asset!("/assets/status/Ausente Perfil.svg"),
-                        _ => asset!("/assets/status/Offline Perfil.svg"),
+                        UserStatus::Online => asset!("/assets/status/disponivel_perfil.svg"),
+                        UserStatus::Ocupado => asset!("/assets/status/ocupado_perfil.svg"),
+                        UserStatus::Ausente => asset!("/assets/status/ausente_perfil.svg"),
+                        _ => asset!("/assets/status/offline_perfil.svg"),
+                    };
+                    let (container_size, content_size, avatar_size) = if density == "large" {
+                        ("w-[44px] h-[44px]", "w-[36px] h-[36px]", 36)
+                    } else {
+                        ("w-[36px] h-[36px]", "w-[28px] h-[28px]", 28)
                     };
                     rsx! {
-                        div { class: "msn-avatar-container w-[44px] h-[44px] flex-shrink-0",
+                        div { class: "msn-avatar-container {container_size} flex-shrink-0",
                             img {
                                 src: frame_src,
                                 class: "msn-avatar-frame-img"
                             }
                             div {
-                                class: "msn-avatar-content w-[36px] h-[36px] rounded-[3px] bg-transparent flex items-center justify-center",
-                                {render_avatar(contact.avatar_url.as_deref(), 36)}
+                                class: "msn-avatar-content {content_size} rounded-[3px] bg-transparent flex items-center justify-center",
+                                {render_avatar(contact.avatar_url.as_deref(), avatar_size)}
                             }
                         }
                         div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
@@ -135,10 +140,10 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
             } else {
                 {
                     let icon_src = match contact.status {
-                        UserStatus::Online => asset!("/assets/status/Disponível Icone.svg"),
-                        UserStatus::Ocupado => asset!("/assets/status/Ocupado Icone.svg"),
-                        UserStatus::Ausente => asset!("/assets/status/Ausente Icone.svg"),
-                        _ => asset!("/assets/status/Offline Icone.svg"),
+                        UserStatus::Online => asset!("/assets/status/disponivel_icone.svg"),
+                        UserStatus::Ocupado => asset!("/assets/status/ocupado_icone.svg"),
+                        UserStatus::Ausente => asset!("/assets/status/ausente_icone.svg"),
+                        _ => asset!("/assets/status/offline_icone.svg"),
                     };
                     rsx! {
                         img {
@@ -294,7 +299,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
             // Modal de Renomeação (MSN Style)
             if show_rename_modal() {
                 div { 
-                    class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 cursor-default",
+                    class: "fixed inset-0 bg-black/10 z-[99999] flex items-center justify-center p-4 cursor-default",
                     onclick: move |_| show_rename_modal.set(false),
                     div { 
                         class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border-2 {theme.modal_border()} rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
@@ -345,7 +350,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                                 "Salvar"
                             }
                             button { 
-                                class: "px-4 py-1.5 bg-gradient-to-b from-slate-200 to-slate-300 hover:from-slate-300 hover:to-slate-400 text-slate-700 rounded font-bold shadow border border-slate-400/40 cursor-pointer transition-all focus:outline-none",
+                                class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded font-bold shadow cursor-pointer transition-colors focus:outline-none",
                                 onclick: move |_| show_rename_modal.set(false),
                                 "Cancelar"
                             }

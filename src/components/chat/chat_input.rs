@@ -100,13 +100,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             show_wink_panel.set(false);
                             show_file_panel.set(false);
                         },
-                        svg {
-                            class: "w-5 h-5 select-none pointer-events-none",
-                            view_box: "0 0 24 24",
-                            circle { cx: "12", cy: "12", r: "9", fill: "#ffcd0f", stroke: "#2b3e51", stroke_width: "1.5" }
-                            circle { cx: "9", cy: "10", r: "1.2", fill: "#2b3e51" }
-                            circle { cx: "15", cy: "10", r: "1.2", fill: "#2b3e51" }
-                            path { d: "M8 14.5 C 9 17, 15 17, 16 14.5", stroke: "#2b3e51", stroke_width: "1.5", stroke_linecap: "round", fill: "none" }
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Emoji/SVG/ic_fluent_emoji_24_regular.svg",
+                            class: "w-5 h-5 select-none pointer-events-none"
                         }
                         span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
@@ -121,11 +117,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             show_emoticon_panel.set(false);
                             show_file_panel.set(false);
                         },
-                        svg {
-                            class: "w-5 h-5 select-none pointer-events-none",
-                            view_box: "0 0 24 24",
-                            circle { cx: "12", cy: "12", r: "5", fill: "#ffd700", stroke: "#b8860b", stroke_width: "1" }
-                            path { d: "M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2 2", stroke: "#b8860b", stroke_width: "1.5", stroke_linecap: "round" }
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Gift/SVG/ic_fluent_gift_24_color.svg",
+                            class: "w-5 h-5 select-none pointer-events-none"
                         }
                         span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
@@ -140,11 +134,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             show_font_panel.set(false);
                             show_emoticon_panel.set(false);
                         },
-                        svg {
-                            class: "w-5 h-5 select-none pointer-events-none",
-                            view_box: "0 0 24 24",
-                            path { d: "M2 6a2 2 0 0 1 2-2h4l2 3h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z", fill: "#4fa8e3", stroke: "#1c5d8c", stroke_width: "1" }
-                            path { d: "M2 10h20v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8z", fill: "#8bd0ff", stroke: "#1c5d8c", stroke_width: "1" }
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Document%20Folder/SVG/ic_fluent_document_folder_24_color.svg",
+                            class: "w-5 h-5 select-none pointer-events-none"
                         }
                         span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
@@ -154,11 +146,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                         class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center transition-colors focus:outline-none",
                         title: "Chamar a Atenção (Nudge)",
                         onclick: handle_send_nudge,
-                        svg {
-                            class: "w-5 h-5 select-none pointer-events-none",
-                            view_box: "0 0 24 24",
-                            path { d: "M12 2A5 5 0 0 0 7 7v5l-2 2v2h14v-2l-2-2V7a5 5 0 0 0-5-5z", fill: "#ffd700", stroke: "#b8860b", stroke_width: "1" }
-                            path { d: "M10 17a2 2 0 0 0 4 0h-4z", fill: "#c59a00", stroke: "#b8860b", stroke_width: "1" }
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Alert/SVG/ic_fluent_alert_24_color.svg",
+                            class: "w-5 h-5 select-none pointer-events-none"
                         }
                         span { class: "text-[11px] text-[#2b3e51] font-semibold ml-1.5", "Chamar atenção" }
                     }
@@ -175,14 +165,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 show_font_panel.set(false);
                                 show_emoticon_panel.set(false);
                             },
-                            svg {
-                                view_box: "0 0 24 24",
-                                class: "w-5 h-5 select-none pointer-events-none",
-                                rect { x: "3", y: "6", width: "18", height: "12", rx: "3", fill: "#0fafff", stroke: "#0066cc", stroke_width: "1" }
-                                circle { cx: "7", cy: "12", r: "1.5", fill: "#fff" }
-                                circle { cx: "17", cy: "10", r: "1.2", fill: "#fff" }
-                                circle { cx: "17", cy: "14", r: "1.2", fill: "#fff" }
-                                path { d: "M6 12 H 8 M7 11 V 13", stroke: "#fff", stroke_width: "1" }
+                            img {
+                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Game%20Chat/SVG/ic_fluent_game_chat_20_color.svg",
+                                class: "w-5 h-5 select-none pointer-events-none"
                             }
                         }
                     }
@@ -496,10 +481,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             }
                         },
-                        svg {
-                            view_box: "0 0 24 24",
-                            class: "w-6 h-6 fill-current",
-                            path { d: "M12 2 A 3 3 0 0 0 9 5 V 11 A 3 3 0 0 0 15 11 V 5 A 3 3 0 0 0 12 2 Z M12 16 A 6 6 0 0 0 18 10 H 20 A 8 8 0 0 1 13 17.9 V 20 H 15 V 22 H 9 V 20 H 11 V 17.9 A 8 8 0 0 1 4 10 H 6 A 6 6 0 0 0 12 16 Z" }
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Mic/SVG/ic_fluent_mic_24_color.svg",
+                            class: "w-6 h-6 select-none pointer-events-none brightness-0 invert"
                         }
                     }
                 }

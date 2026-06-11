@@ -211,44 +211,30 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
                                 onclick: move |_| {
                                     state.show_games_modal.set(true);
                                 },
-                                svg {
-                                    class: "w-5 h-5 select-none pointer-events-none",
-                                    view_box: "0 0 100 100",
-                                    circle { cx: "40", cy: "35", r: "14", fill: "#3a90f0" }
-                                    path { d: "M15 75 C15 55, 65 55, 65 75 Z", fill: "#3a90f0" }
-                                    circle { cx: "65", cy: "48", r: "11", fill: "#5cd63a" }
-                                    path { d: "M45 78 C45 62, 85 62, 85 78 Z", fill: "#5cd63a" }
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Game%20Chat/SVG/ic_fluent_game_chat_20_color.svg",
+                                    class: "w-5 h-5 select-none pointer-events-none"
                                 }
                             }
                             button {
                                 class: "hover:bg-white/40 p-1.5 rounded transition-all focus:outline-none cursor-pointer flex items-center justify-center",
                                 title: "Buscar nesta conversa",
-                                svg {
-                                    class: "w-5 h-5 text-[#3a90f0] select-none pointer-events-none",
-                                    view_box: "0 0 24 24",
-                                    fill: "none",
-                                    stroke: "currentColor",
-                                    stroke_width: "2.5",
-                                    stroke_linecap: "round",
-                                    circle { cx: "11", cy: "11", r: "5.5" }
-                                    path { d: "M15 15l5 5" }
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Search/SVG/ic_fluent_search_24_regular.svg",
+                                    class: "w-5 h-5 select-none pointer-events-none text-[#3a90f0]"
                                 }
                             }
                             button {
                                 class: "hover:bg-white/40 p-1.5 rounded transition-all focus:outline-none cursor-pointer flex items-center justify-center",
                                 title: "Iniciar chamada de áudio",
-                                svg {
-                                    class: "w-5 h-5 text-[#e81123] select-none pointer-events-none",
-                                    view_box: "0 0 24 24",
-                                    fill: "currentColor",
-                                    path { d: "M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z" }
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Phone/SVG/ic_fluent_phone_24_color.svg",
+                                    class: "w-5 h-5 select-none pointer-events-none"
                                 }
                             }
-                            svg {
-                                class: "w-4 h-4 text-slate-500 cursor-pointer hover:text-slate-700",
-                                view_box: "0 0 24 24",
-                                fill: "currentColor",
-                                path { d: "M7 10l5 5 5-5z" }
+                            img {
+                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Chevron%20Down/SVG/ic_fluent_chevron_down_24_regular.svg",
+                                class: "w-4 h-4 text-slate-500 cursor-pointer hover:text-slate-700"
                             }
                         }
 

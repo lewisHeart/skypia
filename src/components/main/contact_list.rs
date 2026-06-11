@@ -158,13 +158,9 @@ pub fn ContactList(mut state: AppState) -> Element {
                     onclick: move |_| {
                         state.show_add_contact_modal.set(true);
                     },
-                    svg {
-                        view_box: "0 0 24 24",
-                        class: "w-4.5 h-4.5 select-none pointer-events-none stroke-current text-[#4f5d73]/90 fill-none",
-                        path { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", stroke_width: "1.8", stroke_linecap: "round", stroke_linejoin: "round" }
-                        circle { cx: "9", cy: "7", r: "4", stroke_width: "1.8", stroke_linecap: "round", stroke_linejoin: "round" }
-                        line { x1: "19", y1: "8", x2: "19", y2: "14", stroke: "#4aa333", stroke_width: "2.5", stroke_linecap: "round" }
-                        line { x1: "16", y1: "11", x2: "22", y2: "11", stroke: "#4aa333", stroke_width: "2.5", stroke_linecap: "round" }
+                    img {
+                        src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Person%20Add/SVG/ic_fluent_person_add_24_color.svg",
+                        class: "w-5 h-5 select-none pointer-events-none"
                     }
                 }
             }
@@ -391,7 +387,7 @@ pub fn ContactList(mut state: AppState) -> Element {
             // Modal de Criação de Grupo
             if show_create_group_modal() {
                 div {
-                    class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4 select-none cursor-default",
+                    class: "fixed inset-0 bg-black/10 z-[200] flex items-center justify-center p-4 select-none cursor-default",
                     onclick: move |_| show_create_group_modal.set(false),
                     div {
                         class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs {theme.titlebar_text()} pointer-events-auto",
@@ -503,7 +499,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                                 "Criar"
                             }
                             button {
-                                class: "px-4 py-1.5 bg-gradient-to-b from-slate-200 to-slate-300 hover:from-slate-300 hover:to-slate-400 text-slate-700 rounded font-bold shadow border border-slate-400/40 cursor-pointer transition-all focus:outline-none",
+                                class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded font-bold shadow cursor-pointer transition-colors focus:outline-none",
                                 onclick: move |_| {
                                     show_create_group_modal.set(false);
                                     group_name.set(String::new());
@@ -612,9 +608,9 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
     }).count();
 
     let group_svg = if online_members > 0 {
-        asset!("/assets/status/Disponível Grupo.svg")
+        asset!("/assets/status/disponivel_grupo.svg")
     } else {
-        asset!("/assets/status/Offline Grupo.svg")
+        asset!("/assets/status/offline_grupo.svg")
     };
 
     let container_padding = if density == "small" { "py-0.5 px-1.5" } else { "py-1 px-1.5" };
@@ -639,17 +635,50 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
                 }
             },
             
-            img {
-                src: group_svg,
-                class: "w-[14px] h-[12px] object-contain flex-shrink-0 select-none mr-1.5"
-            }
-
-            div { class: "flex-1 min-w-0 flex items-center space-x-1 text-xs",
-                span { class: "font-semibold text-xs {theme.titlebar_text()} truncate hover:underline flex-shrink-0", 
-                    "{group.name.as_deref().unwrap_or(\"Grupo sem nome\")}" 
+            if density == "medium" {
+                {
+                    let frame_src = if online_members > 0 {
+                        asset!("/assets/status/disponivel_perfil.svg")
+                    } else {
+                        asset!("/assets/status/offline_perfil.svg")
+                    };
+                    rsx! {
+                        div { class: "msn-avatar-container w-[36px] h-[36px] flex-shrink-0 mr-1",
+                            img {
+                                src: frame_src,
+                                class: "msn-avatar-frame-img"
+                            }
+                            div {
+                                class: "msn-avatar-content w-[28px] h-[28px] rounded-[3px] bg-transparent flex items-center justify-center",
+                                {crate::models::render_avatar(group.avatar_url.as_deref(), 28)}
+                            }
+                        }
+                        div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
+                            span { class: "font-semibold text-xs {theme.titlebar_text()} truncate hover:underline", 
+                                "{group.name.as_deref().unwrap_or(\"Grupo sem nome\")}" 
+                            }
+                            span { class: "text-[10px] text-slate-400 font-normal", 
+                                "({online_members}/{group.members.len()} Disponível)" 
+                            }
+                        }
+                    }
                 }
-                span { class: "text-[10px] text-slate-400 font-normal flex-shrink-0", 
-                    "({online_members}/{group.members.len()} Disponível)" 
+            } else {
+                {
+                    rsx! {
+                        img {
+                            src: group_svg,
+                            class: "w-[14px] h-[12px] object-contain flex-shrink-0 select-none mr-1.5"
+                        }
+                        div { class: "flex-1 min-w-0 flex items-center space-x-1 text-xs",
+                            span { class: "font-semibold text-xs {theme.titlebar_text()} truncate hover:underline flex-shrink-0", 
+                                "{group.name.as_deref().unwrap_or(\"Grupo sem nome\")}" 
+                            }
+                            span { class: "text-[10px] text-slate-400 font-normal flex-shrink-0", 
+                                "({online_members}/{group.members.len()} Disponível)" 
+                            }
+                        }
+                    }
                 }
             }
         }

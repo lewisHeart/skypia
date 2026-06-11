@@ -339,7 +339,7 @@ fn App() -> Element {
 
                 rsx! {
                     div {
-                        class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9998] flex items-center justify-center p-4 pointer-events-auto",
+                        class: "fixed inset-0 bg-black/10 z-[9998] flex items-center justify-center p-4 pointer-events-auto",
                         div {
                             class: "w-[360px] bg-gradient-to-b {theme.modal_gradient()} border-2 {theme.modal_border()} rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
 
@@ -365,14 +365,14 @@ fn App() -> Element {
                             // Botões de Ação
                             div { class: "flex items-center justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/50",
                                 button {
-                                    class: "px-4 py-1.5 bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                                    class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                     onclick: move |_| {
                                         app_state.accept_friend_request(first_req_id_accept.clone());
                                     },
                                     "Aceitar"
                                 }
                                 button {
-                                    class: "px-4 py-1.5 bg-gradient-to-b from-rose-400 to-rose-500 hover:from-rose-500 hover:to-rose-600 text-white rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                                    class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
                                     onclick: move |_| {
                                         app_state.reject_friend_request(first_req_id_reject.clone());
                                     },
@@ -390,7 +390,7 @@ fn App() -> Element {
         // About Skypia Modal Dialog
         if app_state.show_about() {
             div {
-                class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 pointer-events-auto",
+                class: "fixed inset-0 bg-black/10 z-[9999] flex items-center justify-center p-4 pointer-events-auto",
                 onclick: move |_| app_state.show_about.set(false),
                 div {
                     class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",

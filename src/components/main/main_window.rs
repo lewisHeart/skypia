@@ -92,7 +92,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
         // ==========================================
         if state.show_settings_modal() {
             div {
-                class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4",
+                class: "fixed inset-0 bg-black/10 z-[200] flex items-center justify-center p-4",
                 onclick: move |_| state.show_settings_modal.set(false),
                 div {
                     class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
@@ -226,7 +226,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
         // ==========================================
         if state.show_add_contact_modal() {
             div {
-                class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[200] flex items-center justify-center p-4",
+                class: "fixed inset-0 bg-black/10 z-[200] flex items-center justify-center p-4",
                 onclick: move |_| state.show_add_contact_modal.set(false),
                 div {
                     class: "w-[340px] bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs {theme.titlebar_text()} pointer-events-auto",
@@ -332,7 +332,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                 let user_clone = user.clone();
                                 rsx! {
                                     button {
-                                        class: "px-4 py-1.5 bg-gradient-to-b from-[#22c55e] to-[#15803d] hover:from-[#4ade80] hover:to-[#166534] text-white border border-[#166534] rounded font-bold shadow transition-colors cursor-pointer focus:outline-none",
+                                        class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow transition-colors cursor-pointer focus:outline-none",
                                         onclick: move |_| {
                                             state.add_contact_dynamic(
                                                 user_clone.email.clone(),

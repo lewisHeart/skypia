@@ -291,10 +291,10 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                         div { class: "flex flex-col items-center space-y-2.5",
                             {
                                 let frame_src = match c.status {
-                                    crate::models::UserStatus::Online => asset!("/assets/status/Disponível Conversa.svg"),
-                                    crate::models::UserStatus::Ocupado => asset!("/assets/status/Ocupado Conversa.svg"),
-                                    crate::models::UserStatus::Ausente => asset!("/assets/status/Ausente Conversa.svg"),
-                                    _ => asset!("/assets/status/Offline Conversa.svg"),
+                                    crate::models::UserStatus::Online => asset!("/assets/status/disponivel_conversa.svg"),
+                                    crate::models::UserStatus::Ocupado => asset!("/assets/status/ocupado_conversa.svg"),
+                                    crate::models::UserStatus::Ausente => asset!("/assets/status/ausente_conversa.svg"),
+                                    _ => asset!("/assets/status/offline_conversa.svg"),
                                 };
                                 rsx! {
                                     div { class: "msn-avatar-container w-[160px] h-[160px] flex-shrink-0 relative",
@@ -315,10 +315,10 @@ pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
                         div { class: "flex flex-col items-center space-y-2.5",
                             {
                                 let frame_src = match state.user_status() {
-                                    crate::models::UserStatus::Online => asset!("/assets/status/Disponível Conversa.svg"),
-                                    crate::models::UserStatus::Ocupado => asset!("/assets/status/Ocupado Conversa.svg"),
-                                    crate::models::UserStatus::Ausente => asset!("/assets/status/Ausente Conversa.svg"),
-                                    _ => asset!("/assets/status/Offline Conversa.svg"),
+                                    crate::models::UserStatus::Online => asset!("/assets/status/disponivel_conversa.svg"),
+                                    crate::models::UserStatus::Ocupado => asset!("/assets/status/ocupado_conversa.svg"),
+                                    crate::models::UserStatus::Ausente => asset!("/assets/status/ausente_conversa.svg"),
+                                    _ => asset!("/assets/status/offline_conversa.svg"),
                                 };
                                 rsx! {
                                     div { class: "msn-avatar-container w-[160px] h-[160px] flex-shrink-0 relative",
