@@ -47,16 +47,35 @@ fn main() {
     // pelo Dioxus Desktop para que o driver de rede e IO esteja disponível para o WebSocket
     let _guard = rt.enter();
 
+    // Carrega as coordenadas salvas da janela
+    let mut initial_x = 100;
+    let mut initial_y = 100;
+    let mut initial_width = 413.0;
+    let mut initial_height = 735.0;
+
     rt.block_on(async {
         if let Err(e) = crate::services::db::DatabaseService::init_pool().await {
             eprintln!("Erro ao inicializar banco de dados: {}", e);
             std::process::exit(1);
         }
+        if let Ok(settings) = crate::services::db::DatabaseService::load_settings().await {
+            initial_x = settings.window_x;
+            initial_y = settings.window_y;
+            initial_width = settings.window_width;
+            initial_height = settings.window_height;
+        }
     });
 
     #[cfg(feature = "desktop")]
     {
-        let mut config = dioxus::desktop::Config::new().with_menu(None);
+        let window_builder = dioxus::desktop::WindowBuilder::new()
+            .with_title("Skypia Messenger")
+            .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(initial_width, initial_height))
+            .with_position(dioxus::desktop::tao::dpi::LogicalPosition::new(initial_x as f64, initial_y as f64));
+
+        let mut config = dioxus::desktop::Config::new()
+            .with_menu(None)
+            .with_window(window_builder);
         if let Some(slot) = get_current_slot() {
             let data_dir = std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
@@ -241,12 +260,32 @@ fn App() -> Element {
         }
     });
 
-    // Loop periódico para verificar e aplicar mudanças de tema/escala no banco SQLite feitas pela janela de configurações nativa
+    // Loop periódico para verificar e aplicar mudanças de tema/escala no banco SQLite feitas pela janela de configurações nativa, além de salvar a posição/dimensões da janela do SO
     use_future(move || {
         let mut state = app_state;
         async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+                #[cfg(feature = "desktop")]
+                {
+                    let window = dioxus::desktop::use_window();
+                    let window_ref = &window.window;
+                    if let Ok(pos) = window_ref.outer_position() {
+                        let size = window_ref.inner_size();
+                        let scale_factor = window_ref.scale_factor();
+                        let logical_pos = pos.to_logical::<f64>(scale_factor);
+                        let logical_size = size.to_logical::<f64>(scale_factor);
+                        
+                        let x = logical_pos.x.round() as i32;
+                        let y = logical_pos.y.round() as i32;
+                        let w = logical_size.width;
+                        let h = logical_size.height;
+                        
+                        state.set_window_geom(x, y, w, h);
+                    }
+                }
+
                 if state.logged_in() {
                     if let Ok(settings) = crate::services::db::DatabaseService::load_settings().await {
                         let db_theme = crate::services::db::str_to_theme(&settings.theme);
@@ -569,6 +608,44 @@ fn App() -> Element {
         // Modal de Perfil do Grupo
         if app_state.show_group_profile_modal() {
             crate::components::profile::group_profile_modal::GroupProfileModal { state: app_state }
+        }
+
+        // Modal de Configurações Global
+        if app_state.show_settings_modal() {
+            div {
+                class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[999] flex items-center justify-center p-4 select-none cursor-default pointer-events-auto",
+                onclick: move |_| app_state.show_settings_modal.set(false),
+                div {
+                    class: "w-[92vw] max-w-[350px] sm:max-w-[620px] h-auto max-h-[90vh] sm:h-[480px] border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                    style: format!("background: {}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);", theme.bg_chat()),
+                    onclick: move |e| e.stop_propagation(),
+
+                    div { 
+                        class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                        div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
+                            img {
+                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Settings/SVG/ic_fluent_settings_24_color.svg",
+                                class: "w-5 h-5 object-contain pointer-events-none"
+                            }
+                            span { "Configurações do Skypia" }
+                        }
+                        button {
+                            class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none text-[8px] font-bold",
+                            title: "Fechar",
+                            onclick: move |_| app_state.show_settings_modal.set(false),
+                            "✕"
+                        }
+                    }
+
+                    div {
+                        class: "flex-1 min-h-0 w-full relative",
+                        crate::components::main::settings_content::SettingsContent {
+                            state: app_state,
+                            is_native_window: false
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -116,6 +116,18 @@ pub struct UserSettings {
     pub auto_accept_files: bool,
     pub remember_password: bool,
     pub save_chat_history: bool,
+    pub saved_email: String,
+    pub saved_password: String,
+    pub auto_login: bool,
+    pub window_x: i32,
+    pub window_y: i32,
+    pub window_width: f64,
+    pub window_height: f64,
+    pub fav_collapsed: bool,
+    pub online_collapsed: bool,
+    pub offline_collapsed: bool,
+    pub groups_collapsed: bool,
+    pub collapsed_categories: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -11,6 +11,7 @@ pub fn Login(mut state: AppState) -> Element {
     let mut selected_status = use_signal(|| UserStatus::Online);
     let mut error_msg = use_signal(|| Option::<String>::None);
     let mut remember_me = use_signal(|| true);
+    let mut auto_login = use_signal(|| false);
 
     let border_color = match selected_status() {
         UserStatus::Online => "#4aa333",
@@ -26,10 +27,13 @@ pub fn Login(mut state: AppState) -> Element {
         _ => ("#7a7a7a", "#555555"),
     };
 
-    // Tenta auto-login ao montar o componente
+    // Inicialização consolidada (Token -> Configurações locais -> Auto-login por credenciais)
     use_effect(move || {
         let mut state = state;
         spawn(async move {
+            let mut token_authed = false;
+            
+            // 1. Tenta auto-login com o token existente
             if let Ok(Some((token, _user_id))) =
                 crate::services::db::DatabaseService::load_auth_token().await
             {
@@ -44,10 +48,69 @@ pub fn Login(mut state: AppState) -> Element {
                             "Sessão restaurada com sucesso.".to_string(),
                             None,
                         );
+                        token_authed = true;
                     }
                     Err(_) => {
                         // Token expirado — limpa
                         let _ = crate::services::db::DatabaseService::clear_auth_token().await;
+                    }
+                }
+            }
+
+            // 2. Se não foi autenticado por token, carrega as credenciais salvas
+            if !token_authed {
+                if let Ok(settings) = crate::services::db::DatabaseService::load_settings().await {
+                    remember_me.set(settings.remember_password);
+                    auto_login.set(settings.auto_login);
+                    
+                    let mut loaded_email = String::new();
+                    let mut loaded_password = String::new();
+                    
+                    if settings.remember_password {
+                        loaded_email = settings.saved_email.clone();
+                        email.set(settings.saved_email);
+                        
+                        if !settings.saved_password.is_empty() {
+                            use base64::Engine;
+                            if let Ok(decoded_bytes) = base64::engine::general_purpose::STANDARD.decode(&settings.saved_password) {
+                                if let Ok(decoded_str) = String::from_utf8(decoded_bytes) {
+                                    loaded_password = decoded_str.clone();
+                                    password.set(decoded_str);
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Se auto-login por credenciais estiver ativo e tivermos dados
+                    if settings.auto_login && !loaded_email.is_empty() && !loaded_password.is_empty() {
+                        if state.signing_in() {
+                            return;
+                        }
+                        
+                        *state.signing_in.write() = true;
+                        let email_val = loaded_email.trim().to_string();
+                        let password_val = loaded_password;
+                        let status = selected_status();
+                        let mut state = state;
+
+                        match api::login(email_val, password_val).await {
+                            Ok(auth) => {
+                                state.apply_server_profile(auth.user, auth.token).await;
+                                state.set_user_status(status);
+                                *state.signing_in.write() = false;
+                                *state.logged_in.write() = true;
+                                play_sound("online");
+                                state.add_toast(
+                                    "Bem-vindo de volta!".to_string(),
+                                    "Você entrou no Skypia Messenger.".to_string(),
+                                    None,
+                                );
+                            }
+                            Err(e) => {
+                                *state.signing_in.write() = false;
+                                error_msg.set(Some(e));
+                            }
+                        }
                     }
                 }
             }
@@ -70,13 +133,33 @@ pub fn Login(mut state: AppState) -> Element {
         let email_val = email().trim().to_string();
         let password_val = password();
         let status = selected_status();
+        let rem = remember_me();
+        let aut = auto_login();
         let mut state = state;
 
         spawn(async move {
-            match api::login(email_val, password_val).await {
+            match api::login(email_val.clone(), password_val.clone()).await {
                 Ok(auth) => {
                     state.apply_server_profile(auth.user, auth.token).await;
                     state.set_user_status(status);
+                    
+                    // Persiste as credenciais se o usuário desejar
+                    let email_to_save = if rem { email_val } else { String::new() };
+                    let pass_to_save = if rem {
+                        use base64::Engine;
+                        base64::engine::general_purpose::STANDARD.encode(password_val.as_bytes())
+                    } else {
+                        String::new()
+                    };
+                    
+                    if let Ok(mut settings) = crate::services::db::DatabaseService::load_settings().await {
+                        settings.remember_password = rem;
+                        settings.auto_login = aut;
+                        settings.saved_email = email_to_save;
+                        settings.saved_password = pass_to_save;
+                        let _ = crate::services::db::DatabaseService::save_settings(&settings).await;
+                    }
+
                     *state.signing_in.write() = false;
                     *state.logged_in.write() = true;
                     play_sound("online");
@@ -111,8 +194,8 @@ pub fn Login(mut state: AppState) -> Element {
 
             // Centralizador dos elementos de Login
             div {
-                class: "w-[309px] flex flex-col items-center mt-12",
-
+                class: "w-full max-w-[309px] flex flex-col items-center mt-6 md:mt-12 px-4 md:px-0 flex-1 justify-center",
+ 
                 // Logo/Avatar com a Moldura de Status SVG dinâmica
                 div { class: "h-[132px] w-[132px] flex items-center justify-center relative mb-8 flex-shrink-0",
                     if state.signing_in() {
@@ -153,7 +236,7 @@ pub fn Login(mut state: AppState) -> Element {
                         }
                     }
                 }
-
+ 
                 if state.signing_in() {
                     div { class: "w-full text-center space-y-4 mt-6",
                         p { class: "text-xs text-[#1e395b] font-semibold animate-pulse", "Entrando no Skypia..." }
@@ -170,7 +253,7 @@ pub fn Login(mut state: AppState) -> Element {
                     }
                 } else {
                     div { class: "w-full flex flex-col space-y-3.5",
-
+ 
                         // Mensagem de erro
                         if let Some(err) = error_msg() {
                             div { class: "w-full px-3 py-2 bg-red-50 border border-red-200 rounded text-[11px] text-red-700 flex items-center space-x-2 shadow-sm",
@@ -178,7 +261,7 @@ pub fn Login(mut state: AppState) -> Element {
                                 span { "{err}" }
                             }
                         }
-
+ 
                         // Email
                         div { class: "w-full relative",
                             input {
@@ -192,7 +275,7 @@ pub fn Login(mut state: AppState) -> Element {
                                 }
                             }
                         }
-
+ 
                         // Senha e Esqueci a senha
                         div { class: "w-full flex flex-col space-y-1.5",
                             input {
@@ -207,10 +290,17 @@ pub fn Login(mut state: AppState) -> Element {
                             }
                             span {
                                 class: "text-[10px] text-[#2e83ed] hover:underline cursor-pointer self-start",
+                                onclick: move |_| {
+                                    state.add_toast(
+                                        "Esqueci a senha".to_string(),
+                                        "Entre em contato com o administrador do servidor Skypia para recuperar sua senha.".to_string(),
+                                        None
+                                    );
+                                },
                                 "Esqueci a senha?"
                             }
                         }
-
+ 
                         // Status Selection (Logar como:)
                         div { class: "w-full flex items-center space-x-2 relative text-xs",
                             span { class: "text-[#0d1825] text-[10px] font-normal", "Logar como: " }
@@ -231,7 +321,7 @@ pub fn Login(mut state: AppState) -> Element {
                                 }
                                 span { class: "text-[#a5a5a5] text-[8px] ml-0.5", "▼" }
                             }
-
+ 
                             // Menu Dropdown de Status do Login
                             if show_status_dropdown() {
                                 div {
@@ -275,7 +365,7 @@ pub fn Login(mut state: AppState) -> Element {
                                 }
                             }
                         }
-
+ 
                         // Lembrar e Entrar Automaticamente
                         div { class: "w-full flex flex-col space-y-2 text-[10px] text-[#0d1825] font-normal pt-1.5",
                             label { class: "flex items-center space-x-2 cursor-pointer",
@@ -283,7 +373,13 @@ pub fn Login(mut state: AppState) -> Element {
                                     r#type: "checkbox",
                                     class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-sky-600 focus:ring-0 focus:outline-none w-3.5 h-3.5",
                                     checked: remember_me(),
-                                    onchange: move |e| remember_me.set(e.value() == "true"),
+                                    onchange: move |e| {
+                                        let val = e.value() == "true";
+                                        remember_me.set(val);
+                                        if !val {
+                                            auto_login.set(false);
+                                        }
+                                    },
                                 }
                                 span { "Lembrar meu email e senha" }
                             }
@@ -292,21 +388,31 @@ pub fn Login(mut state: AppState) -> Element {
                                     input {
                                         r#type: "checkbox",
                                         class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-sky-600 focus:ring-0 focus:outline-none w-3.5 h-3.5",
-                                        // desativado por padrão no novo design
+                                        checked: auto_login(),
+                                        onchange: move |e| {
+                                            let val = e.value() == "true";
+                                            auto_login.set(val);
+                                            if val {
+                                                remember_me.set(true);
+                                            }
+                                        },
                                     }
                                     span { "Logar automaticamente" }
                                 }
                                 span {
                                     class: "text-[#2e83ed] hover:underline cursor-pointer",
+                                    onclick: move |_| {
+                                        state.show_settings_modal.set(true);
+                                    },
                                     "Opções"
                                 }
                             }
                         }
-
+ 
                         // Botão Entrar
-                        div { class: "pt-3",
+                        div { class: "pt-3 w-full",
                             button {
-                                class: "w-[309px] h-[36px] bg-[#cde3f6] hover:bg-[#b8d6f0] text-[#012d93] border border-transparent rounded-[4px] font-bold text-[10px] shadow-sm cursor-pointer transition-colors flex items-center justify-center focus:outline-none",
+                                class: "w-full h-[36px] bg-[#cde3f6] hover:bg-[#b8d6f0] text-[#012d93] border border-transparent rounded-[4px] font-bold text-[10px] shadow-sm cursor-pointer transition-colors flex items-center justify-center focus:outline-none",
                                 onclick: move |_| do_login(),
                                 "Entrar"
                             }

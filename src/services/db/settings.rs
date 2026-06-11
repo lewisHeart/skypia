@@ -4,7 +4,7 @@ use sqlx::Row;
 impl DatabaseService {
     pub async fn load_settings() -> Result<crate::models::UserSettings, String> {
         let pool = get_pool();
-        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme, chat_mode, contact_density, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history FROM settings WHERE id = 1")
+        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme, chat_mode, contact_density, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history, saved_email, saved_password, auto_login, window_x, window_y, window_width, window_height, fav_collapsed, online_collapsed, offline_collapsed, groups_collapsed, collapsed_categories FROM settings WHERE id = 1")
             .fetch_one(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -24,6 +24,18 @@ impl DatabaseService {
         let auto_accept_files: i32 = row.get("auto_accept_files");
         let remember_password: i32 = row.get("remember_password");
         let save_chat_history: i32 = row.get("save_chat_history");
+        let saved_email: String = row.get("saved_email");
+        let saved_password: String = row.get("saved_password");
+        let auto_login: i32 = row.get("auto_login");
+        let window_x: i32 = row.get("window_x");
+        let window_y: i32 = row.get("window_y");
+        let window_width: f64 = row.get("window_width");
+        let window_height: f64 = row.get("window_height");
+        let fav_collapsed: i32 = row.get("fav_collapsed");
+        let online_collapsed: i32 = row.get("online_collapsed");
+        let offline_collapsed: i32 = row.get("offline_collapsed");
+        let groups_collapsed: i32 = row.get("groups_collapsed");
+        let collapsed_categories: String = row.get("collapsed_categories");
 
         Ok(crate::models::UserSettings {
             interface_scale: scale,
@@ -41,6 +53,18 @@ impl DatabaseService {
             auto_accept_files: auto_accept_files != 0,
             remember_password: remember_password != 0,
             save_chat_history: save_chat_history != 0,
+            saved_email,
+            saved_password,
+            auto_login: auto_login != 0,
+            window_x,
+            window_y,
+            window_width,
+            window_height,
+            fav_collapsed: fav_collapsed != 0,
+            online_collapsed: online_collapsed != 0,
+            offline_collapsed: offline_collapsed != 0,
+            groups_collapsed: groups_collapsed != 0,
+            collapsed_categories,
         })
     }
 
@@ -48,7 +72,7 @@ impl DatabaseService {
         settings: &crate::models::UserSettings,
     ) -> Result<(), String> {
         let pool = get_pool();
-        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ?, chat_mode = ?, contact_density = ?, font_color = ?, font_family = ?, spotify_rpc_enabled = ?, show_typing_notification = ?, enable_sounds = ?, enable_toasts = ?, download_folder = ?, auto_accept_files = ?, remember_password = ?, save_chat_history = ? WHERE id = 1")
+        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ?, chat_mode = ?, contact_density = ?, font_color = ?, font_family = ?, spotify_rpc_enabled = ?, show_typing_notification = ?, enable_sounds = ?, enable_toasts = ?, download_folder = ?, auto_accept_files = ?, remember_password = ?, save_chat_history = ?, saved_email = ?, saved_password = ?, auto_login = ?, window_x = ?, window_y = ?, window_width = ?, window_height = ?, fav_collapsed = ?, online_collapsed = ?, offline_collapsed = ?, groups_collapsed = ?, collapsed_categories = ? WHERE id = 1")
             .bind(settings.interface_scale)
             .bind(settings.use_custom_titlebar as i32)
             .bind(&settings.theme)
@@ -64,6 +88,18 @@ impl DatabaseService {
             .bind(settings.auto_accept_files as i32)
             .bind(settings.remember_password as i32)
             .bind(settings.save_chat_history as i32)
+            .bind(&settings.saved_email)
+            .bind(&settings.saved_password)
+            .bind(settings.auto_login as i32)
+            .bind(settings.window_x)
+            .bind(settings.window_y)
+            .bind(settings.window_width)
+            .bind(settings.window_height)
+            .bind(settings.fav_collapsed as i32)
+            .bind(settings.online_collapsed as i32)
+            .bind(settings.offline_collapsed as i32)
+            .bind(settings.groups_collapsed as i32)
+            .bind(&settings.collapsed_categories)
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;

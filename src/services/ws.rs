@@ -36,6 +36,36 @@ pub fn connect_ws(mut state: AppState, token: String) {
 
                     // Cria o canal de ações específico para ESTA conexão ativa
                     let (tx, mut rx) = mpsc::unbounded_channel::<ClientAction>();
+
+                    // Garante presença em tempo real ao conectar/reconectar
+                    let mut current_status = state.user_status();
+                    if current_status == UserStatus::Offline {
+                        current_status = UserStatus::Online;
+                        *state.user_status.write() = UserStatus::Online;
+                        // Salva o novo status de forma assíncrona
+                        spawn(async move {
+                            let _ = crate::services::db::DatabaseService::save_user_status(UserStatus::Online).await;
+                        });
+                    }
+
+                    let status_str = match current_status {
+                        UserStatus::Online => "Online",
+                        UserStatus::Ocupado => "Ocupado",
+                        UserStatus::Ausente => "Ausente",
+                        UserStatus::Invisivel => "Invisivel",
+                        UserStatus::Offline => "Online",
+                    };
+                    let personal_msg = state.user_personal_message();
+                    let music_listen = state.user_music();
+                    let disp_name = state.user_name();
+
+                    let _ = tx.send(ClientAction::UpdatePresence {
+                        status: Some(status_str.to_string()),
+                        personal_message: Some(personal_msg),
+                        music: Some(music_listen),
+                        display_name: Some(disp_name),
+                    });
+
                     *state.ws_tx.write() = Some(tx);
 
                     let (mut ws_sender, mut ws_receiver) = ws_stream.split();

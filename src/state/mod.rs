@@ -89,10 +89,22 @@ pub struct AppState {
     pub auto_accept_files: Signal<bool>,
     pub remember_password: Signal<bool>,
     pub save_chat_history: Signal<bool>,
+    pub saved_email: Signal<String>,
+    pub saved_password: Signal<String>,
+    pub auto_login: Signal<bool>,
     pub categories: Signal<Vec<String>>,
     pub show_friend_requests_modal: Signal<bool>,
     pub show_group_profile_modal: Signal<bool>,
     pub group_profile_id: Signal<Option<String>>,
+    pub window_x: Signal<i32>,
+    pub window_y: Signal<i32>,
+    pub window_width: Signal<f64>,
+    pub window_height: Signal<f64>,
+    pub fav_collapsed: Signal<bool>,
+    pub online_collapsed: Signal<bool>,
+    pub offline_collapsed: Signal<bool>,
+    pub groups_collapsed: Signal<bool>,
+    pub collapsed_categories: Signal<String>,
 }
 
 impl AppState {
@@ -170,10 +182,22 @@ impl AppState {
             auto_accept_files: Signal::new(false),
             remember_password: Signal::new(true),
             save_chat_history: Signal::new(true),
+            saved_email: Signal::new(String::new()),
+            saved_password: Signal::new(String::new()),
+            auto_login: Signal::new(false),
             categories: Signal::new(Vec::new()),
             show_friend_requests_modal: Signal::new(false),
             show_group_profile_modal: Signal::new(false),
             group_profile_id: Signal::new(None),
+            window_x: Signal::new(100),
+            window_y: Signal::new(100),
+            window_width: Signal::new(413.0),
+            window_height: Signal::new(735.0),
+            fav_collapsed: Signal::new(false),
+            online_collapsed: Signal::new(false),
+            offline_collapsed: Signal::new(false),
+            groups_collapsed: Signal::new(false),
+            collapsed_categories: Signal::new("[]".to_string()),
         }
     }
 
@@ -203,7 +227,19 @@ impl AppState {
         let mut auto_accept_sig = self.auto_accept_files;
         let mut remember_password_sig = self.remember_password;
         let mut save_history_sig = self.save_chat_history;
+        let mut saved_email_sig = self.saved_email;
+        let mut saved_password_sig = self.saved_password;
+        let mut auto_login_sig = self.auto_login;
         let mut categories_sig = self.categories;
+        let mut window_x_sig = self.window_x;
+        let mut window_y_sig = self.window_y;
+        let mut window_width_sig = self.window_width;
+        let mut window_height_sig = self.window_height;
+        let mut fav_collapsed_sig = self.fav_collapsed;
+        let mut online_collapsed_sig = self.online_collapsed;
+        let mut offline_collapsed_sig = self.offline_collapsed;
+        let mut groups_collapsed_sig = self.groups_collapsed;
+        let mut collapsed_cats_sig = self.collapsed_categories;
 
         let token_opt = self.auth_token();
         let self_user_id = self.server_user_id();
@@ -261,6 +297,18 @@ impl AppState {
                 *auto_accept_sig.write() = db_settings.auto_accept_files;
                 *remember_password_sig.write() = db_settings.remember_password;
                 *save_history_sig.write() = db_settings.save_chat_history;
+                *saved_email_sig.write() = db_settings.saved_email;
+                *saved_password_sig.write() = db_settings.saved_password;
+                *auto_login_sig.write() = db_settings.auto_login;
+                *window_x_sig.write() = db_settings.window_x;
+                *window_y_sig.write() = db_settings.window_y;
+                *window_width_sig.write() = db_settings.window_width;
+                *window_height_sig.write() = db_settings.window_height;
+                *fav_collapsed_sig.write() = db_settings.fav_collapsed;
+                *online_collapsed_sig.write() = db_settings.online_collapsed;
+                *offline_collapsed_sig.write() = db_settings.offline_collapsed;
+                *groups_collapsed_sig.write() = db_settings.groups_collapsed;
+                *collapsed_cats_sig.write() = db_settings.collapsed_categories;
             }
 
             // Sincronização de rede se autenticado
@@ -639,6 +687,18 @@ impl AppState {
             auto_accept_files: self.auto_accept_files(),
             remember_password: self.remember_password(),
             save_chat_history: self.save_chat_history(),
+            saved_email: self.saved_email(),
+            saved_password: self.saved_password(),
+            auto_login: self.auto_login(),
+            window_x: (self.window_x)(),
+            window_y: (self.window_y)(),
+            window_width: (self.window_width)(),
+            window_height: (self.window_height)(),
+            fav_collapsed: (self.fav_collapsed)(),
+            online_collapsed: (self.online_collapsed)(),
+            offline_collapsed: (self.offline_collapsed)(),
+            groups_collapsed: (self.groups_collapsed)(),
+            collapsed_categories: self.collapsed_categories.read().clone(),
         };
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_settings(&settings).await;
@@ -744,6 +804,33 @@ impl AppState {
 
     pub fn set_save_chat_history(&mut self, save: bool) {
         *self.save_chat_history.write() = save;
+        self.save_current_settings();
+    }
+
+    pub fn saved_email(&self) -> String {
+        self.saved_email.read().clone()
+    }
+
+    pub fn set_saved_email(&mut self, email: String) {
+        *self.saved_email.write() = email;
+        self.save_current_settings();
+    }
+
+    pub fn saved_password(&self) -> String {
+        self.saved_password.read().clone()
+    }
+
+    pub fn set_saved_password(&mut self, password: String) {
+        *self.saved_password.write() = password;
+        self.save_current_settings();
+    }
+
+    pub fn auto_login(&self) -> bool {
+        (self.auto_login)()
+    }
+
+    pub fn set_auto_login(&mut self, auto: bool) {
+        *self.auto_login.write() = auto;
         self.save_current_settings();
     }
 
@@ -1117,5 +1204,98 @@ impl AppState {
 
     pub fn group_chats(&self) -> Vec<crate::models::Conversation> {
         self.group_chats.read().clone()
+    }
+
+    pub fn window_x(&self) -> i32 {
+        (self.window_x)()
+    }
+
+    pub fn window_y(&self) -> i32 {
+        (self.window_y)()
+    }
+
+    pub fn window_width(&self) -> f64 {
+        (self.window_width)()
+    }
+
+    pub fn window_height(&self) -> f64 {
+        (self.window_height)()
+    }
+
+    pub fn set_window_geom(&mut self, x: i32, y: i32, w: f64, h: f64) {
+        let changed = (self.window_x)() != x 
+            || (self.window_y)() != y 
+            || (self.window_width)() != w 
+            || (self.window_height)() != h;
+        if changed {
+            *self.window_x.write() = x;
+            *self.window_y.write() = y;
+            *self.window_width.write() = w;
+            *self.window_height.write() = h;
+            self.save_current_settings();
+        }
+    }
+
+    pub fn fav_collapsed(&self) -> bool {
+        (self.fav_collapsed)()
+    }
+
+    pub fn set_fav_collapsed(&mut self, val: bool) {
+        *self.fav_collapsed.write() = val;
+        self.save_current_settings();
+    }
+
+    pub fn online_collapsed(&self) -> bool {
+        (self.online_collapsed)()
+    }
+
+    pub fn set_online_collapsed(&mut self, val: bool) {
+        *self.online_collapsed.write() = val;
+        self.save_current_settings();
+    }
+
+    pub fn offline_collapsed(&self) -> bool {
+        (self.offline_collapsed)()
+    }
+
+    pub fn set_offline_collapsed(&mut self, val: bool) {
+        *self.offline_collapsed.write() = val;
+        self.save_current_settings();
+    }
+
+    pub fn groups_collapsed(&self) -> bool {
+        (self.groups_collapsed)()
+    }
+
+    pub fn set_groups_collapsed(&mut self, val: bool) {
+        *self.groups_collapsed.write() = val;
+        self.save_current_settings();
+    }
+
+    pub fn collapsed_categories(&self) -> String {
+        self.collapsed_categories.read().clone()
+    }
+
+    pub fn is_category_collapsed(&self, name: &str) -> bool {
+        let cats_str = self.collapsed_categories.read().clone();
+        if let Ok(cats) = serde_json::from_str::<Vec<String>>(&cats_str) {
+            cats.contains(&name.to_string())
+        } else {
+            false
+        }
+    }
+
+    pub fn toggle_category_collapsed(&mut self, name: &str) {
+        let cats_str = self.collapsed_categories.read().clone();
+        let mut cats = serde_json::from_str::<Vec<String>>(&cats_str).unwrap_or_default();
+        if cats.contains(&name.to_string()) {
+            cats.retain(|c| c != name);
+        } else {
+            cats.push(name.to_string());
+        }
+        if let Ok(serialized) = serde_json::to_string(&cats) {
+            *self.collapsed_categories.write() = serialized;
+            self.save_current_settings();
+        }
     }
 }

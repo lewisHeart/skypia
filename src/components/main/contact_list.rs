@@ -7,10 +7,6 @@ use crate::components::main::contact_row::ContactRow;
 pub fn ContactList(mut state: AppState) -> Element {
     let theme = state.theme();
     let mut search_query = use_signal(|| String::new());
-    let mut fav_collapsed = use_signal(|| false);
-    let mut online_collapsed = use_signal(|| false);
-    let mut offline_collapsed = use_signal(|| false);
-    let mut groups_collapsed = use_signal(|| false);
     let mut show_create_group_modal = use_signal(|| false);
     let mut group_name = use_signal(|| String::new());
     let mut group_desc = use_signal(|| String::new());
@@ -21,17 +17,11 @@ pub fn ContactList(mut state: AppState) -> Element {
     let fav_density = state.fav_density();
     let online_density = state.online_density();
     let offline_density = state.offline_density();
-
-    let mut collapsed_categories = use_signal(|| std::collections::HashSet::<String>::new());
     
-    let is_collapsed = move |cat: &str| collapsed_categories.read().contains(cat);
-    let mut toggle_collapsed = move |cat: &str| {
-        let mut set = collapsed_categories.write();
-        if set.contains(cat) {
-            set.remove(cat);
-        } else {
-            set.insert(cat.to_string());
-        }
+    let is_collapsed = move |cat: &str| state.is_category_collapsed(cat);
+    let toggle_collapsed = move |cat: &str| {
+        let mut s = state;
+        s.toggle_category_collapsed(cat);
     };
 
     let filtered_contacts = use_memo(move || {
@@ -201,7 +191,10 @@ pub fn ContactList(mut state: AppState) -> Element {
                         value: "{search_query}",
                         oninput: move |e| search_query.set(e.value()),
                     }
-                    span { class: "absolute right-2.5 text-xs text-slate-400 pointer-events-none", "🔍" }
+                    img {
+                        src: asset!("/assets/Icons/fluent_search-32-filled.svg"),
+                        class: "absolute right-2 w-4 h-4 object-contain pointer-events-none opacity-60"
+                    }
                 }
                 button {
                     class: "w-[30px] h-[20px] bg-transparent hover:bg-black/5 flex items-center justify-center rounded cursor-pointer transition-colors focus:outline-none flex-shrink-0 ml-2",
@@ -255,7 +248,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                     div { 
                         class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold {theme.titlebar_text()}",
                         style: "opacity: 0.85;",
-                        onclick: move |_| fav_collapsed.set(!fav_collapsed()),
+                        onclick: move |_| state.set_fav_collapsed(!state.fav_collapsed()),
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
@@ -264,7 +257,11 @@ pub fn ContactList(mut state: AppState) -> Element {
                             let y = ((e.client_coordinates().y as f64 - offset_y) / scale) as i32;
                             active_category_menu.set(Some(("fav".to_string(), x, y)));
                         },
-                        span { class: "w-3 text-center text-[10px] text-slate-500", if fav_collapsed() { "▶" } else { "▼" } }
+                        img {
+                            src: asset!("/assets/Icons/eva_arrow-down-fill.svg"),
+                            class: "w-3 h-3 object-contain mr-1 transition-transform duration-200 pointer-events-none select-none",
+                            style: if state.fav_collapsed() { "transform: rotate(-90deg);" } else { "" }
+                        }
                         span { class: "font-bold text-[11px] text-[#2d517a] mr-1 flex items-center space-x-0.5",
                             img {
                                 src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Star/SVG/ic_fluent_star_16_color.svg",
@@ -275,7 +272,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                         span { class: "font-normal text-[10px] text-[#a5a5a5]", "({favorites_online_count()}/{favorites().len()}){favorites_unread_text}" }
                     }
                     
-                    if !fav_collapsed() {
+                    if !state.fav_collapsed() {
                         div { class: "pl-2 space-y-0.5",
                             if favorites().is_empty() {
                                 div { class: "text-[10px] text-slate-500/80 italic pl-5 py-1", "Nenhum contato favorito" }
@@ -293,7 +290,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                     div { 
                         class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold {theme.titlebar_text()} justify-between",
                         style: "opacity: 0.85;",
-                        onclick: move |_| groups_collapsed.set(!groups_collapsed()),
+                        onclick: move |_| state.set_groups_collapsed(!state.groups_collapsed()),
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
@@ -303,7 +300,11 @@ pub fn ContactList(mut state: AppState) -> Element {
                             active_category_menu.set(Some(("groups".to_string(), x, y)));
                         },
                         div { class: "flex items-center space-x-1.5",
-                            span { class: "w-3 text-center text-[10px] text-slate-500", if groups_collapsed() { "▶" } else { "▼" } }
+                            img {
+                                src: asset!("/assets/Icons/eva_arrow-down-fill.svg"),
+                                class: "w-3 h-3 object-contain mr-1 transition-transform duration-200 pointer-events-none select-none",
+                                style: if state.groups_collapsed() { "transform: rotate(-90deg);" } else { "" }
+                            }
                             span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Grupos" }
                             span { class: "font-normal text-[10px] text-[#a5a5a5]", "({online_groups_count()}/{group_chats().len()})" }
                         }
@@ -317,7 +318,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                         }
                     }
                     
-                    if !groups_collapsed() {
+                    if !state.groups_collapsed() {
                         div { class: "pl-2 space-y-0.5",
                             if group_chats().is_empty() {
                                 div { class: "text-[10px] text-slate-500/80 italic pl-5 py-1", "Nenhum grupo de chat" }
@@ -373,7 +374,11 @@ pub fn ContactList(mut state: AppState) -> Element {
                                     onclick: move |_| toggle_collapsed(&cat_name_toggle),
                                     
                                     div { class: "flex items-center space-x-1.5",
-                                        span { class: "w-3 text-center text-[10px] text-slate-500", if collapsed { "▶" } else { "▼" } }
+                                        img {
+                                            src: asset!("/assets/Icons/eva_arrow-down-fill.svg"),
+                                            class: "w-3 h-3 object-contain mr-1 transition-transform duration-200 pointer-events-none select-none",
+                                            style: if collapsed { "transform: rotate(-90deg);" } else { "" }
+                                        }
                                         span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "📂 {cat_name}" }
                                         span { class: "font-normal text-[10px] text-[#a5a5a5]", "({online_count}/{cat_contacts.len()}){unread_text}" }
                                     }
@@ -424,7 +429,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                     div { 
                         class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold {theme.titlebar_text()}",
                         style: "opacity: 0.85;",
-                        onclick: move |_| online_collapsed.set(!online_collapsed()),
+                        onclick: move |_| state.set_online_collapsed(!state.online_collapsed()),
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
@@ -433,12 +438,16 @@ pub fn ContactList(mut state: AppState) -> Element {
                             let y = ((e.client_coordinates().y as f64 - offset_y) / scale) as i32;
                             active_category_menu.set(Some(("online".to_string(), x, y)));
                         },
-                        span { class: "w-3 text-center text-[10px] text-slate-500", if online_collapsed() { "▶" } else { "▼" } }
+                        img {
+                            src: asset!("/assets/Icons/eva_arrow-down-fill.svg"),
+                            class: "w-3 h-3 object-contain mr-1 transition-transform duration-200 pointer-events-none select-none",
+                            style: if state.online_collapsed() { "transform: rotate(-90deg);" } else { "" }
+                        }
                         span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Disponíveis" }
                         span { class: "font-normal text-[10px] text-[#a5a5a5]", "({online_contacts().len()}/{online_contacts().len()}){online_unread_text}" }
                     }
                     
-                    if !online_collapsed() {
+                    if !state.online_collapsed() {
                         div { class: "pl-2 space-y-0.5",
                             if online_contacts().is_empty() {
                                 div { class: "text-[10px] text-slate-500/80 italic pl-5 py-1", "Nenhum contato online" }
@@ -472,7 +481,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                     div { 
                         class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold {theme.titlebar_text()}",
                         style: "opacity: 0.85;",
-                        onclick: move |_| offline_collapsed.set(!offline_collapsed()),
+                        onclick: move |_| state.set_offline_collapsed(!state.offline_collapsed()),
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
@@ -481,12 +490,16 @@ pub fn ContactList(mut state: AppState) -> Element {
                             let y = ((e.client_coordinates().y as f64 - offset_y) / scale) as i32;
                             active_category_menu.set(Some(("offline".to_string(), x, y)));
                         },
-                        span { class: "w-3 text-center text-[10px] text-slate-500", if offline_collapsed() { "▶" } else { "▼" } }
+                        img {
+                            src: asset!("/assets/Icons/eva_arrow-down-fill.svg"),
+                            class: "w-3 h-3 object-contain mr-1 transition-transform duration-200 pointer-events-none select-none",
+                            style: if state.offline_collapsed() { "transform: rotate(-90deg);" } else { "" }
+                        }
                         span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Offline" }
                         span { class: "font-normal text-[10px] text-[#a5a5a5]", "(0/{offline_contacts().len()}){offline_unread_text}" }
                     }
                     
-                    if !offline_collapsed() {
+                    if !state.offline_collapsed() {
                         div { class: "pl-2 space-y-0.5",
                             for contact in offline_contacts() {
                                 ContactRow { contact, state, density: offline_density.clone() }

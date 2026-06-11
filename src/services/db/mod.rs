@@ -187,7 +187,19 @@ impl DatabaseService {
                 download_folder TEXT NOT NULL DEFAULT '',
                 auto_accept_files INTEGER NOT NULL DEFAULT 0,
                 remember_password INTEGER NOT NULL DEFAULT 1,
-                save_chat_history INTEGER NOT NULL DEFAULT 1
+                save_chat_history INTEGER NOT NULL DEFAULT 1,
+                saved_email TEXT NOT NULL DEFAULT '',
+                saved_password TEXT NOT NULL DEFAULT '',
+                auto_login INTEGER NOT NULL DEFAULT 0,
+                window_x INTEGER NOT NULL DEFAULT 100,
+                window_y INTEGER NOT NULL DEFAULT 100,
+                window_width REAL NOT NULL DEFAULT 413.0,
+                window_height REAL NOT NULL DEFAULT 735.0,
+                fav_collapsed INTEGER NOT NULL DEFAULT 0,
+                online_collapsed INTEGER NOT NULL DEFAULT 0,
+                offline_collapsed INTEGER NOT NULL DEFAULT 0,
+                groups_collapsed INTEGER NOT NULL DEFAULT 0,
+                collapsed_categories TEXT NOT NULL DEFAULT '[]'
             );
             "#,
         )
@@ -378,6 +390,54 @@ impl DatabaseService {
             .execute(pool)
             .await;
 
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN saved_email TEXT NOT NULL DEFAULT ''")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN saved_password TEXT NOT NULL DEFAULT ''")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN auto_login INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN window_x INTEGER NOT NULL DEFAULT 100")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN window_y INTEGER NOT NULL DEFAULT 100")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN window_width REAL NOT NULL DEFAULT 413.0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN window_height REAL NOT NULL DEFAULT 735.0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN fav_collapsed INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN online_collapsed INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN offline_collapsed INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN groups_collapsed INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN collapsed_categories TEXT NOT NULL DEFAULT '[]'")
+            .execute(pool)
+            .await;
+
         let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN avatar_url TEXT")
             .execute(pool)
             .await;
@@ -467,9 +527,9 @@ impl DatabaseService {
 
         if settings_count == 0 {
             #[cfg(target_os = "android")]
-            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history) VALUES (1, 1.35, 0, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI', 0, 1, 1, 1, '', 0, 1, 1)";
+            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history, saved_email, saved_password, auto_login, window_x, window_y, window_width, window_height, fav_collapsed, online_collapsed, offline_collapsed, groups_collapsed, collapsed_categories) VALUES (1, 1.35, 0, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI', 0, 1, 1, 1, '', 0, 1, 1, '', '', 0, 100, 100, 413.0, 735.0, 0, 0, 0, 0, '[]')";
             #[cfg(not(target_os = "android"))]
-            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history) VALUES (1, 1.0, 1, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI', 0, 1, 1, 1, '', 0, 1, 1)";
+            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history, saved_email, saved_password, auto_login, window_x, window_y, window_width, window_height, fav_collapsed, online_collapsed, offline_collapsed, groups_collapsed, collapsed_categories) VALUES (1, 1.0, 1, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI', 0, 1, 1, 1, '', 0, 1, 1, '', '', 0, 100, 100, 413.0, 735.0, 0, 0, 0, 0, '[]')";
 
             sqlx::query(query)
                 .execute(pool)

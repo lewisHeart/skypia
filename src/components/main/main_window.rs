@@ -111,50 +111,10 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                 }
                             }
                         }
-                    }
-                }
             }
         }
-
-        // ==========================================
-        // MODAL DE CONFIGURAÇÕES (Mobile/Android ou fallback integrado)
-        // ==========================================
-        if state.show_settings_modal() {
-            div {
-                class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] flex items-center justify-center p-4 select-none cursor-default",
-                onclick: move |_| state.show_settings_modal.set(false),
-                div {
-                    class: "w-[92vw] max-w-[350px] sm:max-w-[620px] h-auto max-h-[90vh] sm:h-[480px] border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
-                    style: format!("background: {}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);", theme.bg_chat()),
-                    onclick: move |e| e.stop_propagation(),
-
-                    div { 
-                        class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
-                        div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
-                            img {
-                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Settings/SVG/ic_fluent_settings_24_color.svg",
-                                class: "w-5 h-5 object-contain pointer-events-none"
-                            }
-                            span { "Configurações do Skypia" }
-                        }
-                        button {
-                            class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none text-[8px] font-bold",
-                            title: "Fechar",
-                            onclick: move |_| state.show_settings_modal.set(false),
-                            "✕"
-                        }
-                    }
-
-                    div {
-                        class: "flex-1 min-h-0 w-full relative",
-                        crate::components::main::settings_content::SettingsContent {
-                            state,
-                            is_native_window: false
-                        }
-                    }
-                }
-            }
-        }
+    }
+}
 
         // ==========================================
         // MODAL DE ADICIONAR CONTATO
