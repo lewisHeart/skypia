@@ -71,7 +71,7 @@ pub fn SettingsWindow() -> Element {
                         onmousedown: {
                             let desktop = desktop.clone();
                             move |_| {
-                                desktop.drag_window();
+                                let _ = desktop.drag_window();
                             }
                         },
                         div { class: "flex items-center space-x-1.5 font-normal text-sm pointer-events-none {theme.titlebar_text()} select-none",

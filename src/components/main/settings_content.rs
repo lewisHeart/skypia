@@ -58,8 +58,8 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
             // Coluna de Abas (Horizontal com scroll no mobile, Vertical no desktop)
             div { class: "w-full sm:w-[160px] border-b sm:border-b-0 sm:border-r {theme.titlebar_border()} bg-white/40 flex flex-row sm:flex-col p-1.5 sm:p-2 space-x-1 sm:space-x-0 sm:space-y-1 overflow-x-auto sm:overflow-x-visible sm:overflow-y-auto select-none flex-shrink-0 scrollbar-none",
                 {
-                    let is_admin = state.user_email().contains("admin") 
-                        || state.user_email() == "wk.scbd@skypia.io" 
+                    let is_admin = state.user_email().contains("admin")
+                        || state.user_email() == "wk.scbd@skypia.io"
                         || state.user_email() == "wk.scbd@protonmail.com";
                     let mut tab_list = vec![
                         ("pessoais", "Pessoal", "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Person/SVG/ic_fluent_person_20_color.svg"),
@@ -189,7 +189,7 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
                                             state.set_spotify_rpc_enabled(e.value() == "true");
                                         }
                                     }
-                                    span { "Detectar música do Spotify automaticamente (RPC)" }
+                                    span { "Detectar música do Spotify automaticamente" }
                                 }
                             }
 
@@ -226,7 +226,7 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
                                     }
                                 }
                             }
-                            
+
                             // Gerenciamento de Categorias de Contatos
                             div { class: "flex flex-col space-y-2 pt-2 border-t border-slate-200/50",
                                 label { class: "font-semibold text-slate-700", "Categorias de Contatos" }

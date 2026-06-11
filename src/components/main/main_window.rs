@@ -1,6 +1,6 @@
 use crate::components::main::contact_list::ContactList;
 use crate::components::profile::profile_header::ProfileHeader;
-use crate::models::{AppTheme, UserStatus};
+use crate::models::UserStatus;
 use crate::sound::play_sound;
 use crate::state::AppState;
 use dioxus::prelude::*;
@@ -14,44 +14,8 @@ pub fn MainWindow(mut state: AppState) -> Element {
     let mut search_result = use_signal(|| None::<crate::models::UserProfile>);
     let mut search_error = use_signal(|| None::<String>);
     let mut is_searching = use_signal(|| false);
-    let mut active_tab = use_signal(|| "pessoais".to_string());
 
-    let mut temp_name = use_signal(|| String::new());
-    let mut temp_msg = use_signal(|| String::new());
-    let mut temp_folder = use_signal(|| String::new());
-
-    let mut admin_banner_icon = use_signal(|| "📢".to_string());
-    let mut admin_banner_text = use_signal(|| String::new());
-    let mut admin_banner_label = use_signal(|| String::new());
-    let mut admin_banner_link = use_signal(|| String::new());
-    let mut admin_banner_image = use_signal(|| String::new());
-
-    let mut new_cat_input = use_signal(|| String::new());
     let mut show_ad_modal = use_signal(|| false);
-
-    let is_uploading_ad = use_signal(|| false);
-    let ad_upload_error = use_signal(|| Option::<String>::None);
-
-    // Sinais para o posicionamento Aero flutuante e arrastável do Modal de Configurações
-    let mut settings_pos = use_signal(|| None::<(f64, f64)>);
-    let mut settings_dragging = use_signal(|| false);
-    let mut settings_drag_offset = use_signal(|| (0.0, 0.0));
-
-    // Sincroniza os valores temporários quando o modal de configurações é aberto
-    use_effect(move || {
-        if state.show_settings_modal() {
-            temp_name.set(state.user_name());
-            temp_msg.set(state.user_personal_message());
-            temp_folder.set(state.download_folder());
-            if let Some(banner) = state.banner_info() {
-                admin_banner_icon.set(banner.icon);
-                admin_banner_text.set(banner.text);
-                admin_banner_label.set(banner.action_label);
-                admin_banner_link.set(banner.link);
-                admin_banner_image.set(banner.image_url.clone().unwrap_or_default());
-            }
-        }
-    });
 
     // Reseta o estado de busca quando o modal é fechado
     use_effect(move || {
