@@ -390,44 +390,48 @@ fn App() -> Element {
         // About Skypia Modal Dialog
         if app_state.show_about() {
             div {
-                class: "fixed inset-0 bg-black/10 z-[9999] flex items-center justify-center p-4 pointer-events-auto",
+                class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[9999] flex items-center justify-center p-4 pointer-events-auto",
                 onclick: move |_| app_state.show_about.set(false),
                 div {
-                    class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
+                    class: "w-80 border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                    style: "background: {theme.bg_chat()}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);",
                     onclick: move |e| e.stop_propagation(),
 
-                    div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
-                        div { class: "flex items-center space-x-1.5 font-bold text-sm {theme.titlebar_text()}",
+                    div { class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                        div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/information.webp",
-                                class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Info/SVG/ic_fluent_info_24_color.svg",
+                                class: "w-5 h-5 object-contain pointer-events-none"
                             }
                             span { "Sobre o Skypia" }
                         }
                         button {
-                            class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
+                            class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none text-[8px] font-bold",
+                            title: "Fechar",
                             onclick: move |_| app_state.show_about.set(false),
                             "✕"
                         }
                     }
 
-                    div { class: "flex flex-col items-center text-center space-y-2 py-2",
-                        img {
-                            src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/butterfly.webp",
-                            class: "w-10 h-10 object-contain pointer-events-none"
+                    div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} bg-white/20",
+                        div { class: "flex flex-col items-center text-center space-y-2 py-2",
+                            img {
+                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/butterfly.webp",
+                                class: "w-10 h-10 object-contain pointer-events-none"
+                            }
+                            span { class: "font-bold text-sm", "Skypia Messenger v14.0" }
+                            span { class: "text-[10px] text-slate-500", "Copyright © 2026 Skypia Corp. Todos os direitos reservados." }
                         }
-                        span { class: "font-bold text-sm", "Skypia Messenger v14.0" }
-                        span { class: "text-[10px] text-slate-500", "Copyright © 2026 Skypia Corp. Todos os direitos reservados." }
-                    }
 
-                    p { class: "text-[11px] leading-relaxed text-slate-600 bg-white/40 p-2.5 rounded border {theme.titlebar_border()}/30 text-center",
-                        "O Skypia é o clone definitivo do MSN Messenger, recriado em Rust com Dioxus 0.7 e TailwindCSS para uma experiência premium de alta fidelidade visual Aero Glass."
-                    }
+                        p { class: "text-[11px] leading-relaxed text-slate-600 bg-white/40 p-2.5 rounded-[6px] border {theme.titlebar_border()}/30 text-center",
+                            "O Skypia é o clone definitivo do MSN Messenger, recriado em Rust com Dioxus 0.7 e TailwindCSS para uma experiência premium de alta fidelidade visual Aero Glass."
+                        }
 
-                    button {
-                        class: "w-full py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all",
-                        onclick: move |_| app_state.show_about.set(false),
-                        "Ok"
+                        button {
+                            class: "w-full py-1.5 {theme.btn_primary()} rounded-[4px] font-bold shadow-md cursor-pointer transition-all focus:outline-none text-[10px]",
+                            onclick: move |_| app_state.show_about.set(false),
+                            "Ok"
+                        }
                     }
                 }
             }

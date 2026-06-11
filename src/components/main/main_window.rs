@@ -92,129 +92,135 @@ pub fn MainWindow(mut state: AppState) -> Element {
         // ==========================================
         if state.show_settings_modal() {
             div {
-                class: "fixed inset-0 bg-black/10 z-[200] flex items-center justify-center p-4",
+                class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] flex items-center justify-center p-4 select-none cursor-default",
                 onclick: move |_| state.show_settings_modal.set(false),
                 div {
-                    class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
+                    class: "w-80 border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                    style: "background: {theme.bg_chat()}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);",
                     onclick: move |e| e.stop_propagation(),
 
-                    div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
-                        div { class: "flex items-center space-x-1.5 font-bold text-sm {theme.titlebar_text()}",
+                    div { class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                        div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/gear.webp",
-                                class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Settings/SVG/ic_fluent_settings_24_color.svg",
+                                class: "w-5 h-5 object-contain pointer-events-none"
                             }
                             span { "Configurações do Skypia" }
                         }
                         button {
-                            class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors",
+                            class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none text-[8px] font-bold",
+                            title: "Fechar",
                             onclick: move |_| state.show_settings_modal.set(false),
                             "✕"
                         }
                     }
 
-                    div { class: "flex flex-col space-y-1.5",
-                        label { class: "font-bold text-slate-700", "Estilo de Decorações da Janela" }
-                        label { class: "flex items-center space-x-2 cursor-pointer",
-                            input {
-                                r#type: "checkbox",
-                                checked: state.use_custom_titlebar(),
-                                onchange: move |e| {
-                                    let val = e.value() == "true";
-                                    state.set_settings(state.interface_scale(), val, state.theme());
-                                    #[cfg(feature = "desktop")]
-                                    dioxus::desktop::use_window().set_decorations(!val);
+                    // Conteúdo do Modal com padding Aero
+                    div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
+
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Estilo de Decorações da Janela" }
+                            label { class: "flex items-center space-x-2 cursor-pointer",
+                                input {
+                                    r#type: "checkbox",
+                                    class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-sky-600 focus:ring-0 focus:outline-none w-3.5 h-3.5",
+                                    checked: state.use_custom_titlebar(),
+                                    onchange: move |e| {
+                                        let val = e.value() == "true";
+                                        state.set_settings(state.interface_scale(), val, state.theme());
+                                        #[cfg(feature = "desktop")]
+                                        dioxus::desktop::use_window().set_decorations(!val);
+                                    }
                                 }
+                                span { "Usar barra de título Aero do app" }
                             }
-                            span { "Usar barra de título Aero do app" }
                         }
-                    }
 
-                    div { class: "flex flex-col space-y-1.5",
-                        label { class: "font-bold text-slate-700", "Escala da Interface" }
-                        select {
-                            class: "w-full p-1.5 border {theme.titlebar_border()} rounded bg-white text-slate-700 font-medium",
-                            onchange: move |e| {
-                                let scale = e.value().parse::<f64>().unwrap_or(1.0);
-                                state.set_settings(scale, state.use_custom_titlebar(), state.theme());
-                            },
-                            option { value: "0.8", selected: state.interface_scale() == 0.8, "80% (Pequeno)" }
-                            option { value: "0.9", selected: state.interface_scale() == 0.9, "90%" }
-                            option { value: "1.0", selected: state.interface_scale() == 1.0, "100% (Padrão)" }
-                            option { value: "1.1", selected: state.interface_scale() == 1.1, "110%" }
-                            option { value: "1.2", selected: state.interface_scale() == 1.2, "120%" }
-                            option { value: "1.3", selected: state.interface_scale() == 1.3, "130%" }
-                            option { value: "1.4", selected: state.interface_scale() == 1.4, "140%" }
-                            option { value: "1.5", selected: state.interface_scale() == 1.5, "150% (Grande)" }
-                        }
-                    }
-
-                    div { class: "flex flex-col space-y-1.5",
-                        label { class: "font-bold text-slate-700", "Aparência (Skins)" }
-                        select {
-                            class: "w-full p-1.5 border {theme.titlebar_border()} rounded bg-white text-slate-700 font-medium",
-                            onchange: move |e| {
-                                let new_theme = match e.value().as_str() {
-                                    "blue" => AppTheme::AeroBlue,
-                                    "pink" => AppTheme::RubyPink,
-                                    "green" => AppTheme::ForestGreen,
-                                    "silver" => AppTheme::SilverMetallic,
-                                    _ => AppTheme::AeroBlue,
-                                };
-                                state.set_settings(state.interface_scale(), state.use_custom_titlebar(), new_theme);
-                            },
-                            option { value: "blue", selected: state.theme() == AppTheme::AeroBlue, "Azul Aero" }
-                            option { value: "pink", selected: state.theme() == AppTheme::RubyPink, "Rosa Choque" }
-                            option { value: "green", selected: state.theme() == AppTheme::ForestGreen, "Verde Natureza" }
-                            option { value: "silver", selected: state.theme() == AppTheme::SilverMetallic, "Prata Metálico" }
-                        }
-                    }
-
-                    div { class: "flex flex-col space-y-1.5",
-                        label { class: "font-bold text-slate-700", "Modo de Chat" }
-                        select {
-                            class: "w-full p-1.5 border {theme.titlebar_border()} rounded bg-white text-slate-700 font-medium",
-                            onchange: move |e| {
-                                state.set_chat_mode(e.value());
-                            },
-                            option { value: "integrated", selected: state.chat_mode() == "integrated", "Chat Conectado" }
-                            option { value: "detached", selected: state.chat_mode() == "detached", "Janela Separada" }
-                        }
-                    }
-
-
-                    div { class: "flex flex-col space-y-2 pt-2 border-t {theme.titlebar_border()}/30",
-                        button {
-                            class: "w-full py-1.5 bg-white/60 hover:bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded font-semibold transition-all flex items-center justify-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.show_settings_modal.set(false);
-                                state.open_my_profile();
-                            },
-                            img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/person.webp",
-                                class: "w-3.5 h-3.5 object-contain pointer-events-none mr-1"
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Escala da Interface" }
+                            select {
+                                class: "w-full h-[27px] px-2 text-xs border border-[#d1d1d1] rounded-[4px] bg-white text-slate-800 focus:border-slate-400 focus:outline-none",
+                                onchange: move |e| {
+                                    let scale = e.value().parse::<f64>().unwrap_or(1.0);
+                                    state.set_settings(scale, state.use_custom_titlebar(), state.theme());
+                                },
+                                option { value: "0.8", selected: state.interface_scale() == 0.8, "80% (Pequeno)" }
+                                option { value: "0.9", selected: state.interface_scale() == 0.9, "90%" }
+                                option { value: "1.0", selected: state.interface_scale() == 1.0, "100% (Padrão)" }
+                                option { value: "1.1", selected: state.interface_scale() == 1.1, "110%" }
+                                option { value: "1.2", selected: state.interface_scale() == 1.2, "120%" }
+                                option { value: "1.3", selected: state.interface_scale() == 1.3, "130%" }
+                                option { value: "1.4", selected: state.interface_scale() == 1.4, "140%" }
+                                option { value: "1.5", selected: state.interface_scale() == 1.5, "150% (Grande)" }
                             }
-                            span { "Ver perfil completo" }
                         }
-                        button {
-                            class: "w-full py-1.5 bg-white/60 hover:bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded font-semibold transition-all flex items-center justify-center space-x-1.5 cursor-pointer",
-                            onclick: move |_| {
-                                state.show_settings_modal.set(false);
-                                state.show_about.set(true);
-                            },
-                            img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/information.webp",
-                                class: "w-3.5 h-3.5 object-contain pointer-events-none mr-1"
-                            }
-                            span { "Sobre o Skypia..." }
-                        }
-                    }
 
-                    div { class: "flex justify-end pt-2 border-t {theme.titlebar_border()}",
-                        button {
-                            class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow cursor-pointer transition-colors",
-                            onclick: move |_| state.show_settings_modal.set(false),
-                            "Ok"
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Aparência (Skins)" }
+                            select {
+                                class: "w-full h-[27px] px-2 text-xs border border-[#d1d1d1] rounded-[4px] bg-white text-slate-800 focus:border-slate-400 focus:outline-none",
+                                onchange: move |e| {
+                                    let new_theme = match e.value().as_str() {
+                                        "blue" => AppTheme::AeroBlue,
+                                        "pink" => AppTheme::RubyPink,
+                                        "green" => AppTheme::ForestGreen,
+                                        "silver" => AppTheme::SilverMetallic,
+                                        _ => AppTheme::AeroBlue,
+                                    };
+                                    state.set_settings(state.interface_scale(), state.use_custom_titlebar(), new_theme);
+                                },
+                                option { value: "blue", selected: state.theme() == AppTheme::AeroBlue, "Azul Aero" }
+                                option { value: "pink", selected: state.theme() == AppTheme::RubyPink, "Rosa Choque" }
+                                option { value: "green", selected: state.theme() == AppTheme::ForestGreen, "Verde Natureza" }
+                                option { value: "silver", selected: state.theme() == AppTheme::SilverMetallic, "Prata Metálico" }
+                            }
+                        }
+
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Modo de Chat" }
+                            select {
+                                class: "w-full h-[27px] px-2 text-xs border border-[#d1d1d1] rounded-[4px] bg-white text-slate-800 focus:border-slate-400 focus:outline-none",
+                                onchange: move |e| {
+                                    state.set_chat_mode(e.value());
+                                },
+                                option { value: "integrated", selected: state.chat_mode() == "integrated", "Chat Conectado" }
+                                option { value: "detached", selected: state.chat_mode() == "detached", "Janela Separada" }
+                            }
+                        }
+
+                        div { class: "flex flex-col space-y-2 pt-2 border-t border-slate-200/50",
+                            button {
+                                class: "w-full py-1.5 bg-white/60 hover:bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded-[4px] font-semibold transition-all flex items-center justify-center space-x-1.5 cursor-pointer focus:outline-none text-[10px]",
+                                onclick: move |_| {
+                                    state.show_settings_modal.set(false);
+                                    state.open_my_profile();
+                                },
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Person/SVG/ic_fluent_person_24_color.svg",
+                                    class: "w-4 h-4 object-contain pointer-events-none mr-1"
+                                }
+                                span { "Ver perfil completo" }
+                            }
+                            button {
+                                class: "w-full py-1.5 bg-white/60 hover:bg-white border border-slate-300 hover:border-slate-400 text-slate-700 rounded-[4px] font-semibold transition-all flex items-center justify-center space-x-1.5 cursor-pointer focus:outline-none text-[10px]",
+                                onclick: move |_| {
+                                    state.show_settings_modal.set(false);
+                                    state.show_about.set(true);
+                                },
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Info/SVG/ic_fluent_info_24_color.svg",
+                                    class: "w-4 h-4 object-contain pointer-events-none mr-1"
+                                }
+                                span { "Sobre o Skypia..." }
+                            }
+                        }
+
+                        div { class: "flex justify-end pt-2 border-t border-slate-200/50",
+                            button {
+                                class: "px-4 py-1.5 {theme.btn_primary()} rounded-[4px] font-bold shadow cursor-pointer transition-colors focus:outline-none text-[10px]",
+                                onclick: move |_| state.show_settings_modal.set(false),
+                                "Ok"
+                            }
                         }
                     }
                 }
@@ -226,124 +232,130 @@ pub fn MainWindow(mut state: AppState) -> Element {
         // ==========================================
         if state.show_add_contact_modal() {
             div {
-                class: "fixed inset-0 bg-black/10 z-[200] flex items-center justify-center p-4",
+                class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] flex items-center justify-center p-4",
                 onclick: move |_| state.show_add_contact_modal.set(false),
                 div {
-                    class: "w-[340px] bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs {theme.titlebar_text()} pointer-events-auto",
+                    class: "w-[340px] border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                    style: "background: {theme.bg_chat()}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);",
                     onclick: move |e| e.stop_propagation(),
 
-                    div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
-                        div { class: "flex items-center space-x-1.5 font-bold text-sm {theme.titlebar_text()}",
+                    div { class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                        div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/plus.webp",
-                                class: "w-4.5 h-4.5 object-contain pointer-events-none"
+                                src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Person%20Add/SVG/ic_fluent_person_add_24_color.svg",
+                                class: "w-5 h-5 object-contain pointer-events-none"
                             }
                             span { "Adicionar Novo Contato" }
                         }
                         button {
-                            class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors focus:outline-none",
+                            class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none text-[8px] font-bold",
+                            title: "Fechar",
                             onclick: move |_| state.show_add_contact_modal.set(false),
                             "✕"
                         }
                     }
 
-                    // Campo de entrada e botão de busca
-                    div { class: "flex flex-col space-y-1.5",
-                        label { class: "font-semibold text-slate-700", "Email ou Nome de usuário:" }
-                        div { class: "flex space-x-1.5",
-                            input {
-                                class: "flex-1 p-1.5 border {theme.titlebar_border()} rounded msn-input text-xs focus:outline-none bg-white",
-                                placeholder: "Joao ou joao@mail.com",
-                                value: "{add_contact_email}",
-                                oninput: move |e| add_contact_email.set(e.value()),
-                                onkeydown: move |e| {
-                                    if e.key() == Key::Enter && !add_contact_email().trim().is_empty() && !is_searching() {
-                                        handle_search();
+                    // Conteúdo do Modal com padding Aero
+                    div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
+
+                        // Campo de entrada e botão de busca
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Email ou Nome de usuário:" }
+                            div { class: "flex space-x-1.5",
+                                input {
+                                    class: "flex-1 h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] msn-input placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
+                                    placeholder: "Joao ou joao@mail.com",
+                                    value: "{add_contact_email}",
+                                    oninput: move |e| add_contact_email.set(e.value()),
+                                    onkeydown: move |e| {
+                                        if e.key() == Key::Enter && !add_contact_email().trim().is_empty() && !is_searching() {
+                                            handle_search();
+                                        }
                                     }
                                 }
-                            }
-                            button {
-                                class: "px-3 py-1.5 {theme.btn_primary()} rounded font-bold shadow transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center focus:outline-none",
-                                disabled: add_contact_email().trim().is_empty() || is_searching(),
-                                onclick: move |_| handle_search(),
-                                if is_searching() { "Buscando..." } else { "Buscar" }
+                                button {
+                                    class: "px-3 h-[27px] {theme.btn_primary()} rounded-[4px] font-bold shadow transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center focus:outline-none text-[10px]",
+                                    disabled: add_contact_email().trim().is_empty() || is_searching(),
+                                    onclick: move |_| handle_search(),
+                                    if is_searching() { "Buscando..." } else { "Buscar" }
+                                }
                             }
                         }
-                    }
 
-                    // Painel de Resultados de busca
-                    div { class: "min-h-[90px] border {theme.titlebar_border()}/40 bg-white/40 rounded p-2.5 flex flex-col justify-center items-center relative overflow-hidden",
-                        if is_searching() {
-                            div { class: "flex flex-col items-center space-y-2 text-slate-500 py-4",
-                                div { class: "w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" }
-                                span { "Buscando usuário no servidor..." }
-                            }
-                        } else if let Some(ref err) = search_error() {
-                            div { class: "flex flex-col items-center space-y-1 text-center py-2 text-[#b50a18]",
-                                span { class: "text-lg", "⚠️" }
-                                span { class: "font-semibold", "{err}" }
-                            }
-                        } else if let Some(ref user) = search_result() {
-                            {
-                                let user_for_add = user.clone();
-                                let status_enum = match user_for_add.status.as_str() {
-                                    "Online" => crate::models::UserStatus::Online,
-                                    "Ocupado" => crate::models::UserStatus::Ocupado,
-                                    "Ausente" => crate::models::UserStatus::Ausente,
-                                    "Invisivel" => crate::models::UserStatus::Invisivel,
-                                    _ => crate::models::UserStatus::Offline,
-                                };
-                                rsx! {
-                                    div { class: "w-full flex items-center space-x-3.5",
-                                        // Avatar com moldura de status do MSN
-                                        div {
-                                            class: "flex-shrink-0 p-[2px] rounded-[7px] border {status_enum.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md",
+                        // Painel de Resultados de busca
+                        div { class: "min-h-[90px] border {theme.titlebar_border()}/40 bg-white/40 rounded-[6px] p-2.5 flex flex-col justify-center items-center relative overflow-hidden",
+                            if is_searching() {
+                                div { class: "flex flex-col items-center space-y-2 text-slate-500 py-4",
+                                    div { class: "w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" }
+                                    span { "Buscando usuário no servidor..." }
+                                }
+                            } else if let Some(ref err) = search_error() {
+                                div { class: "flex flex-col items-center space-y-1 text-center py-2 text-[#b50a18]",
+                                    span { class: "text-lg", "⚠️" }
+                                    span { class: "font-semibold", "{err}" }
+                                }
+                            } else if let Some(ref user) = search_result() {
+                                {
+                                    let user_for_add = user.clone();
+                                    let status_enum = match user_for_add.status.as_str() {
+                                        "Online" => crate::models::UserStatus::Online,
+                                        "Ocupado" => crate::models::UserStatus::Ocupado,
+                                        "Ausente" => crate::models::UserStatus::Ausente,
+                                        "Invisivel" => crate::models::UserStatus::Invisivel,
+                                        _ => crate::models::UserStatus::Offline,
+                                    };
+                                    rsx! {
+                                        div { class: "w-full flex items-center space-x-3.5",
+                                            // Avatar com moldura de status do MSN
                                             div {
-                                                class: "rounded-[4px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
-                                                {crate::models::render_avatar(user_for_add.avatar_url.as_deref(), 48)}
+                                                class: "flex-shrink-0 p-[2px] rounded-[7px] border {status_enum.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md",
+                                                div {
+                                                    class: "rounded-[4px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
+                                                    {crate::models::render_avatar(user_for_add.avatar_url.as_deref(), 48)}
+                                                }
+                                            }
+                                            // Detalhes
+                                            div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
+                                                span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{user_for_add.display_name}" }
+                                                span { class: "text-[10px] text-slate-500 font-semibold truncate", "{user_for_add.email}" }
+                                                span { class: "text-[10px] text-slate-400 truncate italic", "“{user_for_add.personal_message}”" }
                                             }
                                         }
-                                        // Detalhes
-                                        div { class: "flex-1 min-w-0 flex flex-col space-y-0.5",
-                                            span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{user_for_add.display_name}" }
-                                            span { class: "text-[10px] text-slate-500 font-semibold truncate", "{user_for_add.email}" }
-                                            span { class: "text-[10px] text-slate-400 truncate italic", "“{user_for_add.personal_message}”" }
-                                        }
                                     }
                                 }
-                            }
-                        } else {
-                            // Estado inicial/vazio
-                            div { class: "text-center text-slate-400 py-4 font-normal",
-                                "Digite as informações e clique em Buscar para encontrar um amigo."
+                            } else {
+                                // Estado inicial/vazio
+                                div { class: "text-center text-slate-400 py-4 font-normal",
+                                    "Digite as informações e clique em Buscar para encontrar um amigo."
+                                }
                             }
                         }
-                    }
 
-                    // Botões de controle no rodapé
-                    div { class: "flex justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/40",
-                        button {
-                            class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold cursor-pointer transition-colors focus:outline-none",
-                            onclick: move |_| state.show_add_contact_modal.set(false),
-                            "Cancelar"
-                        }
-                        if let Some(ref user) = search_result() {
-                            {
-                                let user_clone = user.clone();
-                                rsx! {
-                                    button {
-                                        class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow transition-colors cursor-pointer focus:outline-none",
-                                        onclick: move |_| {
-                                            state.add_contact_dynamic(
-                                                user_clone.email.clone(),
-                                                user_clone.display_name.clone(),
-                                                UserStatus::Offline,
-                                                user_clone.personal_message.clone()
-                                            );
-                                            play_sound("online");
-                                            state.show_add_contact_modal.set(false);
-                                        },
-                                        "Adicionar Contato"
+                        // Botões de controle no rodapé
+                        div { class: "flex justify-end space-x-2 pt-2 border-t border-slate-200/50",
+                            button {
+                                class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded-[4px] font-bold cursor-pointer transition-colors focus:outline-none text-[10px]",
+                                onclick: move |_| state.show_add_contact_modal.set(false),
+                                "Cancelar"
+                            }
+                            if let Some(ref user) = search_result() {
+                                {
+                                    let user_clone = user.clone();
+                                    rsx! {
+                                        button {
+                                            class: "px-4 py-1.5 {theme.btn_primary()} rounded-[4px] font-bold shadow transition-colors cursor-pointer focus:outline-none text-[10px]",
+                                            onclick: move |_| {
+                                                state.add_contact_dynamic(
+                                                    user_clone.email.clone(),
+                                                    user_clone.display_name.clone(),
+                                                    UserStatus::Offline,
+                                                    user_clone.personal_message.clone()
+                                                );
+                                                play_sound("online");
+                                                state.show_add_contact_modal.set(false);
+                                            },
+                                            "Adicionar Contato"
+                                        }
                                     }
                                 }
                             }

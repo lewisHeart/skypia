@@ -69,24 +69,27 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
             oncontextmenu: move |e| {
                 e.prevent_default();
                 let scale = state.interface_scale();
+                let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
                 menu_x.set((e.client_coordinates().x as f64 / scale) as i32);
-                menu_y.set((e.client_coordinates().y as f64 / scale) as i32);
+                menu_y.set(((e.client_coordinates().y as f64 - offset_y) / scale) as i32);
                 show_context_menu.set(true);
                 show_tooltip.set(false);
             },
             onmouseenter: move |e| {
                 if !show_context_menu() {
                     let scale = state.interface_scale();
+                    let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
                     tooltip_x.set((e.client_coordinates().x as f64 / scale) as i32);
-                    tooltip_y.set((e.client_coordinates().y as f64 / scale) as i32);
+                    tooltip_y.set(((e.client_coordinates().y as f64 - offset_y) / scale) as i32);
                     show_tooltip.set(true);
                 }
             },
             onmousemove: move |e| {
                 if !show_context_menu() {
                     let scale = state.interface_scale();
+                    let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
                     tooltip_x.set((e.client_coordinates().x as f64 / scale) as i32);
-                    tooltip_y.set((e.client_coordinates().y as f64 / scale) as i32);
+                    tooltip_y.set(((e.client_coordinates().y as f64 - offset_y) / scale) as i32);
                 }
             },
             onmouseleave: move |_| show_tooltip.set(false),

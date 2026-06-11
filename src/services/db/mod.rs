@@ -177,7 +177,9 @@ impl DatabaseService {
                 use_custom_titlebar INTEGER NOT NULL DEFAULT 1,
                 theme TEXT NOT NULL DEFAULT 'AeroBlue',
                 chat_mode TEXT NOT NULL DEFAULT 'integrated',
-                contact_density TEXT NOT NULL DEFAULT 'medium'
+                contact_density TEXT NOT NULL DEFAULT 'medium',
+                font_color TEXT NOT NULL DEFAULT '#1e395b',
+                font_family TEXT NOT NULL DEFAULT 'Segoe UI'
             );
             "#,
         )
@@ -328,6 +330,14 @@ impl DatabaseService {
             .execute(pool)
             .await;
 
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN font_color TEXT NOT NULL DEFAULT '#1e395b'")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN font_family TEXT NOT NULL DEFAULT 'Segoe UI'")
+            .execute(pool)
+            .await;
+
         let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN avatar_url TEXT")
             .execute(pool)
             .await;
@@ -389,7 +399,12 @@ impl DatabaseService {
             .map_err(|e| e.to_string())?;
 
         if settings_count == 0 {
-            sqlx::query("INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme) VALUES (1, 1.0, 1, 'AeroBlue')")
+            #[cfg(target_os = "android")]
+            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family) VALUES (1, 1.35, 0, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI')";
+            #[cfg(not(target_os = "android"))]
+            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family) VALUES (1, 1.0, 1, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI')";
+
+            sqlx::query(query)
                 .execute(pool)
                 .await
                 .map_err(|e| e.to_string())?;

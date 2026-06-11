@@ -3,9 +3,9 @@ use crate::services::db::{get_pool, DatabaseService, theme_to_str, str_to_theme}
 use sqlx::Row;
 
 impl DatabaseService {
-    pub async fn load_settings() -> Result<(f64, bool, AppTheme, String, String), String> {
+    pub async fn load_settings() -> Result<(f64, bool, AppTheme, String, String, String, String), String> {
         let pool = get_pool();
-        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme, chat_mode, contact_density FROM settings WHERE id = 1")
+        let row = sqlx::query("SELECT interface_scale, use_custom_titlebar, theme, chat_mode, contact_density, font_color, font_family FROM settings WHERE id = 1")
             .fetch_one(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -15,8 +15,10 @@ impl DatabaseService {
         let theme_str: String = row.get("theme");
         let chat_mode: String = row.get("chat_mode");
         let contact_density: String = row.get("contact_density");
+        let font_color: String = row.get("font_color");
+        let font_family: String = row.get("font_family");
 
-        Ok((scale, custom_bar != 0, str_to_theme(&theme_str), chat_mode, contact_density))
+        Ok((scale, custom_bar != 0, str_to_theme(&theme_str), chat_mode, contact_density, font_color, font_family))
     }
 
     pub async fn save_settings(
@@ -25,14 +27,18 @@ impl DatabaseService {
         theme: AppTheme,
         chat_mode: String,
         contact_density: String,
+        font_color: String,
+        font_family: String,
     ) -> Result<(), String> {
         let pool = get_pool();
-        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ?, chat_mode = ?, contact_density = ? WHERE id = 1")
+        sqlx::query("UPDATE settings SET interface_scale = ?, use_custom_titlebar = ?, theme = ?, chat_mode = ?, contact_density = ?, font_color = ?, font_family = ? WHERE id = 1")
             .bind(scale)
             .bind(custom_bar as i32)
             .bind(theme_to_str(&theme))
             .bind(chat_mode)
             .bind(contact_density)
+            .bind(font_color)
+            .bind(font_family)
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;

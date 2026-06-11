@@ -236,8 +236,9 @@ pub fn ContactList(mut state: AppState) -> Element {
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
+                            let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
                             let x = (e.client_coordinates().x as f64 / scale) as i32;
-                            let y = (e.client_coordinates().y as f64 / scale) as i32;
+                            let y = ((e.client_coordinates().y as f64 - offset_y) / scale) as i32;
                             active_category_menu.set(Some(("fav".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if fav_collapsed() { "▶" } else { "▼" } }
@@ -267,8 +268,9 @@ pub fn ContactList(mut state: AppState) -> Element {
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
+                            let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
                             let x = (e.client_coordinates().x as f64 / scale) as i32;
-                            let y = (e.client_coordinates().y as f64 / scale) as i32;
+                            let y = ((e.client_coordinates().y as f64 - offset_y) / scale) as i32;
                             active_category_menu.set(Some(("groups".to_string(), x, y)));
                         },
                         div { class: "flex items-center space-x-1.5",
@@ -320,8 +322,9 @@ pub fn ContactList(mut state: AppState) -> Element {
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
+                            let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
                             let x = (e.client_coordinates().x as f64 / scale) as i32;
-                            let y = (e.client_coordinates().y as f64 / scale) as i32;
+                            let y = ((e.client_coordinates().y as f64 - offset_y) / scale) as i32;
                             active_category_menu.set(Some(("online".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if online_collapsed() { "▶" } else { "▼" } }
@@ -363,8 +366,9 @@ pub fn ContactList(mut state: AppState) -> Element {
                         oncontextmenu: move |e| {
                             e.prevent_default();
                             let scale = state.interface_scale();
+                            let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
                             let x = (e.client_coordinates().x as f64 / scale) as i32;
-                            let y = (e.client_coordinates().y as f64 / scale) as i32;
+                            let y = ((e.client_coordinates().y as f64 - offset_y) / scale) as i32;
                             active_category_menu.set(Some(("offline".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if offline_collapsed() { "▶" } else { "▼" } }
@@ -387,19 +391,24 @@ pub fn ContactList(mut state: AppState) -> Element {
             // Modal de Criação de Grupo
             if show_create_group_modal() {
                 div {
-                    class: "fixed inset-0 bg-black/10 z-[200] flex items-center justify-center p-4 select-none cursor-default",
+                    class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] flex items-center justify-center p-4 select-none cursor-default",
                     onclick: move |_| show_create_group_modal.set(false),
                     div {
-                        class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-3.5 text-xs {theme.titlebar_text()} pointer-events-auto",
+                        class: "w-[360px] border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                        style: "background: {theme.bg_chat()}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);",
                         onclick: move |e| e.stop_propagation(),
 
-                        div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
-                            div { class: "flex items-center space-x-1.5 font-bold text-sm {theme.titlebar_text()}",
-                                span { "👥" }
+                        div { class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                            div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/People/SVG/ic_fluent_people_24_color.svg",
+                                    class: "w-5 h-5 object-contain pointer-events-none"
+                                }
                                 span { "Criar Novo Grupo" }
                             }
                             button {
-                                class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors focus:outline-none",
+                                class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none text-[8px] font-bold",
+                                title: "Fechar",
                                 onclick: move |_| {
                                     show_create_group_modal.set(false);
                                     group_name.set(String::new());
@@ -411,65 +420,69 @@ pub fn ContactList(mut state: AppState) -> Element {
                             }
                         }
 
-                        div { class: "flex flex-col space-y-1.5",
-                            label { class: "font-semibold text-slate-700", "Nome do Grupo:" }
-                            input {
-                                class: "w-full px-2.5 py-1.5 border {theme.titlebar_border()} rounded bg-white focus:outline-none focus:border-slate-450 text-xs text-slate-800",
-                                placeholder: "Digite o nome do grupo...",
-                                value: "{group_name}",
-                                oninput: move |e| group_name.set(e.value()),
-                            }
-                        }
+                        // Conteúdo do Modal com padding Aero
+                        div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
 
-                        div { class: "flex flex-col space-y-1.5",
-                            label { class: "font-semibold text-slate-700", "Descrição do Grupo (opcional):" }
-                            input {
-                                class: "w-full px-2.5 py-1.5 border {theme.titlebar_border()} rounded bg-white focus:outline-none focus:border-slate-450 text-xs text-slate-800",
-                                placeholder: "Uma breve descrição do grupo...",
-                                value: "{group_desc}",
-                                oninput: move |e| group_desc.set(e.value()),
+                            div { class: "flex flex-col space-y-1.5",
+                                label { class: "font-semibold text-slate-700", "Nome do Grupo:" }
+                                input {
+                                    class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] msn-input placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
+                                    placeholder: "Digite o nome do grupo...",
+                                    value: "{group_name}",
+                                    oninput: move |e| group_name.set(e.value()),
+                                }
                             }
-                        }
 
-                        div { class: "flex flex-col space-y-1.5",
-                            label { class: "font-semibold text-slate-700", "URL da Foto do Grupo (opcional):" }
-                            input {
-                                class: "w-full px-2.5 py-1.5 border {theme.titlebar_border()} rounded bg-white focus:outline-none focus:border-slate-450 text-xs text-slate-800",
-                                placeholder: "https://exemplo.com/foto.jpg",
-                                value: "{group_avatar}",
-                                oninput: move |e| group_avatar.set(e.value()),
+                            div { class: "flex flex-col space-y-1.5",
+                                label { class: "font-semibold text-slate-700", "Descrição do Grupo (opcional):" }
+                                input {
+                                    class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] msn-input placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
+                                    placeholder: "Uma breve descrição do grupo...",
+                                    value: "{group_desc}",
+                                    oninput: move |e| group_desc.set(e.value()),
+                                }
                             }
-                        }
 
-                        div { class: "flex flex-col space-y-1.5 flex-1 min-h-0",
-                            label { class: "font-semibold text-slate-700", "Selecione os contatos para adicionar:" }
-                            div { class: "border rounded bg-white/50 p-2 overflow-y-auto max-h-40 flex flex-col space-y-1.5",
-                                if state.contacts().is_empty() {
-                                    div { class: "text-center text-slate-500 py-4 italic", "Nenhum contato disponível." }
-                                } else {
-                                    for contact in state.contacts() {
-                                        {
-                                            let email = contact.email.clone();
-                                            let name = contact.nickname.clone().unwrap_or(contact.display_name.clone());
-                                            let is_checked = selected_emails().contains(&email);
-                                            rsx! {
-                                                label { class: "flex items-center space-x-2 cursor-pointer hover:bg-white/45 p-1 rounded",
-                                                    input {
-                                                        type: "checkbox",
-                                                        checked: is_checked,
-                                                        class: "cursor-pointer",
-                                                        onchange: move |_| {
-                                                            let mut list = selected_emails.write();
-                                                            if list.contains(&email) {
-                                                                list.retain(|e| e != &email);
-                                                            } else {
-                                                                list.push(email.clone());
+                            div { class: "flex flex-col space-y-1.5",
+                                label { class: "font-semibold text-slate-700", "URL da Foto do Grupo (opcional):" }
+                                input {
+                                    class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] msn-input placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
+                                    placeholder: "https://exemplo.com/foto.jpg",
+                                    value: "{group_avatar}",
+                                    oninput: move |e| group_avatar.set(e.value()),
+                                }
+                            }
+
+                            div { class: "flex flex-col space-y-1.5 flex-1 min-h-0",
+                                label { class: "font-semibold text-slate-700", "Selecione os contatos para adicionar:" }
+                                div { class: "border border-[#d1d1d1] rounded bg-white/40 p-2 overflow-y-auto max-h-[120px] flex flex-col space-y-1.5 shadow-inner",
+                                    if state.contacts().is_empty() {
+                                        div { class: "text-center text-slate-500 py-4 italic", "Nenhum contato disponível." }
+                                    } else {
+                                        for contact in state.contacts() {
+                                            {
+                                                let email = contact.email.clone();
+                                                let name = contact.nickname.clone().unwrap_or(contact.display_name.clone());
+                                                let is_checked = selected_emails().contains(&email);
+                                                rsx! {
+                                                    label { class: "flex items-center space-x-2 cursor-pointer hover:bg-white/45 p-1 rounded",
+                                                        input {
+                                                            type: "checkbox",
+                                                            checked: is_checked,
+                                                            class: "rounded-none border-[#a0a0a0] bg-[#e5e0ea] text-sky-600 focus:ring-0 focus:outline-none w-3.5 h-3.5 cursor-pointer",
+                                                            onchange: move |_| {
+                                                                let mut list = selected_emails.write();
+                                                                if list.contains(&email) {
+                                                                    list.retain(|e| e != &email);
+                                                                } else {
+                                                                    list.push(email.clone());
+                                                                }
                                                             }
                                                         }
-                                                    }
-                                                    div { class: "flex flex-col min-w-0",
-                                                        span { class: "font-medium text-slate-800 truncate", "{name}" }
-                                                        span { class: "text-[9px] text-slate-500 truncate", "{contact.email}" }
+                                                        div { class: "flex flex-col min-w-0",
+                                                            span { class: "font-medium text-slate-800 truncate text-[11px]", "{name}" }
+                                                            span { class: "text-[9px] text-slate-500 truncate", "{contact.email}" }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -477,37 +490,37 @@ pub fn ContactList(mut state: AppState) -> Element {
                                     }
                                 }
                             }
-                        }
 
-                        div { class: "flex justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/40",
-                            button {
-                                class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow hover:brightness-105 cursor-pointer transition-colors focus:outline-none",
-                                disabled: group_name().trim().is_empty() || selected_emails().is_empty(),
-                                onclick: move |_| {
-                                    state.create_group_chat(
-                                        group_name().trim().to_string(),
-                                        group_desc().trim().to_string(),
-                                        group_avatar().trim().to_string(),
-                                        selected_emails().clone()
-                                    );
-                                    show_create_group_modal.set(false);
-                                    group_name.set(String::new());
-                                    group_desc.set(String::new());
-                                    group_avatar.set(String::new());
-                                    selected_emails.write().clear();
-                                },
-                                "Criar"
-                            }
-                            button {
-                                class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded font-bold shadow cursor-pointer transition-colors focus:outline-none",
-                                onclick: move |_| {
-                                    show_create_group_modal.set(false);
-                                    group_name.set(String::new());
-                                    group_desc.set(String::new());
-                                    group_avatar.set(String::new());
-                                    selected_emails.write().clear();
-                                },
-                                "Cancelar"
+                            div { class: "flex justify-end space-x-2 pt-2 border-t border-slate-200/50",
+                                button {
+                                    class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded-[4px] font-bold shadow cursor-pointer transition-colors focus:outline-none text-[10px]",
+                                    onclick: move |_| {
+                                        show_create_group_modal.set(false);
+                                        group_name.set(String::new());
+                                        group_desc.set(String::new());
+                                        group_avatar.set(String::new());
+                                        selected_emails.write().clear();
+                                    },
+                                    "Cancelar"
+                                }
+                                button {
+                                    class: "px-4 py-1.5 {theme.btn_primary()} rounded-[4px] font-bold shadow cursor-pointer transition-colors focus:outline-none text-[10px] disabled:opacity-50 disabled:cursor-not-allowed",
+                                    disabled: group_name().trim().is_empty() || selected_emails().is_empty(),
+                                    onclick: move |_| {
+                                        state.create_group_chat(
+                                            group_name().trim().to_string(),
+                                            group_desc().trim().to_string(),
+                                            group_avatar().trim().to_string(),
+                                            selected_emails().clone()
+                                        );
+                                        show_create_group_modal.set(false);
+                                        group_name.set(String::new());
+                                        group_desc.set(String::new());
+                                        group_avatar.set(String::new());
+                                        selected_emails.write().clear();
+                                    },
+                                    "Criar"
+                                }
                             }
                         }
                     }

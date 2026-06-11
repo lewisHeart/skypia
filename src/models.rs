@@ -272,6 +272,13 @@ impl AppTheme {
     }
 }
 
+use std::sync::{Mutex, LazyLock};
+use std::collections::HashMap;
+
+static AVATAR_CACHE: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(|| {
+    Mutex::new(HashMap::new())
+});
+
 #[component]
 pub fn Avatar(url: Option<String>, size: usize) -> Element {
     let mut is_error = use_signal(|| false);
@@ -297,10 +304,55 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
         _ => "".to_string(),
     };
 
-    if !final_url.is_empty() && !is_error() {
+    let mut base64_data = use_signal(|| {
+        if final_url.is_empty() {
+            None
+        } else {
+            AVATAR_CACHE.lock().unwrap().get(&final_url).cloned()
+        }
+    });
+
+    let should_fetch = base64_data().is_none() && !final_url.is_empty() && final_url.starts_with("http");
+
+    if should_fetch {
+        let url_to_fetch = final_url.clone();
+        spawn(async move {
+            match reqwest::get(&url_to_fetch).await {
+                Ok(resp) => {
+                    if let Ok(bytes) = resp.bytes().await {
+                        use base64::Engine;
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                        let mime = if url_to_fetch.contains(".gif") {
+                            "image/gif"
+                        } else if url_to_fetch.contains(".png") {
+                            "image/png"
+                        } else {
+                            "image/jpeg"
+                        };
+                        let data_uri = format!("data:{};base64,{}", mime, b64);
+                        AVATAR_CACHE.lock().unwrap().insert(url_to_fetch, data_uri.clone());
+                        base64_data.set(Some(data_uri));
+                    } else {
+                        is_error.set(true);
+                    }
+                }
+                Err(_) => {
+                    is_error.set(true);
+                }
+            }
+        });
+    }
+
+    let display_url = if let Some(ref data) = base64_data() {
+        data.clone()
+    } else {
+        final_url.clone()
+    };
+
+    if !display_url.is_empty() && !is_error() {
         rsx! {
             img {
-                src: "{final_url}",
+                src: "{display_url}",
                 width: "{size}px",
                 height: "{size}px",
                 class: "rounded-[4px] object-cover flex-shrink-0 border border-slate-350 shadow-inner",

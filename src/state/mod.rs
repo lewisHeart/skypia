@@ -78,6 +78,8 @@ pub struct AppState {
     pub unread_counts: Signal<HashMap<String, usize>>,
     pub group_chats: Signal<Vec<crate::models::Conversation>>,
     pub dragged_contact_id: Signal<Option<String>>,
+    pub chat_font_color: Signal<String>,
+    pub chat_font_family: Signal<String>,
 }
 
 impl AppState {
@@ -99,9 +101,14 @@ impl AppState {
             toasts: Signal::new(Vec::new()),
             theme: Signal::new(AppTheme::AeroBlue),
             toast_counter: Signal::new(1),
-            message_counter: Signal::new(10),
             detached_chats: Signal::new(Vec::new()),
+            #[cfg(target_os = "android")]
+            use_custom_titlebar: Signal::new(false),
+            #[cfg(not(target_os = "android"))]
             use_custom_titlebar: Signal::new(true),
+            #[cfg(target_os = "android")]
+            interface_scale: Signal::new(1.35),
+            #[cfg(not(target_os = "android"))]
             interface_scale: Signal::new(1.0),
             chat_mode: Signal::new("integrated".to_string()),
 
@@ -138,6 +145,8 @@ impl AppState {
             unread_counts: Signal::new(HashMap::new()),
             group_chats: Signal::new(Vec::new()),
             dragged_contact_id: Signal::new(None),
+            chat_font_color: Signal::new("#1e395b".to_string()),
+            chat_font_family: Signal::new("Segoe UI".to_string()),
         }
     }
 
@@ -145,7 +154,6 @@ impl AppState {
     pub fn load_initial_data(&mut self) {
         let mut contacts_sig = self.contacts;
         let mut chat_messages_sig = self.chat_messages;
-        let mut detached_sig = self.detached_chats;
         let mut name_sig = self.user_name;
         let mut music_sig = self.user_music;
         let mut banner_sig = self.banner_info;
@@ -156,7 +164,8 @@ impl AppState {
         let mut chat_mode_sig = self.chat_mode;
         let mut pending_sig = self.pending_requests;
         let mut group_chats_sig = self.group_chats;
-        let mut avatar_url_sig = self.user_avatar_url;
+        let mut chat_font_color_sig = self.chat_font_color;
+        let mut chat_font_family_sig = self.chat_font_family;
 
         let token_opt = self.auth_token();
         let self_user_id = self.server_user_id();
@@ -193,7 +202,7 @@ impl AppState {
                 *group_chats_sig.write() = groups;
             }
 
-            if let Ok((scale, custom_bar, theme, chat_mode, density)) =
+            if let Ok((scale, custom_bar, theme, chat_mode, density, font_color, font_family)) =
                 crate::services::db::DatabaseService::load_settings().await
             {
                 *scale_sig.write() = scale;
@@ -201,6 +210,8 @@ impl AppState {
                 *theme_sig.write() = theme;
                 *chat_mode_sig.write() = chat_mode;
                 self_clone.update_densities_from_serialized(density);
+                *chat_font_color_sig.write() = font_color;
+                *chat_font_family_sig.write() = font_family;
             }
 
             // Sincronização de rede se autenticado
@@ -550,9 +561,11 @@ impl AppState {
         *self.theme.write() = theme;
         let chat_mode = self.chat_mode();
         let density = self.contact_density();
+        let font_color = self.chat_font_color();
+        let font_family = self.chat_font_family();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, chat_mode, density,
+                scale, custom_bar, theme, chat_mode, density, font_color, font_family,
             )
             .await;
         });
@@ -564,9 +577,51 @@ impl AppState {
         let custom_bar = self.use_custom_titlebar();
         let theme = self.theme();
         let density = self.contact_density();
+        let font_color = self.chat_font_color();
+        let font_family = self.chat_font_family();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, mode, density,
+                scale, custom_bar, theme, mode, density, font_color, font_family,
+            )
+            .await;
+        });
+    }
+
+    pub fn chat_font_color(&self) -> String {
+        self.chat_font_color.read().clone()
+    }
+
+    pub fn chat_font_family(&self) -> String {
+        self.chat_font_family.read().clone()
+    }
+
+    pub fn set_chat_font_color(&mut self, color: String) {
+        *self.chat_font_color.write() = color.clone();
+        let scale = self.interface_scale();
+        let custom_bar = self.use_custom_titlebar();
+        let theme = self.theme();
+        let chat_mode = self.chat_mode();
+        let density = self.contact_density();
+        let font_family = self.chat_font_family();
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::save_settings(
+                scale, custom_bar, theme, chat_mode, density, color, font_family,
+            )
+            .await;
+        });
+    }
+
+    pub fn set_chat_font_family(&mut self, font_family: String) {
+        *self.chat_font_family.write() = font_family.clone();
+        let scale = self.interface_scale();
+        let custom_bar = self.use_custom_titlebar();
+        let theme = self.theme();
+        let chat_mode = self.chat_mode();
+        let density = self.contact_density();
+        let color = self.chat_font_color();
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::save_settings(
+                scale, custom_bar, theme, chat_mode, density, color, font_family,
             )
             .await;
         });
@@ -642,7 +697,14 @@ impl AppState {
     }
 
     pub fn use_custom_titlebar(&self) -> bool {
-        (self.use_custom_titlebar)()
+        #[cfg(target_os = "android")]
+        {
+            false
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            (self.use_custom_titlebar)()
+        }
     }
 
     pub fn interface_scale(&self) -> f64 {
@@ -650,7 +712,14 @@ impl AppState {
     }
 
     pub fn chat_mode(&self) -> String {
-        self.chat_mode.read().clone()
+        #[cfg(target_os = "android")]
+        {
+            "integrated".to_string()
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            self.chat_mode.read().clone()
+        }
     }
 
     pub fn banner_info(&self) -> Option<BannerInfo> {

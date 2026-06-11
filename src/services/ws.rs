@@ -240,6 +240,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             let mut name = String::new();
             let mut pm = String::new();
             let mut final_avatar_url = None;
+            let mut contact_to_save = None;
 
             {
                 // Atualiza na lista de contatos em memória
@@ -258,12 +259,19 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     name = c.display_name.clone();
                     pm = c.personal_message.clone();
                     final_avatar_url = c.avatar_url.clone();
+                    contact_to_save = Some(c.clone());
 
                     // Toca som de entrada se o usuário acabou de ficar Online
                     if old_status == UserStatus::Offline && user_status == UserStatus::Online {
                         should_play_online = true;
                     }
                 }
+            }
+
+            if let Some(c) = contact_to_save {
+                spawn(async move {
+                    let _ = crate::services::db::DatabaseService::save_contact(&c).await;
+                });
             }
 
             if should_play_online {
@@ -404,11 +412,17 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             {
                 let mut list = state.contacts.write();
                 if let Some(existing) = list.iter_mut().find(|c| c.email == new_contact.email) {
+                    new_contact.is_favorite = existing.is_favorite;
                     *existing = new_contact.clone();
                 } else {
                     list.push(new_contact.clone());
                 }
             }
+
+            let c_save = new_contact.clone();
+            spawn(async move {
+                let _ = crate::services::db::DatabaseService::save_contact(&c_save).await;
+            });
 
             state.add_toast(
                 "Contato Adicionado".to_string(),
@@ -451,18 +465,41 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             contact_id,
             nickname,
         } => {
-            let mut list = state.contacts.write();
-            if let Some(c) = list.iter_mut().find(|c| c.id == contact_id) {
-                c.nickname = nickname;
+            let mut contact_to_save = None;
+            {
+                let mut list = state.contacts.write();
+                if let Some(c) = list.iter_mut().find(|c| c.id == contact_id) {
+                    c.nickname = nickname;
+                    contact_to_save = Some(c.clone());
+                }
+            }
+            if let Some(c) = contact_to_save {
+                spawn(async move {
+                    let _ = crate::services::db::DatabaseService::save_contact(&c).await;
+                });
             }
         }
         WsEvent::Error { message } => {
             state.add_toast("Erro".to_string(), message, None);
         }
         WsEvent::FavoriteUpdated {
-            contact_id: _contact_id,
-            is_favorite: _is_favorite,
-        } => todo!(),
+            contact_id,
+            is_favorite,
+        } => {
+            let mut contact_to_save = None;
+            {
+                let mut list = state.contacts.write();
+                if let Some(c) = list.iter_mut().find(|c| c.id == contact_id) {
+                    c.is_favorite = is_favorite;
+                    contact_to_save = Some(c.clone());
+                }
+            }
+            if let Some(c) = contact_to_save {
+                spawn(async move {
+                    let _ = crate::services::db::DatabaseService::save_contact(&c).await;
+                });
+            }
+        }
         WsEvent::ConversationJoined(_conversation) => todo!(),
     }
 }

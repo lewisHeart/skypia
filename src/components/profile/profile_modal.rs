@@ -37,34 +37,38 @@ pub fn ProfileModal(mut state: AppState) -> Element {
             state_clone.show_profile_modal.set(false);
         });
     };
-
     let contacts_count = state.contacts().len();
 
     rsx! {
         div {
-            class: "fixed inset-0 bg-black/55 backdrop-blur-sm z-[200] flex items-center justify-center p-4 pointer-events-auto",
+            class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] flex items-center justify-center p-4 pointer-events-auto",
             onclick: move |_| state.show_profile_modal.set(false),
 
             div {
-                class: "w-[380px] bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                class: "w-[380px] border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                style: "background: {theme.bg_chat()}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);",
                 onclick: move |e| e.stop_propagation(),
 
-                // Header
-                div { class: "px-4 py-3 flex items-center justify-between border-b {theme.titlebar_border()} bg-white/20",
-                    div { class: "flex items-center space-x-2",
-                        span { class: "text-lg", "👤" }
-                        div {
+                // Barra de Título Aero Clássica
+                div { class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                    div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Person/SVG/ic_fluent_person_24_color.svg",
+                            class: "w-5 h-5 object-contain pointer-events-none"
+                        }
+                        span {
                             if is_own_profile {
-                                h2 { class: "font-bold text-sm {theme.titlebar_text()}", "Meu Perfil Pessoal" }
-                                p { class: "text-[10px] text-slate-500", "Veja e edite suas informações do Skypia" }
+                                "Meu Perfil Pessoal"
                             } else if let Some(ref contact) = contact_opt {
-                                h2 { class: "font-bold text-sm {theme.titlebar_text()}", "Perfil de {contact.display_name}" }
-                                p { class: "text-[10px] text-slate-500", "Informações do seu contato no Skypia" }
+                                "Perfil de {contact.display_name}"
+                            } else {
+                                "Perfil"
                             }
                         }
                     }
                     button {
-                        class: "w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500 hover:text-white text-slate-500 font-bold cursor-pointer transition-all text-sm",
+                        class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] focus:outline-none text-[8px] font-bold",
+                        title: "Fechar",
                         onclick: move |_| state.show_profile_modal.set(false),
                         "✕"
                     }
@@ -135,7 +139,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                             div { class: "flex flex-col space-y-1",
                                 label { class: "font-bold {theme.titlebar_text()}", "Nome de Exibição (Apelido):" }
                                 input {
-                                    class: "w-full p-2 border {theme.titlebar_border()} rounded msn-input bg-white text-xs text-slate-800 focus:outline-none",
+                                    class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] msn-input placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
                                     placeholder: "Digite seu nome...",
                                     value: "{temp_name}",
                                     oninput: move |e| temp_name.set(e.value()),
@@ -146,7 +150,7 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                             div { class: "flex flex-col space-y-1",
                                 label { class: "font-bold {theme.titlebar_text()}", "Frase Pessoal:" }
                                 input {
-                                    class: "w-full p-2 border {theme.titlebar_border()} rounded msn-input bg-white text-xs text-slate-800 focus:outline-none",
+                                    class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] msn-input placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
                                     placeholder: "O que você está pensando?",
                                     value: "{temp_msg}",
                                     oninput: move |e| temp_msg.set(e.value()),
@@ -240,19 +244,19 @@ pub fn ProfileModal(mut state: AppState) -> Element {
                 div { class: "px-4 py-3 bg-white/10 border-t {theme.titlebar_border()}/30 flex items-center justify-end space-x-2",
                     if is_own_profile {
                         button {
-                            class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 rounded font-bold cursor-pointer transition-colors focus:outline-none",
+                            class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded-[4px] font-bold cursor-pointer transition-colors focus:outline-none text-[10px]",
                             onclick: move |_| state.show_profile_modal.set(false),
                             "Cancelar"
                         }
                         button {
-                            class: "px-5 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none",
+                            class: "px-5 py-1.5 {theme.btn_primary()} rounded-[4px] font-bold shadow-md cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none text-[10px]",
                             disabled: is_saving(),
                             onclick: save_profile,
                             if is_saving() { "Salvando..." } else { "Salvar" }
                         }
                     } else {
                         button {
-                            class: "px-6 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                            class: "px-6 py-1.5 {theme.btn_primary()} rounded-[4px] font-bold shadow-md cursor-pointer transition-all focus:outline-none text-[10px]",
                             onclick: move |_| state.show_profile_modal.set(false),
                             "Fechar"
                         }
