@@ -155,6 +155,7 @@ pub struct BannerInfo {
     pub action_label: String,
     pub link: String,
     pub icon: String,
+    pub image_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -425,6 +426,8 @@ pub struct Conversation {
     pub description: Option<String>,
     pub created_at: String,
     pub members: Vec<UserProfile>,
+    pub allow_member_send: Option<bool>,
+    pub allow_member_invite: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

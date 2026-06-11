@@ -89,13 +89,15 @@ impl DatabaseService {
             .await;
 
         for conv in conversations {
-            sqlx::query("INSERT INTO conversations (id, name, is_group, avatar_url, description, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+            sqlx::query("INSERT INTO conversations (id, name, is_group, avatar_url, description, created_at, allow_member_send, allow_member_invite) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                 .bind(&conv.id)
                 .bind(&conv.name)
                 .bind(conv.is_group as i32)
                 .bind(&conv.avatar_url)
                 .bind(&conv.description)
                 .bind(&conv.created_at)
+                .bind(conv.allow_member_send.unwrap_or(true) as i32)
+                .bind(conv.allow_member_invite.unwrap_or(true) as i32)
                 .execute(pool)
                 .await
                 .map_err(|e| e.to_string())?;
@@ -119,7 +121,7 @@ impl DatabaseService {
     pub async fn load_conversations() -> Result<Vec<crate::models::Conversation>, String> {
         let pool = get_pool();
 
-        let rows = sqlx::query("SELECT id, name, is_group, avatar_url, description, created_at FROM conversations ORDER BY id DESC")
+        let rows = sqlx::query("SELECT id, name, is_group, avatar_url, description, created_at, allow_member_send, allow_member_invite FROM conversations ORDER BY id DESC")
             .fetch_all(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -133,6 +135,8 @@ impl DatabaseService {
             let avatar_url: Option<String> = row.get("avatar_url");
             let description: Option<String> = row.get("description");
             let created_at: String = row.get("created_at");
+            let allow_member_send_val: Option<i32> = row.try_get("allow_member_send").ok();
+            let allow_member_invite_val: Option<i32> = row.try_get("allow_member_invite").ok();
 
             let member_rows = sqlx::query("SELECT user_id, display_name, avatar_url, role FROM conversation_members WHERE conversation_id = ?")
                 .bind(&id)
@@ -172,6 +176,8 @@ impl DatabaseService {
                 description,
                 created_at,
                 members,
+                allow_member_send: allow_member_send_val.map(|v| v != 0),
+                allow_member_invite: allow_member_invite_val.map(|v| v != 0),
             });
         }
 

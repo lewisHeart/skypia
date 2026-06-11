@@ -415,6 +415,18 @@ impl DatabaseService {
             .execute(pool)
             .await;
 
+        let _ = sqlx::query("ALTER TABLE banners ADD COLUMN image_url TEXT")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN allow_member_send INTEGER DEFAULT 1")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN allow_member_invite INTEGER DEFAULT 1")
+            .execute(pool)
+            .await;
+
         Ok(())
     }
 

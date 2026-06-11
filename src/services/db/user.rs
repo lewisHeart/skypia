@@ -145,11 +145,12 @@ impl DatabaseService {
     pub async fn save_banner(banner: &crate::models::BannerInfo) -> Result<(), String> {
         let pool = get_pool();
         let _ = sqlx::query("DELETE FROM banners").execute(pool).await;
-        sqlx::query("INSERT INTO banners (text, action_label, link, icon) VALUES (?, ?, ?, ?)")
+        sqlx::query("INSERT INTO banners (text, action_label, link, icon, image_url) VALUES (?, ?, ?, ?, ?)")
             .bind(&banner.text)
             .bind(&banner.action_label)
             .bind(&banner.link)
             .bind(&banner.icon)
+            .bind(&banner.image_url)
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -158,7 +159,7 @@ impl DatabaseService {
 
     pub async fn load_banner() -> Result<Option<crate::models::BannerInfo>, String> {
         let pool = get_pool();
-        let row = sqlx::query("SELECT text, action_label, link, icon FROM banners ORDER BY id DESC LIMIT 1")
+        let row = sqlx::query("SELECT text, action_label, link, icon, image_url FROM banners ORDER BY id DESC LIMIT 1")
             .fetch_optional(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -169,6 +170,7 @@ impl DatabaseService {
                 action_label: r.get("action_label"),
                 link: r.get("link"),
                 icon: r.get("icon"),
+                image_url: r.get("image_url"),
             }))
         } else {
             Ok(None)

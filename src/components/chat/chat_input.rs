@@ -56,9 +56,22 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
     }
     let is_group = group.is_some();
 
+    let self_id = state.server_user_id();
+    let is_local_user_admin = group.as_ref().map(|g| {
+        g.members.iter().any(|m| Some(m.id.clone()) == self_id && m.role.as_deref() == Some("admin"))
+    }).unwrap_or(false);
+
+    let is_send_disabled = if let Some(ref g) = group {
+        let allow_send = g.allow_member_send.unwrap_or(true);
+        !allow_send && !is_local_user_admin
+    } else {
+        false
+    };
+
     // Send nudge handler
     let contact_id_nudge = contact_id.clone();
     let handle_send_nudge = move |_| {
+        if is_send_disabled { return; }
         state.send_nudge(contact_id_nudge.clone());
         play_sound("nudge");
         on_nudge.call(());
@@ -448,14 +461,16 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 }
                  div { class: "flex-1 flex space-x-2.5 w-full items-center",
                     textarea {
-                        class: "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400",
+                        class: "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400 {if is_send_disabled { \"bg-slate-150 text-slate-400\" } else { \"\" }}",
                         style: "font-family: {selected_font()}; color: {selected_color()};",
-                        placeholder: "Digite sua mensagem aqui...",
+                        placeholder: if is_send_disabled { "O envio de mensagens foi desativado por um administrador." } else { "Digite sua mensagem aqui..." },
+                        disabled: is_send_disabled,
                         value: "{input_text}",
                         oninput: move |e| input_text.set(e.value()),
                         onkeydown: {
                             let cid = contact_id.clone();
                             move |e| {
+                                if is_send_disabled { return; }
                                 if e.key() == Key::Enter && !e.modifiers().shift() {
                                     e.prevent_default();
                                     let txt = input_text();
@@ -470,11 +485,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                     }
 
                     button {
-                        class: "w-[60px] h-[60px] bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] transition-colors flex items-center justify-center cursor-pointer text-white focus:outline-none flex-shrink-0 rounded-none border-none",
-                        title: "Enviar (Mensagem de Voz)",
+                        class: "w-[60px] h-[60px] bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] transition-colors flex items-center justify-center cursor-pointer text-white focus:outline-none flex-shrink-0 rounded-none border-none {if is_send_disabled { \"bg-slate-300 text-slate-500 cursor-not-allowed opacity-60\" } else { \"bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] cursor-pointer text-white transition-colors\" }}",
+                        title: if is_send_disabled { "Envio desativado" } else { "Enviar (Mensagem de Voz)" },
+                        disabled: is_send_disabled,
                         onclick: {
                             let cid = contact_id.clone();
                             move |_| {
+                                if is_send_disabled { return; }
                                 let txt = input_text();
                                 if !txt.trim().is_empty() {
                                     state.send_message(cid.clone(), txt.clone(), selected_color(), selected_font());

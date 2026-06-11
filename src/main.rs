@@ -93,17 +93,25 @@ fn App() -> Element {
         }
     });
 
-    // Ajusta o tamanho da janela principal do SO baseado no estado do chat
+    let mut last_has_chat = use_signal(|| false);
+
+    // Ajusta o tamanho da janela principal do SO baseado no estado do chat (apenas na transição para evitar flicker)
     use_effect(move || {
         #[cfg(feature = "desktop")]
         {
             let desktop = dioxus::desktop::use_window();
             let has_selected_chat =
                 app_state.selected_chat_id().is_some() && app_state.chat_mode() == "integrated";
-            if has_selected_chat {
-                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(886.0, 735.0));
-            } else {
-                desktop.set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(373.0, 735.0));
+            let was_chat_open = *last_has_chat.read();
+            if has_selected_chat != was_chat_open {
+                last_has_chat.set(has_selected_chat);
+                if has_selected_chat {
+                    desktop
+                        .set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(886.0, 735.0));
+                } else {
+                    desktop
+                        .set_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(373.0, 735.0));
+                }
             }
         }
     });
@@ -392,7 +400,7 @@ fn App() -> Element {
                         }
 
                         p { class: "text-[11px] leading-relaxed text-slate-600 bg-white/40 p-2.5 rounded-[6px] border {theme.titlebar_border()}/30 text-center",
-                            "O Skypia é o clone definitivo do MSN Messenger, recriado em Rust com Dioxus 0.7 e TailwindCSS para uma experiência premium de alta fidelidade visual Aero Glass."
+                            "O Skypia, é uma versão nostalgica de um app de mensagem, voltando as raizes."
                         }
 
                         button {

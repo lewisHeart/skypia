@@ -24,6 +24,15 @@ pub fn MainWindow(mut state: AppState) -> Element {
     let mut admin_banner_text = use_signal(|| String::new());
     let mut admin_banner_label = use_signal(|| String::new());
     let mut admin_banner_link = use_signal(|| String::new());
+    let mut admin_banner_image = use_signal(|| String::new());
+
+    let mut new_cat_input = use_signal(|| String::new());
+    let mut show_ad_modal = use_signal(|| false);
+
+    // Sinais para o posicionamento Aero flutuante e arrastável do Modal de Configurações
+    let mut settings_pos = use_signal(|| None::<(f64, f64)>);
+    let mut settings_dragging = use_signal(|| false);
+    let mut settings_drag_offset = use_signal(|| (0.0, 0.0));
 
     // Sincroniza os valores temporários quando o modal de configurações é aberto
     use_effect(move || {
@@ -36,6 +45,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                 admin_banner_text.set(banner.text);
                 admin_banner_label.set(banner.action_label);
                 admin_banner_link.set(banner.link);
+                admin_banner_image.set(banner.image_url.clone().unwrap_or_default());
             }
         }
     });
@@ -92,8 +102,15 @@ pub fn MainWindow(mut state: AppState) -> Element {
             if let Some(banner) = state.banner_info() {
                 div {
                     class: "h-[50px] w-full bg-gradient-to-r {theme.titlebar_gradient()} border-t {theme.titlebar_border()} px-3 flex items-center justify-between text-[11px] shadow-inner flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:brightness-105",
-                    onclick: move |_| {
-                        let _ = document::eval(&format!("window.open('{}', '_blank')", banner.link));
+                    onclick: {
+                        let banner_clone = banner.clone();
+                        move |_| {
+                            if banner_clone.image_url.is_some() {
+                                show_ad_modal.set(true);
+                            } else {
+                                let _ = document::eval(&format!("window.open('{}', '_blank')", banner_clone.link));
+                            }
+                        }
                     },
                     div { class: "flex items-center space-x-2 flex-1 {theme.titlebar_text()} min-w-0",
                         style: "opacity: 0.90;",
@@ -105,11 +122,6 @@ pub fn MainWindow(mut state: AppState) -> Element {
                     }
                 }
             }
-
-            // Rodapé
-            div { class: "h-6 bg-white/10 border-t border-[#d1d1d1]/30 px-3 flex items-center justify-center text-[10px] text-slate-400 flex-shrink-0",
-                span { "Skypia Messenger v0.0.1" }
-            }
         }
 
         // ==========================================
@@ -117,14 +129,41 @@ pub fn MainWindow(mut state: AppState) -> Element {
         // ==========================================
         if state.show_settings_modal() {
             div {
-                class: "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] flex items-center justify-center p-4 select-none cursor-default",
+                class: if settings_pos().is_none() {
+                    "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] flex items-center justify-center p-4 select-none cursor-default"
+                } else {
+                    "fixed inset-0 bg-black/15 backdrop-blur-[1px] z-[200] select-none cursor-default"
+                },
+                onmousemove: move |evt| {
+                    if settings_dragging() {
+                        let coords = evt.data().page_coordinates();
+                        let offset = settings_drag_offset();
+                        settings_pos.set(Some((coords.x - offset.0, coords.y - offset.1)));
+                    }
+                },
+                onmouseup: move |_| {
+                    settings_dragging.set(false);
+                },
                 onclick: move |_| state.show_settings_modal.set(false),
                 div {
                     class: "w-[92vw] max-w-[350px] sm:max-w-[620px] h-auto max-h-[90vh] sm:h-[480px] border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
-                    style: "background: {theme.bg_chat()}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);",
+                    style: if let Some((x, y)) = settings_pos() {
+                        format!("position: fixed; left: {}px; top: {}px; width: 620px; height: 480px; background: {}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6); margin: 0; transform: none;", x, y, theme.bg_chat())
+                    } else {
+                        format!("background: {}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);", theme.bg_chat())
+                    },
                     onclick: move |e| e.stop_propagation(),
 
-                    div { class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                    div { 
+                        class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none cursor-move",
+                        onmousedown: move |evt| {
+                            let coords = evt.data().page_coordinates();
+                            let current_pos = settings_pos().unwrap_or_else(|| {
+                                (250.0, 120.0)
+                            });
+                            settings_drag_offset.set((coords.x - current_pos.0, coords.y - current_pos.1));
+                            settings_dragging.set(true);
+                        },
                         div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
                             img {
                                 src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Settings/SVG/ic_fluent_settings_24_color.svg",
@@ -304,6 +343,67 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                                     option { value: "integrated", selected: state.chat_mode() == "integrated", "Chat Conectado" }
                                                     option { value: "detached", selected: state.chat_mode() == "detached", "Janela Separada" }
                                                 }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Gerenciamento de Categorias de Contatos
+                                    div { class: "flex flex-col space-y-2 pt-2 border-t border-slate-200/50",
+                                        label { class: "font-semibold text-slate-700", "Categorias de Contatos" }
+                                        div { class: "flex flex-col space-y-1 max-h-[100px] overflow-y-auto border border-[#d1d1d1] rounded p-1 bg-white/50",
+                                            {
+                                                let cats = state.categories.read();
+                                                if cats.is_empty() {
+                                                    rsx! {
+                                                        span { class: "text-[10px] text-slate-400 italic p-1", "Nenhuma categoria personalizada." }
+                                                    }
+                                                } else {
+                                                    rsx! {
+                                                        for cat in cats.iter() {
+                                                            div { class: "flex items-center justify-between py-0.5 px-1.5 hover:bg-slate-100/60 rounded",
+                                                                span { class: "text-[11px] text-slate-700 font-medium", "{cat}" }
+                                                                button {
+                                                                    class: "text-rose-500 hover:text-rose-700 font-semibold text-[10px] cursor-pointer focus:outline-none",
+                                                                    onclick: {
+                                                                        let cat_clone = cat.clone();
+                                                                        move |_| {
+                                                                            state.delete_category(cat_clone.clone());
+                                                                        }
+                                                                    },
+                                                                    "Remover"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        div { class: "flex items-center space-x-1.5 mt-1",
+                                            input {
+                                                class: "px-2 py-1 border border-[#d1d1d1] msn-input rounded text-xs flex-1 focus:outline-none bg-white",
+                                                placeholder: "Nova categoria...",
+                                                value: "{new_cat_input}",
+                                                oninput: move |e| new_cat_input.set(e.value()),
+                                                onkeydown: move |e| {
+                                                    if e.key() == Key::Enter {
+                                                        let name = new_cat_input().trim().to_string();
+                                                        if !name.is_empty() && !state.categories.read().contains(&name) {
+                                                            state.add_category(name);
+                                                            new_cat_input.set(String::new());
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            button {
+                                                class: "px-3 py-1 bg-slate-200 hover:bg-slate-350 border border-slate-350 rounded font-bold text-[10px] cursor-pointer focus:outline-none shadow-sm",
+                                                onclick: move |_| {
+                                                    let name = new_cat_input().trim().to_string();
+                                                    if !name.is_empty() && !state.categories.read().contains(&name) {
+                                                        state.add_category(name);
+                                                        new_cat_input.set(String::new());
+                                                    }
+                                                },
+                                                "Adicionar"
                                             }
                                         }
                                     }
@@ -522,15 +622,26 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                             oninput: move |e| admin_banner_link.set(e.value()),
                                         }
                                     }
+                                    div { class: "flex flex-col space-y-1",
+                                        label { class: "font-semibold text-slate-700", "URL da Imagem (Opcional)" }
+                                        input {
+                                            class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
+                                            value: "{admin_banner_image}",
+                                            placeholder: "https://site.com/imagem.png",
+                                            oninput: move |e| admin_banner_image.set(e.value()),
+                                        }
+                                    }
                                     button {
                                         class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none self-end text-[10px] disabled:opacity-50 disabled:cursor-not-allowed",
                                         disabled: admin_banner_text().trim().is_empty() || admin_banner_link().trim().is_empty(),
                                         onclick: move |_| {
+                                            let img_opt = if admin_banner_image().trim().is_empty() { None } else { Some(admin_banner_image().trim().to_string()) };
                                             let b = crate::models::BannerInfo {
                                                 icon: admin_banner_icon(),
                                                 text: admin_banner_text().trim().to_string(),
                                                 action_label: admin_banner_label().trim().to_string(),
                                                 link: admin_banner_link().trim().to_string(),
+                                                image_url: img_opt,
                                             };
                                             state.update_banner_admin(b);
                                             state.add_toast("Anúncio Salvo".to_string(), "O banner promocional foi atualizado.".to_string(), None);
@@ -689,6 +800,73 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                             "Adicionar Contato"
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // MODAL DE ANÚNCIO AERO
+        // ==========================================
+        if show_ad_modal() {
+            if let Some(banner) = state.banner_info() {
+                div {
+                    class: "fixed inset-0 bg-black/30 backdrop-blur-[2px] z-[300] flex items-center justify-center p-4",
+                    onclick: move |_| show_ad_modal.set(false),
+                    div {
+                        class: "w-[90vw] max-w-[420px] border rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-auto",
+                        style: "background: {theme.bg_chat()}; border: 1.5px solid rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);",
+                        onclick: move |e| e.stop_propagation(),
+
+                        div { class: "h-9 bg-gradient-to-r {theme.titlebar_gradient()} border-b {theme.titlebar_border()} flex items-center justify-between px-3 flex-shrink-0 select-none",
+                            div { class: "flex items-center space-x-1.5 font-bold text-[11px] {theme.titlebar_text()}",
+                                span { class: "text-sm", "{banner.icon}" }
+                                span { "Anúncio do Skypia" }
+                            }
+                            button {
+                                class: "w-[28px] h-[18px] bg-white border border-[#d1d1d1] rounded-[3px] shadow-sm flex items-center justify-center cursor-pointer transition-all hover:bg-[#e81123] hover:border-[#e81123] hover:text-white text-[#6f6f6f] hover:text-white focus:outline-none text-[8px] font-bold",
+                                title: "Fechar",
+                                onclick: move |_| show_ad_modal.set(false),
+                                "✕"
+                            }
+                        }
+
+                        div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
+                            if let Some(ref img_url) = banner.image_url {
+                                if !img_url.trim().is_empty() {
+                                    div { class: "w-full max-h-[200px] overflow-hidden rounded border border-slate-250 shadow-sm flex items-center justify-center bg-black/5",
+                                        img {
+                                            src: "{img_url}",
+                                            class: "max-w-full max-h-[200px] object-contain"
+                                        }
+                                    }
+                                }
+                            }
+
+                            div { class: "flex flex-col space-y-1.5 text-center px-2",
+                                span { class: "font-bold text-sm text-slate-800", "{banner.text}" }
+                                span { class: "text-[10px] text-slate-500", "Clique no botão abaixo para saber mais." }
+                            }
+
+                            div { class: "flex justify-end space-x-2 pt-2 border-t border-slate-200/50",
+                                button {
+                                    class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded-[4px] font-bold cursor-pointer transition-colors focus:outline-none text-[10px]",
+                                    onclick: move |_| show_ad_modal.set(false),
+                                    "Fechar"
+                                }
+                                button {
+                                    class: "px-5 py-1.5 {theme.btn_primary()} rounded-[4px] font-bold shadow transition-colors cursor-pointer focus:outline-none text-[10px]",
+                                    onclick: {
+                                        let link = banner.link.clone();
+                                        move |_| {
+                                            let _ = document::eval(&format!("window.open('{}', '_blank')", link));
+                                            show_ad_modal.set(false);
+                                        }
+                                    },
+                                    "{banner.action_label}"
                                 }
                             }
                         }

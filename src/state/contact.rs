@@ -444,4 +444,41 @@ impl AppState {
             }
         });
     }
+
+    pub fn update_group_permissions(&mut self, group_id: String, allow_send: bool, allow_invite: bool) {
+        if let Some(group) = self.group_chats.write().iter_mut().find(|g| g.id == group_id) {
+            group.allow_member_send = Some(allow_send);
+            group.allow_member_invite = Some(allow_invite);
+        }
+        let pool = crate::services::db::get_pool();
+        let gid = group_id.clone();
+        spawn(async move {
+            let _ = sqlx::query("UPDATE conversations SET allow_member_send = ?, allow_member_invite = ? WHERE id = ?")
+                .bind(allow_send as i32)
+                .bind(allow_invite as i32)
+                .bind(gid)
+                .execute(pool)
+                .await;
+        });
+    }
+
+    pub fn update_group_member_role(&mut self, group_id: String, user_id: String, role: String) {
+        if let Some(group) = self.group_chats.write().iter_mut().find(|g| g.id == group_id) {
+            if let Some(member) = group.members.iter_mut().find(|m| m.id == user_id) {
+                member.role = Some(role.clone());
+            }
+        }
+        let pool = crate::services::db::get_pool();
+        let gid = group_id.clone();
+        let uid = user_id.clone();
+        let r = role.clone();
+        spawn(async move {
+            let _ = sqlx::query("UPDATE conversation_members SET role = ? WHERE conversation_id = ? AND user_id = ?")
+                .bind(r)
+                .bind(gid)
+                .bind(uid)
+                .execute(pool)
+                .await;
+        });
+    }
 }
