@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::UserStatus;
 use crate::services::db::{get_pool, DatabaseService, status_to_str};
 

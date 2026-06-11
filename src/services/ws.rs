@@ -417,7 +417,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             );
         }
         WsEvent::ContactBlocked {
-            contact_id,
+            contact_id: _contact_id,
             blocked,
         } => {
             state.add_toast(
@@ -460,9 +460,9 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             state.add_toast("Erro".to_string(), message, None);
         }
         WsEvent::FavoriteUpdated {
-            contact_id,
-            is_favorite,
+            contact_id: _contact_id,
+            is_favorite: _is_favorite,
         } => todo!(),
-        WsEvent::ConversationJoined(conversation) => todo!(),
+        WsEvent::ConversationJoined(_conversation) => todo!(),
     }
 }

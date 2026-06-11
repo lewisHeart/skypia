@@ -27,23 +27,40 @@ impl AppState {
             music,
         ).await;
 
-        let is_local = if let Ok(Some(local_url)) = crate::services::db::DatabaseService::load_user_avatar_url().await {
-            local_url.starts_with("/assets/")
-                || local_url.starts_with("assets/")
-                || local_url.starts_with("/_assets/")
-                || local_url.starts_with("_assets/")
-                || local_url.starts_with("dioxus-asset://")
+        // O servidor é a fonte de verdade para o avatar.
+        // Se o servidor tem um avatar_url, ele sempre tem prioridade.
+        // Se o servidor retorna null (ex: banco resetado), limpa o avatar local
+        // para evitar exibir uma URL stale que não existe mais no servidor.
+        if let Some(url) = profile.avatar_url {
+            // Servidor tem avatar — usa e persiste localmente
+            *self.user_avatar_url.write() = Some(url.clone());
+            let _ = crate::services::db::DatabaseService::save_user_avatar_url(Some(url)).await;
         } else {
-            false
-        };
+            // Servidor não tem avatar — verifica se o local é um asset predefinido embutido
+            // (que funciona offline), caso contrário limpa para não exibir URL stale do servidor
+            let local_url_opt = crate::services::db::DatabaseService::load_user_avatar_url()
+                .await
+                .ok()
+                .flatten();
 
-        if !is_local {
-            if let Some(url) = profile.avatar_url {
-                *self.user_avatar_url.write() = Some(url.clone());
-                let _ = crate::services::db::DatabaseService::save_user_avatar_url(Some(url)).await;
+            let keep_local = local_url_opt.as_deref().map(|u| {
+                u.starts_with("/assets/")
+                    || u.starts_with("assets/")
+                    || u.starts_with("/_assets/")
+                    || u.starts_with("_assets/")
+                    || u.starts_with("dioxus-asset://")
+            }).unwrap_or(false);
+
+            if keep_local {
+                *self.user_avatar_url.write() = local_url_opt;
+            } else {
+                // URL era do servidor (relativa /uploads/...) — limpa pois o servidor não tem mais
+                *self.user_avatar_url.write() = None;
+                let _ = crate::services::db::DatabaseService::save_user_avatar_url(None).await;
             }
         }
     }
+
 
     /// Estabelece a conexão com o WebSocket do servidor
     pub fn connect_websocket(&mut self) {

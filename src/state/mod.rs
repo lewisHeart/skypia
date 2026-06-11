@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::{AppTheme, BannerInfo, Contact, Message, TicTacToe, UserStatus};
 use dioxus::prelude::*;
 use std::collections::HashMap;

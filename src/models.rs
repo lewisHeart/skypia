@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use dioxus::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

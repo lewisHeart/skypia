@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::{Contact, UserStatus};
 use crate::services::db::{get_pool, DatabaseService, status_to_str, str_to_status};
 use sqlx::Row;

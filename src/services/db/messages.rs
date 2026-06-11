@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::models::{FileTransferState, Message};
 use crate::services::db::{get_pool, DatabaseService};
 use sqlx::Row;
