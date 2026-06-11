@@ -7,7 +7,7 @@ impl DatabaseService {
     pub async fn load_contacts() -> Result<Vec<Contact>, String> {
         let pool = get_pool();
         let rows = sqlx::query(
-            "SELECT id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, avatar_url FROM contacts ORDER BY id",
+            "SELECT id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, avatar_url, category_name FROM contacts ORDER BY id",
         )
         .fetch_all(pool)
         .await
@@ -32,6 +32,7 @@ impl DatabaseService {
                     is_favorite: is_fav != 0,
                     relation_status: row.get("relation_status"),
                     nickname: row.get("nickname"),
+                    category_name: row.get("category_name"),
                 }
             })
             .collect();
@@ -51,7 +52,7 @@ impl DatabaseService {
         let pool = get_pool();
 
         // Verifica se já existe um contato com o mesmo e-mail para evitar duplicação local
-        let existing = sqlx::query("SELECT id, is_favorite, avatar_id FROM contacts WHERE email = ?")
+        let existing = sqlx::query("SELECT id, is_favorite, avatar_id, category_name FROM contacts WHERE email = ?")
             .bind(&email)
             .fetch_optional(pool)
             .await
@@ -61,6 +62,7 @@ impl DatabaseService {
             let existing_id: String = row.get("id");
             let is_fav: i32 = row.get("is_favorite");
             let _avatar: i64 = row.get("avatar_id");
+            let category_name: Option<String> = row.get("category_name");
 
             sqlx::query("UPDATE contacts SET id = ?, display_name = ?, status = ?, personal_message = ?, relation_status = ?, nickname = ? WHERE id = ?")
                 .bind(&id)
@@ -85,12 +87,13 @@ impl DatabaseService {
                 is_favorite: is_fav != 0,
                 relation_status,
                 nickname,
+                category_name,
             });
         }
 
         let avatar_id = (id.as_bytes().iter().map(|&b| b as usize).sum::<usize>()) % 7;
         sqlx::query(
-            "INSERT INTO contacts (id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname) VALUES (?, ?, ?, ?, ?, NULL, ?, 0, ?, ?)",
+            "INSERT INTO contacts (id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, category_name) VALUES (?, ?, ?, ?, ?, NULL, ?, 0, ?, ?, NULL)",
         )
         .bind(&id)
         .bind(&email)
@@ -115,6 +118,7 @@ impl DatabaseService {
             is_favorite: false,
             relation_status,
             nickname,
+            category_name: None,
         })
     }
 
@@ -166,7 +170,7 @@ impl DatabaseService {
 
         if result.rows_affected() == 0 {
             sqlx::query(
-                "INSERT INTO contacts (id, email, display_name, status, personal_message, is_favorite, relation_status) VALUES (?, ?, ?, 'Offline', '', ?, 'Aceito')",
+                "INSERT INTO contacts (id, email, display_name, status, personal_message, is_favorite, relation_status, category_name) VALUES (?, ?, ?, 'Offline', '', ?, 'Aceito', NULL)",
             )
             .bind(&contact_id)
             .bind(&email)
@@ -183,7 +187,7 @@ impl DatabaseService {
         let pool = get_pool();
         let status_str = status_to_str(&contact.status);
         
-        let result = sqlx::query("UPDATE contacts SET email = ?, display_name = ?, status = ?, personal_message = ?, music_listening = ?, is_favorite = ?, relation_status = ?, nickname = ?, avatar_url = ? WHERE id = ?")
+        let result = sqlx::query("UPDATE contacts SET email = ?, display_name = ?, status = ?, personal_message = ?, music_listening = ?, is_favorite = ?, relation_status = ?, nickname = ?, avatar_url = ?, category_name = ? WHERE id = ?")
             .bind(&contact.email)
             .bind(&contact.display_name)
             .bind(&status_str)
@@ -193,6 +197,7 @@ impl DatabaseService {
             .bind(&contact.relation_status)
             .bind(&contact.nickname)
             .bind(&contact.avatar_url)
+            .bind(&contact.category_name)
             .bind(&contact.id)
             .execute(pool)
             .await
@@ -200,7 +205,7 @@ impl DatabaseService {
 
         if result.rows_affected() == 0 {
             let avatar_id = (contact.id.as_bytes().iter().map(|&b| b as usize).sum::<usize>()) % 7;
-            sqlx::query("INSERT INTO contacts (id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            sqlx::query("INSERT INTO contacts (id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, avatar_url, category_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                 .bind(&contact.id)
                 .bind(&contact.email)
                 .bind(&contact.display_name)
@@ -212,10 +217,57 @@ impl DatabaseService {
                 .bind(&contact.relation_status)
                 .bind(&contact.nickname)
                 .bind(&contact.avatar_url)
+                .bind(&contact.category_name)
                 .execute(pool)
                 .await
                 .map_err(|e| e.to_string())?;
         }
+        Ok(())
+    }
+
+    pub async fn add_category(name: String) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("INSERT INTO categories (name) VALUES (?)")
+            .bind(name)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn delete_category(name: String) -> Result<(), String> {
+        let pool = get_pool();
+        let _ = sqlx::query("DELETE FROM categories WHERE name = ?")
+            .bind(&name)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        let _ = sqlx::query("UPDATE contacts SET category_name = NULL WHERE category_name = ?")
+            .bind(&name)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn get_categories() -> Result<Vec<String>, String> {
+        let pool = get_pool();
+        let rows = sqlx::query("SELECT name FROM categories ORDER BY name")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        let list = rows.iter().map(|r| r.get("name")).collect();
+        Ok(list)
+    }
+
+    pub async fn update_contact_category(contact_id: String, category: Option<String>) -> Result<(), String> {
+        let pool = get_pool();
+        sqlx::query("UPDATE contacts SET category_name = ? WHERE id = ?")
+            .bind(category)
+            .bind(contact_id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 }

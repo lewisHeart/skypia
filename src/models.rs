@@ -99,6 +99,25 @@ impl TicTacToe {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct UserSettings {
+    pub interface_scale: f64,
+    pub use_custom_titlebar: bool,
+    pub theme: String,
+    pub chat_mode: String,
+    pub contact_density: String,
+    pub font_color: String,
+    pub font_family: String,
+    pub spotify_rpc_enabled: bool,
+    pub show_typing_notification: bool,
+    pub enable_sounds: bool,
+    pub enable_toasts: bool,
+    pub download_folder: String,
+    pub auto_accept_files: bool,
+    pub remember_password: bool,
+    pub save_chat_history: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Contact {
     pub id: String,
@@ -111,6 +130,7 @@ pub struct Contact {
     pub is_favorite: bool,
     pub relation_status: String,
     pub nickname: Option<String>,
+    pub category_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -522,4 +542,93 @@ pub enum ClientAction {
         contact_id: String,
         is_favorite: bool,
     },
+}
+
+pub fn parse_emoticons_inline(text: &str, size_class: &str) -> Element {
+    let emoticons = &[
+        (":)", "smiling-face"),
+        (":-)", "smiling-face"),
+        (":(", "frowning-face"),
+        (":-(", "frowning-face"),
+        (";)", "winking-face"),
+        (";-)", "winking-face"),
+        (":P", "face-with-tongue"),
+        (":p", "face-with-tongue"),
+        (":-P", "face-with-tongue"),
+        (":-p", "face-with-tongue"),
+        ("(H)", "smiling-face-with-sunglasses"),
+        ("(h)", "smiling-face-with-sunglasses"),
+        ("(A)", "smiling-face-with-halo"),
+        ("(a)", "smiling-face-with-halo"),
+        (":@", "angry-face"),
+        ("(6)", "smiling-face-with-horns"),
+        ("(L)", "red-heart"),
+        ("(l)", "red-heart"),
+        ("(U)", "broken-heart"),
+        ("(u)", "broken-heart"),
+        ("(M)", "musical-note"),
+        ("(m)", "musical-note"),
+        ("(F)", "floppy-disk"),
+        ("(f)", "floppy-disk"),
+        ("(I)", "framed-picture"),
+        ("(i)", "framed-picture"),
+        ("(S)", "sparkles"),
+        ("(s)", "sparkles"),
+        ("(B)", "brain"),
+        ("(b)", "brain"),
+        ("(C)", "collision"),
+        ("(c)", "collision"),
+        ("hammer", "hammer"),
+        ("🔨", "hammer"),
+        ("🐷", "pig-face"),
+        ("💋", "kiss-mark"),
+        ("✨", "sparkles"),
+        ("🧠", "brain"),
+        ("💥", "collision"),
+    ];
+
+    let mut parts = Vec::new();
+    let mut current_text = text.to_string();
+
+    while !current_text.is_empty() {
+        let mut earliest_match: Option<(usize, usize, &str)> = None;
+
+        for &(code, emoji_name) in emoticons {
+            if let Some(idx) = current_text.find(code) {
+                match earliest_match {
+                    None => earliest_match = Some((idx, idx + code.len(), emoji_name)),
+                    Some((earliest_idx, _, _)) if idx < earliest_idx => {
+                        earliest_match = Some((idx, idx + code.len(), emoji_name));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some((start, end, emoji_name)) = earliest_match {
+            if start > 0 {
+                let prev_text = current_text[..start].to_string();
+                parts.push(rsx! { span { "{prev_text}" } });
+            }
+            parts.push(rsx! {
+                img {
+                    src: "/assets/emojis/{emoji_name}.webp",
+                    class: "{size_class} inline-block align-middle mx-0.5",
+                    alt: "{emoji_name}"
+                }
+            });
+            current_text = current_text[end..].to_string();
+        } else {
+            parts.push(rsx! { span { "{current_text}" } });
+            break;
+        }
+    }
+
+    rsx! {
+        span {
+            for part in parts {
+                {part}
+            }
+        }
+    }
 }

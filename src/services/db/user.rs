@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use crate::models::UserStatus;
 use crate::services::db::{get_pool, DatabaseService, status_to_str};
+use sqlx::Row;
 
 impl DatabaseService {
     pub async fn load_user_name() -> Result<String, String> {
@@ -139,5 +140,38 @@ impl DatabaseService {
             .await
             .map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    pub async fn save_banner(banner: &crate::models::BannerInfo) -> Result<(), String> {
+        let pool = get_pool();
+        let _ = sqlx::query("DELETE FROM banners").execute(pool).await;
+        sqlx::query("INSERT INTO banners (text, action_label, link, icon) VALUES (?, ?, ?, ?)")
+            .bind(&banner.text)
+            .bind(&banner.action_label)
+            .bind(&banner.link)
+            .bind(&banner.icon)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn load_banner() -> Result<Option<crate::models::BannerInfo>, String> {
+        let pool = get_pool();
+        let row = sqlx::query("SELECT text, action_label, link, icon FROM banners ORDER BY id DESC LIMIT 1")
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if let Some(r) = row {
+            Ok(Some(crate::models::BannerInfo {
+                text: r.get("text"),
+                action_label: r.get("action_label"),
+                link: r.get("link"),
+                icon: r.get("icon"),
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

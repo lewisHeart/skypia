@@ -461,7 +461,7 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                 }
                 parts.push(rsx! {
                     img {
-                        src: "https://registry.npmmirror.com/@lobehub/assets-emoji-anim/latest/files/assets/{emoji_name}.webp",
+                        src: "/assets/emojis_anim/{emoji_name}.webp",
                         class: "w-5 h-5 inline-block align-middle mx-0.5",
                         alt: "{emoji_name}"
                     }

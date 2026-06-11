@@ -137,6 +137,27 @@ fn App() -> Element {
         }
     });
 
+    // Loop periódico para detectar música do Spotify local (Spotify RPC)
+    use_future(move || {
+        let mut state = app_state;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                if state.logged_in() && state.spotify_rpc_enabled() {
+                    if let Some(music) = crate::services::spotify::detect_current_song().await {
+                        if state.user_music() != Some(music.clone()) {
+                            state.set_user_music(Some(music));
+                        }
+                    } else {
+                        if state.user_music().is_some() {
+                            state.set_user_music(None);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
@@ -329,62 +350,9 @@ fn App() -> Element {
             ToastList { state: app_state }
         }
 
-        // Modal de Solicitação de Amizade Pendente (MSN Style)
-        {
-            if logged_in && !app_state.pending_requests().is_empty() {
-                let pending_list = app_state.pending_requests();
-                let first_req = pending_list[0].clone();
-                let first_req_id_accept = first_req.id.clone();
-                let first_req_id_reject = first_req.id.clone();
-
-                rsx! {
-                    div {
-                        class: "fixed inset-0 bg-black/10 z-[9998] flex items-center justify-center p-4 pointer-events-auto",
-                        div {
-                            class: "w-[360px] bg-gradient-to-b {theme.modal_gradient()} border-2 {theme.modal_border()} rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
-
-                            // Cabeçalho clássico
-                            div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
-                                span { class: "font-bold text-sm flex items-center space-x-1.5 {theme.titlebar_text()}",
-                                    span { "👤" }
-                                    span { "Solicitação de Amizade" }
-                                }
-                            }
-
-                            // Conteúdo
-                            div { class: "flex flex-col space-y-3 py-1",
-                                p { class: "font-semibold text-slate-700",
-                                    "{first_req.display_name} ({first_req.email}) deseja adicionar você à lista de contatos."
-                                }
-
-                                div { class: "bg-white/60 border {theme.titlebar_border()} p-3 rounded text-[11px] leading-relaxed text-slate-600 space-y-2",
-                                    p { "Ao aceitar, você poderá ver o status dele, trocar mensagens em tempo real e compartilhar winks e nudges!" }
-                                }
-                            }
-
-                            // Botões de Ação
-                            div { class: "flex items-center justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/50",
-                                button {
-                                    class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
-                                    onclick: move |_| {
-                                        app_state.accept_friend_request(first_req_id_accept.clone());
-                                    },
-                                    "Aceitar"
-                                }
-                                button {
-                                    class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
-                                    onclick: move |_| {
-                                        app_state.reject_friend_request(first_req_id_reject.clone());
-                                    },
-                                    "Recusar"
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                rsx! {}
-            }
+        // Modal de Solicitações de Amizade (Aero Style)
+        if logged_in && app_state.show_friend_requests_modal() {
+            crate::components::main::friend_requests_modal::FriendRequestsModal { state: app_state }
         }
 
         // About Skypia Modal Dialog

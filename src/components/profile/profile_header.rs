@@ -215,7 +215,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                                     temp_name.set(state.user_name());
                                     is_editing_name.set(true);
                                 },
-                                "{state.user_name()}"
+                                {crate::models::parse_emoticons_inline(&state.user_name(), "w-4 h-4")}
                             }
                             div { class: "relative flex items-center flex-shrink-0",
                                 button {
@@ -282,7 +282,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                                     temp_msg.set(state.user_personal_message());
                                     is_editing_msg.set(true);
                                 },
-                                "{display_msg}"
+                                {crate::models::parse_emoticons_inline(&display_msg, "w-3.5 h-3.5")}
                             }
                         }
                     }
@@ -304,9 +304,6 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 }
             }
         }
-
-
-
         // ==========================================
         // MUSIC PLAYER MODAL (Orkut/MSN Style)
         // ==========================================
@@ -315,7 +312,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                 class: "fixed inset-0 bg-black/45 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 pointer-events-auto",
                 onclick: move |_| state.show_music_player_modal.set(false),
                 div {
-                    class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto",
+                    class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border {theme.modal_border()} rounded-lg shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} pointer-events-auto backdrop-blur-md",
                     onclick: move |e| e.stop_propagation(),
 
                     div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
@@ -330,12 +327,13 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     div { class: "flex flex-col space-y-1.5",
                         label { class: "font-bold text-slate-700", "Digite uma música personalizada" }
                         input {
-                            class: "px-2 py-1.5 border {theme.titlebar_border()} msn-input rounded text-xs",
-                            placeholder: "Ex: Paramore - Decode",
+                            class: "px-2 py-1.5 border {theme.titlebar_border()} msn-input rounded text-xs bg-white/80 focus:bg-white focus:outline-none transition-colors",
+                            placeholder: "Ex: Projeto Sola - Entre Nós",
                             value: "{music_search_query}",
                             oninput: move |e| music_search_query.set(e.value()),
                             onkeydown: move |e| {
                                 if e.key() == Key::Enter && !music_search_query().is_empty() {
+                                    state.set_spotify_rpc_enabled(false);
                                     state.set_user_music(Some(music_search_query().clone()));
                                     state.show_music_player_modal.set(false);
                                 }
@@ -343,33 +341,53 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         }
                     }
 
-                    div { class: "flex flex-col space-y-1",
-                        span { class: "font-bold text-slate-500 mb-1", "Hits Nostálgicos de 2010" }
-                        for hit in [
-                            "Coldplay - Viva La Vida",
-                            "Green Day - 21 Guns",
-                            "Paramore - Decode",
-                            "Nx Zero - Cedo Ou Tarde",
-                            "Fresno - Desde Quando Você Se Foi",
-                            "Linkin Park - In The End",
-                            "Lady Gaga - Bad Romance",
-                            "Justin Bieber - Baby"
-                        ] {
+                    // Seção de Integração com o Spotify RPC
+                    div { class: "flex flex-col space-y-2 p-3 bg-white/40 border {theme.titlebar_border()} rounded-lg backdrop-blur-md",
+                        div { class: "flex items-center justify-between",
+                            span { class: "font-bold text-slate-700", "Spotify (Autodetectar)" }
                             button {
-                                class: "px-2 py-1.5 text-left hover:bg-black/5 rounded transition-colors {theme.titlebar_text()} hover:underline cursor-pointer",
-                                onclick: move |_| {
-                                    state.set_user_music(Some(hit.to_string()));
-                                    state.show_music_player_modal.set(false);
+                                class: if state.spotify_rpc_enabled() {
+                                    "px-2.5 py-1 text-[10px] rounded border transition-all cursor-pointer font-bold select-none bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                                } else {
+                                    "px-2.5 py-1 text-[10px] rounded border transition-all cursor-pointer font-bold select-none bg-slate-200 hover:bg-slate-300 text-slate-700 border-slate-300 shadow-sm"
                                 },
-                                "{hit}"
+                                onclick: move |_| {
+                                    let next_state = !state.spotify_rpc_enabled();
+                                    state.set_spotify_rpc_enabled(next_state);
+                                    if next_state {
+                                        state.set_user_music(None);
+                                    }
+                                },
+                                if state.spotify_rpc_enabled() { "Ativado" } else { "Desativado" }
                             }
+                        }
+                        div { class: "flex items-center space-x-2 text-[11px]",
+                            div {
+                                class: if state.spotify_rpc_enabled() {
+                                    "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.6)] animate-pulse"
+                                } else {
+                                    "w-2.5 h-2.5 rounded-full bg-slate-400"
+                                }
+                            }
+                            span {
+                                class: "text-slate-700 font-semibold",
+                                if state.spotify_rpc_enabled() {
+                                    "Status: Detectando do Spotify"
+                                } else {
+                                    "Status: Inativo/Desativado"
+                                }
+                            }
+                        }
+                        p { class: "text-[10px] text-slate-500 leading-relaxed font-normal",
+                            "O Skypia detecta automaticamente o que você está ouvindo no aplicativo Spotify."
                         }
                     }
 
                     div { class: "flex space-x-2 pt-2 border-t {theme.titlebar_border()}/30",
                         button {
-                            class: "flex-1 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 rounded font-bold cursor-pointer transition-colors text-center",
+                            class: "flex-1 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 rounded font-bold cursor-pointer transition-colors text-center shadow-sm",
                             onclick: move |_| {
+                                state.set_spotify_rpc_enabled(false);
                                 state.set_user_music(None);
                                 state.show_music_player_modal.set(false);
                             },
@@ -379,6 +397,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             class: "flex-1 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all text-center",
                             onclick: move |_| {
                                 if !music_search_query().is_empty() {
+                                    state.set_spotify_rpc_enabled(false);
                                     state.set_user_music(Some(music_search_query().clone()));
                                 }
                                 state.show_music_player_modal.set(false);

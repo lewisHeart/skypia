@@ -17,6 +17,12 @@ impl AppState {
         }
 
         if let Some((cid, email, name, is_fav)) = contact_info {
+            if let Some(tx) = &*self.ws_tx.read() {
+                let _ = tx.send(crate::models::ClientAction::SetFavorite {
+                    contact_id: cid.clone(),
+                    is_favorite: is_fav,
+                });
+            }
             spawn(async move {
                 let _ = crate::services::db::DatabaseService::save_contact_favorite(
                     cid,
@@ -74,6 +80,7 @@ impl AppState {
                             is_favorite: false,
                             relation_status: profile.relation_status.unwrap_or_else(|| "Aceito".to_string()),
                             nickname: profile.nickname,
+                            category_name: None,
                         });
                     }
                     Err(e) => {
@@ -97,6 +104,7 @@ impl AppState {
                     is_favorite: false,
                     relation_status: "Aceito".to_string(),
                     nickname: None,
+                    category_name: None,
                 });
             }
 

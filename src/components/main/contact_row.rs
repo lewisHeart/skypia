@@ -21,6 +21,9 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
     let mut show_rename_modal = use_signal(|| false);
     let mut new_nickname = use_signal(|| contact.nickname.clone().unwrap_or_default());
 
+    let mut show_create_category_modal = use_signal(|| false);
+    let mut new_category_name = use_signal(|| String::new());
+
     let contact_id = contact.id.clone();
     let cid_double = contact_id.clone();
     let cid_context_open = contact_id.clone();
@@ -121,7 +124,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                         }
                         div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",
                             div { class: "flex items-center space-x-1",
-                                span { class: "{name_font_weight} text-xs {theme.titlebar_text()} truncate hover:underline", "{name_to_show}" }
+                                span { class: "{name_font_weight} text-xs {theme.titlebar_text()} truncate hover:underline", {crate::models::parse_emoticons_inline(&name_to_show, "w-3.5 h-3.5")} }
                                 if is_blocked {
                                     span { class: "text-[9px] opacity-75", "🚫" }
                                 }
@@ -135,7 +138,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                             if is_typing {
                                 span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate", "✍️ digitando..." }
                             } else {
-                                span { class: "text-[10px] text-[#a5a5a5] truncate font-normal", "{contact.personal_message}" }
+                                span { class: "text-[10px] text-[#a5a5a5] truncate font-normal", {render_personal_message_with_links(&contact.personal_message)} }
                             }
                         }
                     }
@@ -154,7 +157,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                             class: "w-3.5 h-3.5 object-contain flex-shrink-0 select-none mr-1"
                         }
                         div { class: "flex-1 min-w-0 flex items-center space-x-1.5 text-[10px]",
-                            span { class: "{name_font_weight} {theme.titlebar_text()} truncate hover:underline flex-shrink-0", "{name_to_show}" }
+                            span { class: "{name_font_weight} {theme.titlebar_text()} truncate hover:underline flex-shrink-0", {crate::models::parse_emoticons_inline(&name_to_show, "w-3.5 h-3.5")} }
                             if is_blocked {
                                 span { class: "text-[9px] opacity-75 flex-shrink-0", "🚫" }
                             }
@@ -168,7 +171,7 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                                 if is_typing {
                                     span { class: "text-[10px] text-emerald-600 font-semibold animate-pulse truncate flex-1", "✍️ digitando..." }
                                 } else {
-                                    span { class: "text-[10px] text-[#a5a5a5] truncate font-normal flex-1", "{contact.personal_message}" }
+                                    span { class: "text-[10px] text-[#a5a5a5] truncate font-normal flex-1", {render_personal_message_with_links(&contact.personal_message)} }
                                 }
                             }
                         }
@@ -193,13 +196,17 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                             {render_avatar(contact.avatar_url.as_deref(), 44)}
                         }
                         div { class: "flex-1 min-w-0 flex flex-col space-y-1",
-                            span { class: "font-bold text-sm {theme.titlebar_text()} truncate", "{name_to_show}" }
+                            span { class: "font-bold text-sm {theme.titlebar_text()} truncate", {crate::models::parse_emoticons_inline(&name_to_show, "w-4 h-4")} }
                             span { class: "text-[10px] text-slate-400 select-all font-semibold", "{contact.email}" }
                             span { class: "font-semibold text-[10px] text-slate-500", "Status: {contact.status.as_str()}" }
                         }
                     }
                     div { class: "border-t border-slate-200/80 pt-1.5 flex flex-col space-y-1",
-                        p { class: "text-[10px] text-slate-600 italic select-text", "“{contact.personal_message}”" }
+                        p { class: "text-[10px] text-slate-600 italic select-text",
+                            span { "“" }
+                            {crate::models::parse_emoticons_inline(&contact.personal_message, "w-3 h-3")}
+                            span { "”" }
+                        }
                         if let Some(ref song) = contact.music_listening {
                             div { 
                                 class: "flex items-center space-x-1 text-[9px] {theme.titlebar_text()} font-medium",
@@ -259,6 +266,72 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                         },
                         span { "👤" }
                         span { "Ver perfil" }
+                    }
+
+                    // Divisor
+                    div { class: "h-[1px] bg-slate-200/60 my-0.5" }
+
+                    // Mover para Categoria
+                    div { class: "relative group/submenu",
+                        div { class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center justify-between cursor-pointer font-medium transition-colors w-full",
+                            div { class: "flex items-center space-x-2",
+                                span { "📂" }
+                                span { "Mover para categoria" }
+                            }
+                            span { class: "text-[9px] text-slate-400", "▶" }
+                        }
+                        div { class: "absolute left-full top-0 ml-1 hidden group-hover/submenu:flex flex-col w-40 bg-white border border-slate-300 rounded-lg shadow-xl p-1 z-[10000]",
+                            // Nenhuma categoria (limpar)
+                            button {
+                                class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-1.5 cursor-pointer font-medium w-full text-[10px]",
+                                onclick: {
+                                    let cid = contact.id.clone();
+                                    move |_| {
+                                        show_context_menu.set(false);
+                                        state.update_contact_category(cid.clone(), None);
+                                    }
+                                },
+                                span { "❌" }
+                                span { "Nenhuma (Gerais)" }
+                            }
+                            // Lista de categorias existentes
+                            for cat in state.categories() {
+                                {
+                                    let cid = contact.id.clone();
+                                    let cat_name = cat.clone();
+                                    let is_current = contact.category_name.as_ref() == Some(&cat_name);
+                                    rsx! {
+                                        button {
+                                            class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center justify-between cursor-pointer font-medium w-full text-[10px]",
+                                            onclick: move |_| {
+                                                show_context_menu.set(false);
+                                                let mut s = state;
+                                                s.update_contact_category(cid.clone(), Some(cat_name.clone()));
+                                                if contact.is_favorite {
+                                                    s.toggle_favorite(cid.clone());
+                                                }
+                                            },
+                                            span { "{cat_name}" }
+                                            if is_current {
+                                                span { "✓" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // Divisor
+                            div { class: "h-[1px] bg-slate-200/60 my-0.5" }
+                            // Criar nova categoria
+                            button {
+                                class: "px-2 py-1 hover:bg-sky-100 rounded text-left flex items-center space-x-1.5 cursor-pointer font-medium w-full text-[10px] text-sky-600",
+                                onclick: move |_| {
+                                    show_context_menu.set(false);
+                                    show_create_category_modal.set(true);
+                                },
+                                span { "➕" }
+                                span { "Nova categoria..." }
+                            }
+                        }
                     }
 
                     // Divisor
@@ -361,6 +434,121 @@ pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Ele
                     }
                 }
             }
+
+            // Modal de Nova Categoria e Mover (MSN Style)
+            if show_create_category_modal() {
+                div { 
+                    class: "fixed inset-0 bg-black/10 z-[99999] flex items-center justify-center p-4 cursor-default",
+                    onclick: move |_| show_create_category_modal.set(false),
+                    div { 
+                        class: "w-80 bg-gradient-to-b {theme.modal_gradient()} border-2 {theme.modal_border()} rounded shadow-2xl p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()}",
+                        onclick: move |e| e.stop_propagation(),
+                        
+                        div { class: "flex items-center justify-between border-b {theme.titlebar_border()} pb-2",
+                            span { class: "font-bold text-sm {theme.titlebar_text()}", "Nova Categoria" }
+                            button { 
+                                class: "w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white border border-transparent font-bold cursor-pointer transition-colors focus:outline-none",
+                                onclick: move |_| show_create_category_modal.set(false),
+                                "✕"
+                            }
+                        }
+                        
+                        div { class: "flex flex-col space-y-1.5",
+                            label { class: "font-semibold text-slate-700", "Nome da nova categoria:" }
+                            input { 
+                                class: "w-full px-2.5 py-1.5 border {theme.titlebar_border()} rounded bg-white focus:outline-none focus:border-slate-400 text-xs text-slate-800",
+                                placeholder: "Ex: Família, Trabalho...",
+                                value: "{new_category_name}",
+                                oninput: move |e| new_category_name.set(e.value()),
+                                onkeydown: {
+                                    let cid = contact.id.clone();
+                                    move |e| {
+                                        if e.key() == Key::Enter {
+                                            let cat = new_category_name().trim().to_string();
+                                            if !cat.is_empty() {
+                                                let mut s = state;
+                                                s.add_category(cat.clone());
+                                                s.update_contact_category(cid.clone(), Some(cat));
+                                                if contact.is_favorite {
+                                                    s.toggle_favorite(cid.clone());
+                                                }
+                                                new_category_name.set(String::new());
+                                                show_create_category_modal.set(false);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        div { class: "flex items-center justify-end space-x-2 pt-2 border-t {theme.titlebar_border()}/50",
+                            button { 
+                                class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none",
+                                onclick: {
+                                    let cid = contact.id.clone();
+                                    move |_| {
+                                        let cat = new_category_name().trim().to_string();
+                                        if !cat.is_empty() {
+                                            let mut s = state;
+                                            s.add_category(cat.clone());
+                                            s.update_contact_category(cid.clone(), Some(cat));
+                                            if contact.is_favorite {
+                                                s.toggle_favorite(cid.clone());
+                                            }
+                                            new_category_name.set(String::new());
+                                            show_create_category_modal.set(false);
+                                        }
+                                    }
+                                },
+                                "Salvar e Mover"
+                            }
+                            button { 
+                                class: "px-4 py-1.5 bg-white hover:bg-slate-100 border border-slate-350 text-slate-700 rounded font-bold shadow cursor-pointer transition-colors focus:outline-none",
+                                onclick: move |_| {
+                                    new_category_name.set(String::new());
+                                    show_create_category_modal.set(false);
+                                },
+                                "Cancelar"
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+fn render_personal_message_with_links(msg: &str) -> Element {
+    let parts: Vec<&str> = msg.split_whitespace().collect();
+    if parts.iter().any(|part| part.starts_with("http://") || part.starts_with("https://") || part.starts_with("www.")) {
+        rsx! {
+            {parts.into_iter().enumerate().map(|(idx, part)| {
+                let spacing = if idx > 0 { " " } else { "" };
+                if part.starts_with("http://") || part.starts_with("https://") || part.starts_with("www.") {
+                    let href = if part.starts_with("www.") {
+                        format!("https://{}", part)
+                    } else {
+                        part.to_string()
+                    };
+                    rsx! {
+                        "{spacing}"
+                        a {
+                            href: "{href}",
+                            target: "_blank",
+                            class: "text-sky-600 hover:underline font-medium relative z-30 cursor-pointer",
+                            onclick: |e| e.stop_propagation(),
+                            "{part}"
+                        }
+                    }
+                } else {
+                    rsx! {
+                        "{spacing}"
+                        {crate::models::parse_emoticons_inline(part, "w-3 h-3")}
+                    }
+                }
+            })}
+        }
+    } else {
+        crate::models::parse_emoticons_inline(msg, "w-3 h-3")
     }
 }

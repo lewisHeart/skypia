@@ -22,6 +22,18 @@ pub fn ContactList(mut state: AppState) -> Element {
     let online_density = state.online_density();
     let offline_density = state.offline_density();
 
+    let mut collapsed_categories = use_signal(|| std::collections::HashSet::<String>::new());
+    
+    let is_collapsed = move |cat: &str| collapsed_categories.read().contains(cat);
+    let mut toggle_collapsed = move |cat: &str| {
+        let mut set = collapsed_categories.write();
+        if set.contains(cat) {
+            set.remove(cat);
+        } else {
+            set.insert(cat.to_string());
+        }
+    };
+
     let filtered_contacts = use_memo(move || {
         let query = search_query().to_lowercase();
         let list = state.contacts();
@@ -37,6 +49,28 @@ pub fn ContactList(mut state: AppState) -> Element {
                 .collect()
         }
     });
+
+    let contacts_by_category = move |cat: &str| {
+        filtered_contacts()
+            .into_iter()
+            .filter(|c| c.category_name.as_deref() == Some(cat))
+            .collect::<Vec<Contact>>()
+    };
+
+    let category_online_count = move |cat: &str| {
+        filtered_contacts()
+            .iter()
+            .filter(|c| c.category_name.as_deref() == Some(cat) && c.status != UserStatus::Offline && c.status != UserStatus::Invisivel)
+            .count()
+    };
+
+    let category_unread_count = move |cat: &str| {
+        filtered_contacts()
+            .iter()
+            .filter(|c| c.category_name.as_deref() == Some(cat))
+            .map(|c| state.unread_count_for(&c.id))
+            .sum::<usize>()
+    };
 
     let favorites = use_memo(move || {
         filtered_contacts()
@@ -55,14 +89,14 @@ pub fn ContactList(mut state: AppState) -> Element {
     let online_contacts = use_memo(move || {
         filtered_contacts()
             .into_iter()
-            .filter(|c| !c.is_favorite && c.status != UserStatus::Offline && c.status != UserStatus::Invisivel)
+            .filter(|c| !c.is_favorite && c.category_name.is_none() && c.status != UserStatus::Offline && c.status != UserStatus::Invisivel)
             .collect::<Vec<Contact>>()
     });
 
     let offline_contacts = use_memo(move || {
         filtered_contacts()
             .into_iter()
-            .filter(|c| !c.is_favorite && (c.status == UserStatus::Offline || c.status == UserStatus::Invisivel))
+            .filter(|c| !c.is_favorite && c.category_name.is_none() && (c.status == UserStatus::Offline || c.status == UserStatus::Invisivel))
             .collect::<Vec<Contact>>()
     });
 
@@ -173,46 +207,18 @@ pub fn ContactList(mut state: AppState) -> Element {
                         *state.dragged_contact_id.write() = None;
                     }
                 },
-                // Seção de Solicitações Pendentes (Discreta e Inline na Lista de Contatos!)
+                // Seção de Solicitações Pendentes (Aviso discreto no topo!)
                 if !state.pending_requests().is_empty() {
-                    div { class: "space-y-1 bg-amber-50/25 border border-amber-200/40 rounded p-1.5 my-1 mx-1.5 shadow-sm",
-                        div { class: "flex items-center space-x-1.5 px-2 py-0.5 text-xs font-bold text-amber-800",
-                            span { "👥" }
-                            span { "Solicitações Pendentes ({state.pending_requests().len()})" }
+                    div { 
+                        class: "mx-1.5 my-1 px-3 py-2 bg-[#f4fafe] hover:bg-sky-100/60 border border-sky-200/50 rounded flex items-center justify-between text-[11px] text-[#2d517a] font-semibold cursor-pointer shadow-sm transition-all animate-pulse",
+                        onclick: move |_| {
+                            state.show_friend_requests_modal.set(true);
+                        },
+                        div { class: "flex items-center space-x-2",
+                            span { "✉" }
+                            span { "Você tem {state.pending_requests().len()} solicitação(ões) de amizade pendente(s)." }
                         }
-                        div { class: "pl-2 space-y-1.5 pt-1",
-                            for request in state.pending_requests() {
-                                {
-                                    let req_id_accept = request.id.clone();
-                                    let req_id_reject = request.id.clone();
-                                    let name = request.nickname.clone().unwrap_or(request.display_name.clone());
-                                    rsx! {
-                                        div { class: "flex items-center justify-between p-1.5 bg-white/60 rounded border border-slate-200 shadow-sm text-[11px]",
-                                            div { class: "flex flex-col min-w-0 mr-2",
-                                                span { class: "font-semibold text-slate-800 truncate", "{name}" }
-                                                span { class: "text-[9px] text-slate-500 truncate", "{request.email}" }
-                                            }
-                                            div { class: "flex space-x-1 flex-shrink-0",
-                                                button {
-                                                    class: "px-2 py-0.5 bg-green-600 hover:bg-green-700 text-white rounded text-[9px] font-bold cursor-pointer transition-colors shadow-sm focus:outline-none",
-                                                    onclick: move |_| {
-                                                        state.accept_friend_request(req_id_accept.clone());
-                                                    },
-                                                    "Aceitar"
-                                                }
-                                                button {
-                                                    class: "px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[9px] font-bold cursor-pointer transition-colors shadow-sm focus:outline-none",
-                                                    onclick: move |_| {
-                                                        state.reject_friend_request(req_id_reject.clone());
-                                                    },
-                                                    "Recusar"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        span { class: "text-[9px] text-sky-600 hover:underline font-bold", "Visualizar" }
                     }
                 }
                 // Group: Favorites
@@ -242,7 +248,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                             active_category_menu.set(Some(("fav".to_string(), x, y)));
                         },
                         span { class: "w-3 text-center text-[10px] text-slate-500", if fav_collapsed() { "▶" } else { "▼" } }
-                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "Favoritos" }
+                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "⭐ Favoritos" }
                         span { class: "font-normal text-[10px] text-[#a5a5a5]", "({favorites_online_count()}/{favorites().len()}){favorites_unread_text}" }
                     }
                     
@@ -301,15 +307,92 @@ pub fn ContactList(mut state: AppState) -> Element {
                     }
                 }
 
+                // Categorias Dinâmicas Customizadas
+                for cat in state.categories() {
+                    {
+                        let cat_name = cat.clone();
+                        let cat_name_toggle = cat.clone();
+                        let cat_name_menu = cat.clone();
+                        let cat_contacts = contacts_by_category(&cat_name);
+                        let online_count = category_online_count(&cat_name);
+                        let unread_count = category_unread_count(&cat_name);
+                        let unread_text = if unread_count == 0 {
+                            "".to_string()
+                        } else if unread_count == 1 {
+                            " • 1 nova".to_string()
+                        } else {
+                            format!(" • {} novas", unread_count)
+                        };
+                        let collapsed = is_collapsed(&cat_name);
+                        
+                        rsx! {
+                            div { 
+                                class: "space-y-1",
+                                onmouseup: {
+                                    let cat_name_drop = cat_name.clone();
+                                    move |e| {
+                                        e.stop_propagation();
+                                        if let Some(cid) = (state.dragged_contact_id)() {
+                                            let mut s = state;
+                                            s.update_contact_category(cid.clone(), Some(cat_name_drop.clone()));
+                                            if let Some(c) = s.contacts().iter().find(|c| c.id == cid) {
+                                                if c.is_favorite {
+                                                    s.toggle_favorite(cid.clone());
+                                                }
+                                            }
+                                            *state.dragged_contact_id.write() = None;
+                                        }
+                                    }
+                                },
+                                div { 
+                                    class: "flex items-center space-x-1 px-2 py-0.5 hover:bg-white/30 rounded cursor-pointer transition-colors text-xs font-bold {theme.titlebar_text()} justify-between",
+                                    style: "opacity: 0.85;",
+                                    onclick: move |_| toggle_collapsed(&cat_name_toggle),
+                                    
+                                    div { class: "flex items-center space-x-1.5",
+                                        span { class: "w-3 text-center text-[10px] text-slate-500", if collapsed { "▶" } else { "▼" } }
+                                        span { class: "font-bold text-[11px] text-[#2d517a] mr-1", "📂 {cat_name}" }
+                                        span { class: "font-normal text-[10px] text-[#a5a5a5]", "({online_count}/{cat_contacts.len()}){unread_text}" }
+                                    }
+                                    button {
+                                        class: "text-[9px] text-red-500 hover:text-red-700 font-bold px-1.5 py-0.5 rounded hover:bg-white/50 cursor-pointer focus:outline-none transition-colors",
+                                        onclick: move |e| {
+                                            e.stop_propagation();
+                                            state.delete_category(cat_name_menu.clone());
+                                        },
+                                        "Excluir"
+                                    }
+                                }
+                                
+                                if !collapsed {
+                                    div { class: "pl-2 space-y-0.5",
+                                        if cat_contacts.is_empty() {
+                                            div { class: "text-[10px] text-slate-500/80 italic pl-5 py-1", "Nenhum contato nesta categoria" }
+                                        } else {
+                                            for contact in cat_contacts {
+                                                ContactRow { contact, state, density: online_density.clone() }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Group: Online
                 div { 
                     class: "space-y-1",
                     onmouseup: move |e| {
                         e.stop_propagation();
                         if let Some(cid) = (state.dragged_contact_id)() {
-                            if let Some(c) = state.contacts().iter().find(|c| c.id == cid) {
+                            let mut s = state;
+                            if let Some(c) = s.contacts().iter().find(|c| c.id == cid) {
                                 if c.is_favorite {
-                                    state.toggle_favorite(cid);
+                                    s.toggle_favorite(cid.clone());
+                                }
+                                if c.category_name.is_some() {
+                                    s.update_contact_category(cid.clone(), None);
                                 }
                             }
                             *state.dragged_contact_id.write() = None;
@@ -351,9 +434,13 @@ pub fn ContactList(mut state: AppState) -> Element {
                     onmouseup: move |e| {
                         e.stop_propagation();
                         if let Some(cid) = (state.dragged_contact_id)() {
-                            if let Some(c) = state.contacts().iter().find(|c| c.id == cid) {
+                            let mut s = state;
+                            if let Some(c) = s.contacts().iter().find(|c| c.id == cid) {
                                 if c.is_favorite {
-                                    state.toggle_favorite(cid);
+                                    s.toggle_favorite(cid.clone());
+                                }
+                                if c.category_name.is_some() {
+                                    s.update_contact_category(cid.clone(), None);
                                 }
                             }
                             *state.dragged_contact_id.write() = None;
@@ -480,7 +567,7 @@ pub fn ContactList(mut state: AppState) -> Element {
                                                             }
                                                         }
                                                         div { class: "flex flex-col min-w-0",
-                                                            span { class: "font-medium text-slate-800 truncate text-[11px]", "{name}" }
+                                                            span { class: "font-medium text-slate-800 truncate text-[11px]", {crate::models::parse_emoticons_inline(&name, "w-3 h-3")} }
                                                             span { class: "text-[9px] text-slate-500 truncate", "{contact.email}" }
                                                         }
                                                     }
@@ -606,6 +693,10 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
     let group_id = group.id.clone();
     let group_id_double = group_id.clone();
     
+    let mut show_context_menu = use_signal(|| false);
+    let mut menu_x = use_signal(|| 0i32);
+    let mut menu_y = use_signal(|| 0i32);
+    
     let handle_double_click = move |_| {
         state.open_chat(group_id_double.clone());
     };
@@ -632,6 +723,14 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
         div {
             class: "flex items-center space-x-1.5 {container_padding} rounded hover:bg-white/45 cursor-pointer relative group transition-colors",
             ondoubleclick: handle_double_click,
+            oncontextmenu: move |e| {
+                e.prevent_default();
+                let scale = state.interface_scale();
+                let offset_y = if state.use_custom_titlebar() { 40.0 } else { 0.0 };
+                menu_x.set((e.client_coordinates().x as f64 / scale) as i32);
+                menu_y.set(((e.client_coordinates().y as f64 - offset_y) / scale) as i32);
+                show_context_menu.set(true);
+            },
             onmouseup: {
                 let gid = group_id.clone();
                 let members_list = group.members.clone();
@@ -691,6 +790,52 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
                                 "({online_members}/{group.members.len()} Disponível)" 
                             }
                         }
+                    }
+                }
+            }
+            
+            // Menu de Contexto MSN Style para Grupo
+            if show_context_menu() {
+                div {
+                    class: "fixed inset-0 z-[9998] bg-transparent cursor-default",
+                    onclick: move |e| {
+                        e.stop_propagation();
+                        show_context_menu.set(false);
+                    }
+                }
+                div { 
+                    class: "fixed w-44 bg-white/95 border border-slate-300 rounded-lg shadow-2xl backdrop-blur-md z-[9999] p-1 flex flex-col text-[11px] text-slate-700 transition-all select-none cursor-default",
+                    style: "left: {menu_x}px; top: {menu_y}px;",
+                    onclick: move |e| e.stop_propagation(),
+                    onmouseleave: move |_| show_context_menu.set(false),
+                    
+                    button { 
+                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors",
+                        onclick: {
+                            let gid = group_id.clone();
+                            move |_| {
+                                show_context_menu.set(false);
+                                state.open_chat(gid.clone());
+                            }
+                        },
+                        span { "💬" }
+                        span { "Enviar mensagem" }
+                    }
+                    
+                    // Divisor
+                    div { class: "h-[1px] bg-slate-200/60 my-0.5" }
+
+                    button { 
+                        class: "px-2.5 py-1.5 hover:bg-sky-100 rounded text-left flex items-center space-x-2 cursor-pointer focus:outline-none w-full font-medium transition-colors text-red-600",
+                        onclick: {
+                            let gid = group_id.clone();
+                            move |_| {
+                                show_context_menu.set(false);
+                                state.leave_group_chat(gid.clone());
+                            }
+                        },
+                        span { "🚪" }
+                        span { "Sair do grupo" }
                     }
                 }
             }

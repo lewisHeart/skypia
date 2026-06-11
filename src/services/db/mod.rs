@@ -179,7 +179,15 @@ impl DatabaseService {
                 chat_mode TEXT NOT NULL DEFAULT 'integrated',
                 contact_density TEXT NOT NULL DEFAULT 'medium',
                 font_color TEXT NOT NULL DEFAULT '#1e395b',
-                font_family TEXT NOT NULL DEFAULT 'Segoe UI'
+                font_family TEXT NOT NULL DEFAULT 'Segoe UI',
+                spotify_rpc_enabled INTEGER NOT NULL DEFAULT 0,
+                show_typing_notification INTEGER NOT NULL DEFAULT 1,
+                enable_sounds INTEGER NOT NULL DEFAULT 1,
+                enable_toasts INTEGER NOT NULL DEFAULT 1,
+                download_folder TEXT NOT NULL DEFAULT '',
+                auto_accept_files INTEGER NOT NULL DEFAULT 0,
+                remember_password INTEGER NOT NULL DEFAULT 1,
+                save_chat_history INTEGER NOT NULL DEFAULT 1
             );
             "#,
         )
@@ -338,6 +346,38 @@ impl DatabaseService {
             .execute(pool)
             .await;
 
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN spotify_rpc_enabled INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN show_typing_notification INTEGER NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN enable_sounds INTEGER NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN enable_toasts INTEGER NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN download_folder TEXT NOT NULL DEFAULT ''")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN auto_accept_files INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN remember_password INTEGER NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE settings ADD COLUMN save_chat_history INTEGER NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await;
+
         let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN avatar_url TEXT")
             .execute(pool)
             .await;
@@ -355,6 +395,23 @@ impl DatabaseService {
             .await;
 
         let _ = sqlx::query("ALTER TABLE contacts ADD COLUMN avatar_url TEXT")
+            .execute(pool)
+            .await;
+
+        // Migração para Categorias Personalizadas
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            );
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let _ = sqlx::query("ALTER TABLE contacts ADD COLUMN category_name TEXT")
             .execute(pool)
             .await;
 
@@ -400,9 +457,9 @@ impl DatabaseService {
 
         if settings_count == 0 {
             #[cfg(target_os = "android")]
-            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family) VALUES (1, 1.35, 0, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI')";
+            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history) VALUES (1, 1.35, 0, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI', 0, 1, 1, 1, '', 0, 1, 1)";
             #[cfg(not(target_os = "android"))]
-            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family) VALUES (1, 1.0, 1, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI')";
+            let query = "INSERT INTO settings (id, interface_scale, use_custom_titlebar, theme, chat_mode, font_color, font_family, spotify_rpc_enabled, show_typing_notification, enable_sounds, enable_toasts, download_folder, auto_accept_files, remember_password, save_chat_history) VALUES (1, 1.0, 1, 'AeroBlue', 'integrated', '#1e395b', 'Segoe UI', 0, 1, 1, 1, '', 0, 1, 1)";
 
             sqlx::query(query)
                 .execute(pool)

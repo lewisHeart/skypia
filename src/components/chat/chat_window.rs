@@ -384,15 +384,15 @@ pub fn DetachedChatWindow(props: DetachedChatWindowProps) -> Element {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
-                    // 1. Sincroniza o tema e densidade com o banco de dados em tempo real
-                    if let Ok((_scale, _custom_bar, db_theme, _chat_mode, db_density)) =
+                    if let Ok(settings) =
                         crate::services::db::DatabaseService::load_settings().await
                     {
+                        let db_theme = crate::services::db::str_to_theme(&settings.theme);
                         if db_theme != state.theme() {
                             *state.theme.write() = db_theme;
                         }
-                        if db_density != state.contact_density() {
-                            state.update_densities_from_serialized(db_density);
+                        if settings.contact_density != state.contact_density() {
+                            state.update_densities_from_serialized(settings.contact_density);
                         }
                     }
 

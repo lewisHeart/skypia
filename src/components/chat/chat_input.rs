@@ -6,8 +6,8 @@ use dioxus::prelude::*;
 pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler<()>) -> Element {
     let theme = state.theme();
     let mut input_text = use_signal(|| String::new());
-    let mut selected_font = use_signal(|| "Segoe UI".to_string());
-    let mut selected_color = use_signal(|| "#1e395b".to_string());
+    let mut selected_font = use_signal(|| state.chat_font_family());
+    let mut selected_color = use_signal(|| state.chat_font_color());
 
     // UI Popovers
     let mut show_emoticon_panel = use_signal(|| false);
@@ -150,7 +150,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Alert/SVG/ic_fluent_alert_24_color.svg",
                             class: "w-5 h-5 select-none pointer-events-none"
                         }
-                        span { class: "text-[11px] text-[#2b3e51] font-semibold ml-1.5", "Chamar atenção" }
+                        span { class: "text-[11px] text-[#2b3e51] font-semibold ml-1.5 hidden sm:inline", "Chamar atenção" }
                     }
 
                     // Skypia Jogos
@@ -213,6 +213,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                         style: "font-family: {font_name};",
                                         onclick: move |_| {
                                             selected_font.set(font_name.to_string());
+                                            state.set_chat_font_family(font_name.to_string());
                                         },
                                         span {
                                             class: if selected_font() == *font_name { "font-bold" } else { "" },
@@ -234,6 +235,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                         style: "background-color: {color};",
                                         onclick: move |_| {
                                             selected_color.set(color.to_string());
+                                            state.set_chat_font_color(color.to_string());
                                         },
                                         if selected_color() == *color {
                                             span { class: "text-white text-[9px] font-bold drop-shadow", "✓" }
@@ -327,7 +329,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 title: code,
                                 onclick: move |_| insert_emoticon(code),
                                 img {
-                                    src: "https://registry.npmmirror.com/@lobehub/assets-emoji-anim/latest/files/assets/{emoji_name}.webp",
+                                    src: "/assets/emojis_anim/{emoji_name}.webp",
                                     class: "w-6 h-6 object-contain pointer-events-none"
                                 }
                             }
@@ -347,7 +349,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/kiss-mark.webp",
+                                src: "/assets/emojis/kiss-mark.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Beijo de Batom" }
@@ -362,7 +364,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/hammer.webp",
+                                src: "/assets/emojis/hammer.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Martelada na Tela" }
@@ -377,7 +379,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/pig-face.webp",
+                                src: "/assets/emojis/pig-face.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Porco Dançarino" }
@@ -397,7 +399,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/framed-picture.webp",
+                                src: "/assets/emojis/framed-picture.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Foto" }
@@ -412,7 +414,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/musical-note.webp",
+                                src: "/assets/emojis/musical-note.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Música" }
@@ -427,7 +429,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "https://registry.npmmirror.com/@lobehub/assets-emoji/latest/files/assets/floppy-disk.webp",
+                                src: "/assets/emojis/floppy-disk.webp",
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Arquivo" }

@@ -350,6 +350,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 is_favorite: false,
                 relation_status: "Pendente".to_string(),
                 nickname: None,
+                category_name: None,
             };
 
             // Toca som
@@ -394,7 +395,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 "Invisivel" => UserStatus::Invisivel,
                 _ => UserStatus::Offline,
             };
-            let new_contact = crate::models::Contact {
+            let mut new_contact = crate::models::Contact {
                 id: contact.id.clone(),
                 email: contact.email.clone(),
                 display_name: contact.display_name.clone(),
@@ -407,6 +408,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     .relation_status
                     .unwrap_or_else(|| "Pendente".to_string()),
                 nickname: contact.nickname,
+                category_name: None,
             };
 
             {

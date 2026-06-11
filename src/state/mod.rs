@@ -80,6 +80,16 @@ pub struct AppState {
     pub dragged_contact_id: Signal<Option<String>>,
     pub chat_font_color: Signal<String>,
     pub chat_font_family: Signal<String>,
+    pub spotify_rpc_enabled: Signal<bool>,
+    pub show_typing_notification: Signal<bool>,
+    pub enable_sounds: Signal<bool>,
+    pub enable_toasts: Signal<bool>,
+    pub download_folder: Signal<String>,
+    pub auto_accept_files: Signal<bool>,
+    pub remember_password: Signal<bool>,
+    pub save_chat_history: Signal<bool>,
+    pub categories: Signal<Vec<String>>,
+    pub show_friend_requests_modal: Signal<bool>,
 }
 
 impl AppState {
@@ -147,6 +157,17 @@ impl AppState {
             dragged_contact_id: Signal::new(None),
             chat_font_color: Signal::new("#1e395b".to_string()),
             chat_font_family: Signal::new("Segoe UI".to_string()),
+            message_counter: Signal::new(1),
+            spotify_rpc_enabled: Signal::new(false),
+            show_typing_notification: Signal::new(true),
+            enable_sounds: Signal::new(true),
+            enable_toasts: Signal::new(true),
+            download_folder: Signal::new(String::new()),
+            auto_accept_files: Signal::new(false),
+            remember_password: Signal::new(true),
+            save_chat_history: Signal::new(true),
+            categories: Signal::new(Vec::new()),
+            show_friend_requests_modal: Signal::new(false),
         }
     }
 
@@ -166,12 +187,28 @@ impl AppState {
         let mut group_chats_sig = self.group_chats;
         let mut chat_font_color_sig = self.chat_font_color;
         let mut chat_font_family_sig = self.chat_font_family;
+        let mut detached_sig = self.detached_chats;
+        let mut avatar_url_sig = self.user_avatar_url;
+        let mut spotify_rpc_sig = self.spotify_rpc_enabled;
+        let mut show_typing_sig = self.show_typing_notification;
+        let mut enable_sounds_sig = self.enable_sounds;
+        let mut enable_toasts_sig = self.enable_toasts;
+        let mut download_folder_sig = self.download_folder;
+        let mut auto_accept_sig = self.auto_accept_files;
+        let mut remember_password_sig = self.remember_password;
+        let mut save_history_sig = self.save_chat_history;
+        let mut categories_sig = self.categories;
 
         let token_opt = self.auth_token();
         let self_user_id = self.server_user_id();
         let mut self_clone = *self;
 
         spawn(async move {
+            // Carrega categorias locais
+            if let Ok(cats) = crate::services::db::DatabaseService::get_categories().await {
+                *categories_sig.write() = cats;
+            }
+
             // 0. Carrega contatos e conversas locais do SQLite imediatamente (Offline-first!)
             if let Ok(local_contacts) = crate::services::db::DatabaseService::load_contacts().await {
                 if !local_contacts.is_empty() {
@@ -202,33 +239,45 @@ impl AppState {
                 *group_chats_sig.write() = groups;
             }
 
-            if let Ok((scale, custom_bar, theme, chat_mode, density, font_color, font_family)) =
-                crate::services::db::DatabaseService::load_settings().await
-            {
-                *scale_sig.write() = scale;
-                *custom_bar_sig.write() = custom_bar;
-                *theme_sig.write() = theme;
-                *chat_mode_sig.write() = chat_mode;
-                self_clone.update_densities_from_serialized(density);
-                *chat_font_color_sig.write() = font_color;
-                *chat_font_family_sig.write() = font_family;
+            if let Ok(db_settings) = crate::services::db::DatabaseService::load_settings().await {
+                *scale_sig.write() = db_settings.interface_scale;
+                *custom_bar_sig.write() = db_settings.use_custom_titlebar;
+                *theme_sig.write() = crate::services::db::str_to_theme(&db_settings.theme);
+                *chat_mode_sig.write() = db_settings.chat_mode;
+                self_clone.update_densities_from_serialized(db_settings.contact_density);
+                *chat_font_color_sig.write() = db_settings.font_color;
+                *chat_font_family_sig.write() = db_settings.font_family;
+                *spotify_rpc_sig.write() = db_settings.spotify_rpc_enabled;
+                *show_typing_sig.write() = db_settings.show_typing_notification;
+                *enable_sounds_sig.write() = db_settings.enable_sounds;
+                *enable_toasts_sig.write() = db_settings.enable_toasts;
+                *download_folder_sig.write() = db_settings.download_folder;
+                *auto_accept_sig.write() = db_settings.auto_accept_files;
+                *remember_password_sig.write() = db_settings.remember_password;
+                *save_history_sig.write() = db_settings.save_chat_history;
             }
 
             // Sincronização de rede se autenticado
             if let Some(token) = token_opt {
                 // 1. Busca contatos do servidor e salva em memória
                 if let Ok(srv_contacts) = crate::services::api::get_contacts(&token).await {
-                    // Carrega favoritos locais do SQLite
-                    let local_favorites = if let Ok(local_list) =
+                    // Carrega favoritos e categorias locais do SQLite
+                    let (local_favorites, local_categories_map) = if let Ok(local_list) =
                         crate::services::db::DatabaseService::load_contacts().await
                     {
-                        local_list
-                            .into_iter()
-                            .filter(|c| c.is_favorite)
-                            .map(|c| c.id)
-                            .collect::<std::collections::HashSet<String>>()
+                        let mut favs = std::collections::HashSet::new();
+                        let mut cats = std::collections::HashMap::new();
+                        for c in local_list {
+                            if c.is_favorite {
+                                favs.insert(c.id.clone());
+                            }
+                            if let Some(cat) = c.category_name {
+                                cats.insert(c.id.clone(), cat);
+                            }
+                        }
+                        (favs, cats)
                     } else {
-                        std::collections::HashSet::new()
+                        (std::collections::HashSet::new(), std::collections::HashMap::new())
                     };
 
                     let mut contacts_mapped = Vec::new();
@@ -241,6 +290,7 @@ impl AppState {
                             _ => UserStatus::Offline,
                         };
                         let is_fav = local_favorites.contains(&profile.id);
+                        let cat_name = local_categories_map.get(&profile.id).cloned();
                         contacts_mapped.push(Contact {
                             id: profile.id.clone(),
                             email: profile.email,
@@ -254,6 +304,7 @@ impl AppState {
                                 .relation_status
                                 .unwrap_or_else(|| "Aceito".to_string()),
                             nickname: profile.nickname,
+                            category_name: cat_name,
                         });
                     }
                     *contacts_sig.write() = contacts_mapped.clone();
@@ -287,6 +338,7 @@ impl AppState {
                                 is_favorite: false,
                                 relation_status: "Pendente".to_string(),
                                 nickname: None,
+                                category_name: None,
                             }
                         })
                         .collect();
@@ -375,7 +427,9 @@ impl AppState {
                 *songs_sig.write() = songs;
             }
 
-            if let Ok(banner) = crate::services::api::get_banner().await {
+            if let Ok(Some(local_banner)) = crate::services::db::DatabaseService::load_banner().await {
+                *banner_sig.write() = Some(local_banner);
+            } else if let Ok(banner) = crate::services::api::get_banner().await {
                 *banner_sig.write() = Some(banner);
             } else {
                 *banner_sig.write() = None;
@@ -555,36 +609,39 @@ impl AppState {
         self.toasts.write().retain(|t| t.id != id);
     }
 
+    pub fn save_current_settings(&self) {
+        let settings = crate::models::UserSettings {
+            interface_scale: self.interface_scale(),
+            use_custom_titlebar: self.use_custom_titlebar(),
+            theme: crate::services::db::theme_to_str(&self.theme()).to_string(),
+            chat_mode: self.chat_mode(),
+            contact_density: self.contact_density(),
+            font_color: self.chat_font_color(),
+            font_family: self.chat_font_family(),
+            spotify_rpc_enabled: self.spotify_rpc_enabled(),
+            show_typing_notification: self.show_typing_notification(),
+            enable_sounds: self.enable_sounds(),
+            enable_toasts: self.enable_toasts(),
+            download_folder: self.download_folder(),
+            auto_accept_files: self.auto_accept_files(),
+            remember_password: self.remember_password(),
+            save_chat_history: self.save_chat_history(),
+        };
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::save_settings(&settings).await;
+        });
+    }
+
     pub fn set_settings(&mut self, scale: f64, custom_bar: bool, theme: AppTheme) {
         *self.interface_scale.write() = scale;
         *self.use_custom_titlebar.write() = custom_bar;
         *self.theme.write() = theme;
-        let chat_mode = self.chat_mode();
-        let density = self.contact_density();
-        let font_color = self.chat_font_color();
-        let font_family = self.chat_font_family();
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, chat_mode, density, font_color, font_family,
-            )
-            .await;
-        });
+        self.save_current_settings();
     }
 
     pub fn set_chat_mode(&mut self, mode: String) {
-        *self.chat_mode.write() = mode.clone();
-        let scale = self.interface_scale();
-        let custom_bar = self.use_custom_titlebar();
-        let theme = self.theme();
-        let density = self.contact_density();
-        let font_color = self.chat_font_color();
-        let font_family = self.chat_font_family();
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, mode, density, font_color, font_family,
-            )
-            .await;
-        });
+        *self.chat_mode.write() = mode;
+        self.save_current_settings();
     }
 
     pub fn chat_font_color(&self) -> String {
@@ -596,35 +653,85 @@ impl AppState {
     }
 
     pub fn set_chat_font_color(&mut self, color: String) {
-        *self.chat_font_color.write() = color.clone();
-        let scale = self.interface_scale();
-        let custom_bar = self.use_custom_titlebar();
-        let theme = self.theme();
-        let chat_mode = self.chat_mode();
-        let density = self.contact_density();
-        let font_family = self.chat_font_family();
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, chat_mode, density, color, font_family,
-            )
-            .await;
-        });
+        *self.chat_font_color.write() = color;
+        self.save_current_settings();
     }
 
     pub fn set_chat_font_family(&mut self, font_family: String) {
-        *self.chat_font_family.write() = font_family.clone();
-        let scale = self.interface_scale();
-        let custom_bar = self.use_custom_titlebar();
-        let theme = self.theme();
-        let chat_mode = self.chat_mode();
-        let density = self.contact_density();
-        let color = self.chat_font_color();
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, chat_mode, density, color, font_family,
-            )
-            .await;
-        });
+        *self.chat_font_family.write() = font_family;
+        self.save_current_settings();
+    }
+
+    pub fn spotify_rpc_enabled(&self) -> bool {
+        (self.spotify_rpc_enabled)()
+    }
+
+    pub fn set_spotify_rpc_enabled(&mut self, enabled: bool) {
+        *self.spotify_rpc_enabled.write() = enabled;
+        self.save_current_settings();
+    }
+
+    pub fn show_typing_notification(&self) -> bool {
+        (self.show_typing_notification)()
+    }
+
+    pub fn set_show_typing_notification(&mut self, show: bool) {
+        *self.show_typing_notification.write() = show;
+        self.save_current_settings();
+    }
+
+    pub fn enable_sounds(&self) -> bool {
+        (self.enable_sounds)()
+    }
+
+    pub fn set_enable_sounds(&mut self, enable: bool) {
+        *self.enable_sounds.write() = enable;
+        self.save_current_settings();
+    }
+
+    pub fn enable_toasts(&self) -> bool {
+        (self.enable_toasts)()
+    }
+
+    pub fn set_enable_toasts(&mut self, enable: bool) {
+        *self.enable_toasts.write() = enable;
+        self.save_current_settings();
+    }
+
+    pub fn download_folder(&self) -> String {
+        self.download_folder.read().clone()
+    }
+
+    pub fn set_download_folder(&mut self, folder: String) {
+        *self.download_folder.write() = folder;
+        self.save_current_settings();
+    }
+
+    pub fn auto_accept_files(&self) -> bool {
+        (self.auto_accept_files)()
+    }
+
+    pub fn set_auto_accept_files(&mut self, auto: bool) {
+        *self.auto_accept_files.write() = auto;
+        self.save_current_settings();
+    }
+
+    pub fn remember_password(&self) -> bool {
+        (self.remember_password)()
+    }
+
+    pub fn set_remember_password(&mut self, remember: bool) {
+        *self.remember_password.write() = remember;
+        self.save_current_settings();
+    }
+
+    pub fn save_chat_history(&self) -> bool {
+        (self.save_chat_history)()
+    }
+
+    pub fn set_save_chat_history(&mut self, save: bool) {
+        *self.save_chat_history.write() = save;
+        self.save_current_settings();
     }
 
     // Getters convenientes
@@ -837,17 +944,8 @@ impl AppState {
     }
 
     pub fn set_contact_density(&mut self, density: String) {
-        *self.contact_density.write() = density.clone();
-        let scale = self.interface_scale();
-        let custom_bar = self.use_custom_titlebar();
-        let theme = self.theme();
-        let chat_mode = self.chat_mode();
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, chat_mode, density,
-            )
-            .await;
-        });
+        *self.contact_density.write() = density;
+        self.save_current_settings();
     }
 
     pub fn set_category_density(&mut self, category: &str, density: String) {
@@ -865,18 +963,8 @@ impl AppState {
         let groups = self.groups_density.read().clone();
         let serialized = format!("fav:{},online:{},offline:{},groups:{}", fav, online, offline, groups);
         
-        *self.contact_density.write() = serialized.clone();
-
-        let scale = self.interface_scale();
-        let custom_bar = self.use_custom_titlebar();
-        let theme = self.theme();
-        let chat_mode = self.chat_mode();
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(
-                scale, custom_bar, theme, chat_mode, serialized,
-            )
-            .await;
-        });
+        *self.contact_density.write() = serialized;
+        self.save_current_settings();
     }
 
     pub fn update_densities_from_serialized(&mut self, density: String) {
@@ -934,5 +1022,55 @@ impl AppState {
 
     pub fn mark_chat_read(&mut self, contact_id: &str) {
         self.unread_counts.write().remove(contact_id);
+    }
+
+    pub fn add_category(&mut self, name: String) {
+        let mut cats = self.categories.write();
+        if !cats.contains(&name) {
+            cats.push(name.clone());
+            cats.sort();
+            spawn(async move {
+                let _ = crate::services::db::DatabaseService::add_category(name).await;
+            });
+        }
+    }
+
+    pub fn delete_category(&mut self, name: String) {
+        self.categories.write().retain(|c| c != &name);
+        for contact in self.contacts.write().iter_mut() {
+            if contact.category_name.as_ref() == Some(&name) {
+                contact.category_name = None;
+            }
+        }
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::delete_category(name).await;
+        });
+    }
+
+    pub fn update_contact_category(&mut self, contact_id: String, category: Option<String>) {
+        for contact in self.contacts.write().iter_mut() {
+            if contact.id == contact_id {
+                contact.category_name = category.clone();
+                break;
+            }
+        }
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::update_contact_category(contact_id, category).await;
+        });
+    }
+
+    pub fn update_banner_admin(&mut self, banner: crate::models::BannerInfo) {
+        *self.banner_info.write() = Some(banner.clone());
+        spawn(async move {
+            let _ = crate::services::db::DatabaseService::save_banner(&banner).await;
+        });
+    }
+
+    pub fn categories(&self) -> Vec<String> {
+        self.categories.read().clone()
+    }
+
+    pub fn show_friend_requests_modal(&self) -> bool {
+        (self.show_friend_requests_modal)()
     }
 }
