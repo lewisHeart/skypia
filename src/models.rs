@@ -610,9 +610,10 @@ pub fn parse_emoticons_inline(text: &str, size_class: &str) -> Element {
                 let prev_text = current_text[..start].to_string();
                 parts.push(rsx! { span { "{prev_text}" } });
             }
+            let e_url = get_emoji_url(&format!("{}.svg", emoji_name));
             parts.push(rsx! {
                 img {
-                    src: "/emojis/{emoji_name}.svg",
+                    src: "{e_url}",
                     class: "{size_class} inline-block align-middle mx-0.5",
                     alt: "{emoji_name}"
                 }
@@ -632,3 +633,26 @@ pub fn parse_emoticons_inline(text: &str, size_class: &str) -> Element {
         }
     }
 }
+
+pub fn get_emoji_url(name: &str) -> String {
+    #[cfg(feature = "desktop")]
+    {
+        format!("emojis://{}", name)
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        format!("/emojis/{}", name)
+    }
+}
+
+pub fn get_emoji_anim_url(name: &str) -> String {
+    #[cfg(feature = "desktop")]
+    {
+        format!("emojis-anim://{}", name)
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        format!("/emojis_anim/{}", name)
+    }
+}
+

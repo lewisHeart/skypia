@@ -183,4 +183,18 @@ impl DatabaseService {
 
         Ok(conversations)
     }
+
+    pub async fn find_11_conversation_id(partner_id: &str) -> Option<String> {
+        let pool = get_pool();
+        let row = sqlx::query(
+            "SELECT conversation_id FROM conversation_members WHERE user_id = ? AND conversation_id IN (SELECT id FROM conversations WHERE is_group = 0)"
+        )
+        .bind(partner_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten();
+
+        row.map(|r| r.get::<String, _>("conversation_id"))
+    }
 }

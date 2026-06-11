@@ -71,7 +71,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             state.open_my_profile();
                         },
                         img {
-                            src: "/emojis/person.svg",
+                            src: "{crate::models::get_emoji_url(\"person.svg\")}",
                             class: "w-3.5 h-3.5 object-contain mr-1.5"
                         }
                         span { "Meu Perfil..." }
@@ -102,7 +102,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             state.show_about.set(true);
                         },
                         img {
-                            src: "/emojis/information.svg",
+                            src: "{crate::models::get_emoji_url(\"information.svg\")}",
                             class: "w-3.5 h-3.5 object-contain mr-1.5"
                         }
                         span { "Sobre o Skypia..." }
@@ -137,7 +137,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                             state.logout();
                         },
                         img {
-                            src: "/emojis/door.svg",
+                            src: "{crate::models::get_emoji_url(\"door.svg\")}",
                             class: "w-3.5 h-3.5 object-contain mr-1.5"
                         }
                         span { "Desconectar" }
@@ -300,7 +300,7 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                     class: "flex items-center space-x-1 text-[10px] text-[#a5a5a5] font-normal truncate cursor-pointer hover:underline",
                     onclick: move |_| state.show_music_player_modal.set(true),
                     img {
-                        src: "/emojis/musical-note.svg",
+                        src: "{crate::models::get_emoji_url(\"musical-note.svg\")}",
                         class: "w-3 h-3 object-contain pointer-events-none mr-0.5 inline-block align-middle"
                     }
                     if let Some(music) = state.user_music() {

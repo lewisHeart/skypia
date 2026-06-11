@@ -99,11 +99,11 @@ impl AppState {
         Self {
             logged_in: Signal::new(false),
             signing_in: Signal::new(false),
-            user_name: Signal::new("Wellington Skypia".to_string()),
-            user_email: Signal::new("wk.scbd@skypia.io".to_string()),
-            user_status: Signal::new(UserStatus::Online),
-            user_personal_message: Signal::new("Tô cagando".to_string()),
-            user_music: Signal::new(Some("Linkin Park - In The End".to_string())),
+            user_name: Signal::new(String::new()),
+            user_email: Signal::new(String::new()),
+            user_status: Signal::new(UserStatus::Offline),
+            user_personal_message: Signal::new(String::new()),
+            user_music: Signal::new(None),
             user_avatar_id: Signal::new(0),
 
             contacts: Signal::new(Vec::new()),
@@ -352,6 +352,7 @@ impl AppState {
                 // 2. Busca histórico de mensagens das conversas do servidor
                 if let Ok(srv_conversations) = crate::services::api::get_conversations(&token).await
                 {
+                    let _ = crate::services::db::DatabaseService::save_conversations(srv_conversations.clone()).await;
                     let mut all_messages = HashMap::new();
                     let mut groups = Vec::new();
 
@@ -362,6 +363,9 @@ impl AppState {
                                 crate::services::api::get_conversation_messages(&token, &conv.id)
                                     .await
                             {
+                                for msg in &srv_messages {
+                                    let _ = crate::services::db::DatabaseService::save_message(conv.id.clone(), msg.clone()).await;
+                                }
                                 let mut normalized_messages = Vec::new();
                                 for mut msg in srv_messages {
                                     if let Some(ref s_id) = self_user_id {
@@ -389,6 +393,9 @@ impl AppState {
                                     crate::services::api::get_conversation_messages(&token, &conv.id)
                                         .await
                                 {
+                                    for msg in &srv_messages {
+                                        let _ = crate::services::db::DatabaseService::save_message(conv.id.clone(), msg.clone()).await;
+                                    }
                                     let mut normalized_messages = Vec::new();
                                     for mut msg in srv_messages {
                                         // Se a mensagem foi enviada pelo próprio usuário local, muda o sender_id para "0"
@@ -1065,8 +1072,24 @@ impl AppState {
 
     pub fn update_banner_admin(&mut self, banner: crate::models::BannerInfo) {
         *self.banner_info.write() = Some(banner.clone());
+        let mut state_clone = *self;
+        let token_opt = self.auth_token();
         spawn(async move {
             let _ = crate::services::db::DatabaseService::save_banner(&banner).await;
+            if let Some(token) = token_opt {
+                match crate::services::api::update_banner(&token, &banner).await {
+                    Ok(_) => {
+                        println!("Banner atualizado com sucesso no servidor");
+                    }
+                    Err(e) => {
+                        state_clone.add_toast(
+                            "Erro no Servidor".to_string(),
+                            format!("Não foi possível salvar o anúncio no servidor: {}", e),
+                            None,
+                        );
+                    }
+                }
+            }
         });
     }
 

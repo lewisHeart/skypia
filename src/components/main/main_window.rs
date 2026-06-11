@@ -67,24 +67,49 @@ pub fn MainWindow(mut state: AppState) -> Element {
 
             // Banner dinâmico de anúncios do banco de dados
             if let Some(banner) = state.banner_info() {
-                div {
-                    class: "h-[50px] w-full bg-gradient-to-r {theme.titlebar_gradient()} border-t {theme.titlebar_border()} px-3 flex items-center justify-between text-[11px] shadow-inner flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:brightness-105",
-                    onclick: {
-                        let banner_clone = banner.clone();
-                        move |_| {
-                            if banner_clone.image_url.is_some() {
-                                show_ad_modal.set(true);
-                            } else {
-                                let _ = document::eval(&format!("window.open('{}', '_blank')", banner_clone.link));
+                if banner.icon == "BANNER" {
+                    if let Some(ref img_url) = banner.image_url {
+                        a {
+                            class: "h-[50px] w-full border-t {theme.titlebar_border()} cursor-pointer overflow-hidden transition-all hover:brightness-105 flex items-center justify-center bg-black/5 flex-shrink-0",
+                            href: "{banner.link}",
+                            target: "_blank",
+                            img {
+                                src: "{img_url}",
+                                class: "w-full h-full object-cover select-none pointer-events-none"
                             }
                         }
-                    },
-                    div { class: "flex items-center space-x-2 flex-1 {theme.titlebar_text()} min-w-0",
-                        style: "opacity: 0.90;",
-                        span { class: "text-base flex-shrink-0", "{banner.icon}" }
-                        div { class: "flex flex-col min-w-0 flex-1",
-                            span { class: "font-bold {theme.titlebar_text()} truncate", "{banner.text}" }
-                            span { class: "text-[10px] text-slate-500 truncate hover:underline", "{banner.action_label}" }
+                    } else {
+                        div {}
+                    }
+                } else {
+                    if banner.image_url.is_some() {
+                        div {
+                            class: "h-[50px] w-full bg-gradient-to-r {theme.titlebar_gradient()} border-t {theme.titlebar_border()} px-3 flex items-center justify-between text-[11px] shadow-inner flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:brightness-105",
+                            onclick: move |_| {
+                                show_ad_modal.set(true);
+                            },
+                            div { class: "flex items-center space-x-2 flex-1 {theme.titlebar_text()} min-w-0",
+                                style: "opacity: 0.90;",
+                                span { class: "text-base flex-shrink-0", "{banner.icon}" }
+                                div { class: "flex flex-col min-w-0 flex-1",
+                                    span { class: "font-bold {theme.titlebar_text()} truncate", "{banner.text}" }
+                                    span { class: "text-[10px] text-slate-500 truncate hover:underline", "{banner.action_label}" }
+                                }
+                            }
+                        }
+                    } else {
+                        a {
+                            class: "h-[50px] w-full bg-gradient-to-r {theme.titlebar_gradient()} border-t {theme.titlebar_border()} px-3 flex items-center justify-between text-[11px] shadow-inner flex-shrink-0 cursor-pointer overflow-hidden transition-all hover:brightness-105",
+                            href: "{banner.link}",
+                            target: "_blank",
+                            div { class: "flex items-center space-x-2 flex-1 {theme.titlebar_text()} min-w-0",
+                                style: "opacity: 0.90;",
+                                span { class: "text-base flex-shrink-0", "{banner.icon}" }
+                                div { class: "flex flex-col min-w-0 flex-1",
+                                    span { class: "font-bold {theme.titlebar_text()} truncate", "{banner.text}" }
+                                    span { class: "text-[10px] text-slate-500 truncate hover:underline", "{banner.action_label}" }
+                                }
+                            }
                         }
                     }
                 }

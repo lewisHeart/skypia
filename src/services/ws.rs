@@ -149,12 +149,38 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
         WsEvent::ChatMessage(mut msg) => {
             let conv_id = msg.conversation_id.clone();
 
+            // 1. Salva no SQLite local para histórico offline
+            let is_group = state.group_chats().iter().any(|g| g.id == conv_id);
+            let db_conv_id = if is_group {
+                conv_id.clone()
+            } else {
+                if let Some(real_id) = crate::services::db::DatabaseService::find_11_conversation_id(&conv_id).await {
+                    real_id
+                } else {
+                    conv_id.clone()
+                }
+            };
+            
+            let mut msg_to_save = msg.clone();
+            if msg_to_save.sender_id == "0" {
+                if let Some(ref s_id) = state.server_user_id() {
+                    msg_to_save.sender_id = s_id.clone();
+                }
+            }
+            msg_to_save.conversation_id = db_conv_id.clone();
+            
+            let db_conv_id_clone = db_conv_id.clone();
+            let msg_to_save_clone = msg_to_save.clone();
+            spawn(async move {
+                let _ = crate::services::db::DatabaseService::save_message(db_conv_id_clone, msg_to_save_clone).await;
+            });
+
             // Normaliza o sender_id para "0" se for o próprio usuário local
             if Some(msg.sender_id.clone()) == state.server_user_id() {
                 msg.sender_id = "0".to_string();
             }
 
-            // 1. Adiciona à lista de mensagens em memória
+            // 2. Adiciona à lista de mensagens em memória
             {
                 let mut chat_msgs = state.chat_messages.write();
                 chat_msgs

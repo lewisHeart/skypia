@@ -572,3 +572,25 @@ pub async fn save_ad_image_local(bytes: &[u8], name: &str) -> Option<String> {
     }
     None
 }
+
+/// Atualiza o banner de anúncios no servidor
+pub async fn update_banner(token: &str, banner: &crate::models::BannerInfo) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/banner", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(banner)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        Ok(())
+    } else {
+        Err(format!("Erro {}: {}", status, body))
+    }
+}
+

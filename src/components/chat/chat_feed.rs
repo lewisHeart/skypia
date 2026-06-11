@@ -459,9 +459,10 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                     let prev_text = current_text[..start].to_string();
                     parts.push(rsx! { span { "{prev_text}" } });
                 }
+                let e_url = crate::models::get_emoji_anim_url(&format!("{}.webp", emoji_name));
                 parts.push(rsx! {
                     img {
-                        src: "/emojis_anim/{emoji_name}.webp",
+                        src: "{e_url}",
                         class: "w-5 h-5 inline-block align-middle mx-0.5",
                         alt: "{emoji_name}"
                     }

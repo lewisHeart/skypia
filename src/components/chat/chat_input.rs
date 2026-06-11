@@ -5,6 +5,8 @@ use dioxus::prelude::*;
 #[component]
 pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler<()>) -> Element {
     let theme = state.theme();
+    let theme_titlebar_border = theme.titlebar_border();
+    let theme_titlebar_text = theme.titlebar_text();
     let mut input_text = use_signal(|| String::new());
     let mut selected_font = use_signal(|| state.chat_font_family());
     let mut selected_color = use_signal(|| state.chat_font_color());
@@ -83,6 +85,87 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
         show_emoticon_panel.set(false);
     };
 
+    let emoticons_list: Vec<(&str, String)> = [
+        (":-)", "slightly-smiling-face"),
+        (":-D", "grinning-face-with-big-eyes"),
+        (";-)", "winking-face"),
+        (":-P", "face-with-tongue"),
+        (":-O", "face-with-open-mouth"),
+        (":-$", "flushed-face"),
+        (":-@", "pouting-face"),
+        (":-S", "confused-face"),
+        ("(H)", "smiling-face-with-sunglasses"),
+        ("(Y)", "thumbs-up"),
+        ("(N)", "thumbs-down"),
+        ("(K)", "kiss-mark"),
+        ("(A)", "smiling-face-with-halo"),
+        ("(L)", "red-heart"),
+        ("(U)", "broken-heart"),
+        ("(O)", "alarm-clock"),
+        ("(G)", "wrapped-gift"),
+        ("(F)", "wilted-flower"),
+        ("(P)", "camera"),
+        ("(M)", "musical-note"),
+        ("(S)", "crescent-moon"),
+        ("(*)", "star"),
+        ("(E)", "envelope"),
+        ("(C)", "hot-beverage"),
+        ("(HE)", "smiling-face-with-heart-eyes"),
+        ("(BK)", "face-blowing-a-kiss"),
+        ("(ST)", "squinting-face-with-tongue"),
+        ("(ZF)", "zany-face"),
+        ("(SF)", "shushing-face"),
+        ("(TF)", "thinking-face"),
+        ("(EF)", "expressionless-face"),
+        ("(SM)", "smirking-face"),
+        ("(GF)", "grimacing-face"),
+        ("(DF)", "drooling-face"),
+        ("(SL)", "sleeping-face"),
+        ("(NF)", "nauseated-face"),
+        ("(VOM)", "face-vomiting"),
+        ("(EH)", "exploding-head"),
+        ("(PF)", "partying-face"),
+        ("(WF)", "woozy-face"),
+        ("(;_;)", "crying-face"),
+        ("(LCF)", "loudly-crying-face"),
+        ("(SCR)", "face-screaming-in-fear"),
+        ("(ANG)", "angry-face"),
+        ("(FSM)", "face-with-symbols-on-mouth"),
+        ("(SK)", "skull"),
+        ("(POO)", "pile-of-poo"),
+        ("(CLAP)", "clapping-hands"),
+        ("(HS)", "handshake"),
+        ("(VIC)", "victory-hand"),
+        ("(FLEX)", "flexed-biceps"),
+        ("(FOLD)", "folded-hands"),
+        ("(BR)", "brain"),
+        ("(FIRE)", "fire"),
+        ("(BOOM)", "collision"),
+        ("(SPARKS)", "sparkles"),
+        ("(BAL)", "balloon"),
+        ("(POP)", "party-popper"),
+        ("(RAIN)", "rainbow"),
+        ("(SUN)", "sun"),
+        ("(SNOW)", "snowflake"),
+        ("(UMB)", "umbrella"),
+        ("(DOG)", "dog-face"),
+        ("(CAT)", "cat-face"),
+        ("(PANDA)", "panda"),
+        ("(ALIEN)", "alien"),
+        ("(ROCKET)", "rocket"),
+        ("(PLANE)", "airplane"),
+        ("(BEER)", "beer-mug"),
+        ("(PIZZA)", "pizza"),
+        ("(MONEY)", "money-bag"),
+        ("(TROPHY)", "trophy"),
+    ]
+    .into_iter()
+    .map(|(code, emoji_name)| {
+        let url = crate::models::get_emoji_anim_url(&format!("{}.webp", emoji_name));
+        (code, url)
+    })
+    .collect();
+
     rsx! {
         div { class: "flex flex-col flex-shrink-0 relative z-20",
             // Overlay invisível para fechar popovers ao clicar fora
@@ -100,7 +183,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
             }
 
             // Barra de Ações e Formatação Clássica do MSN
-            div { class: "h-8 bg-transparent px-3 flex items-center justify-between text-xs {theme.titlebar_text()} relative select-none",
+            div { class: "h-8 bg-transparent px-3 flex items-center justify-between text-xs {theme_titlebar_text} relative select-none",
                 // Lado Esquerdo: Emojis, Winks, Compartilhamento, Sino de Atenção
                 div { class: "flex items-center space-x-2.5",
                     // Emojis
@@ -216,13 +299,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
 
                 // POPOVERS RENDER
                 if show_font_panel() {
-                    div { class: "absolute left-2 bottom-9 w-44 bg-white border {theme.titlebar_border()} rounded shadow-lg z-50 p-2.5 flex flex-col space-y-2.5 text-xs text-slate-700",
+                    div { class: "absolute left-2 bottom-9 w-44 bg-white border {theme_titlebar_border} rounded shadow-lg z-50 p-2.5 flex flex-col space-y-2.5 text-xs text-slate-700",
                         div { class: "flex flex-col space-y-1",
                             span { class: "font-bold text-[10px] text-slate-400", "Fonte" }
                             div { class: "flex flex-col space-y-0.5",
                                 for font_name in &["Segoe UI", "Comic Sans MS", "Arial", "Courier New"] {
                                     button {
-                                        class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors cursor-pointer {theme.titlebar_text()}",
+                                        class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors cursor-pointer {theme_titlebar_text}",
                                         style: "font-family: {font_name};",
                                         onclick: move |_| {
                                             selected_font.set(font_name.to_string());
@@ -244,7 +327,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                             div { class: "grid grid-cols-4 gap-1.5",
                                 for color in &["#000000", "#0066cc", "#e6007e", "#2e6930", "#e81123", "#ffb900", "#7a7a7a", "#8e24aa"] {
                                     div {
-                                        class: "w-6 h-6 rounded cursor-pointer border {theme.titlebar_border()} hover:scale-110 hover:shadow transition-all flex items-center justify-center relative",
+                                        class: "w-6 h-6 rounded cursor-pointer border {theme_titlebar_border} hover:scale-110 hover:shadow transition-all flex items-center justify-center relative",
                                         style: "background-color: {color};",
                                         onclick: move |_| {
                                             selected_color.set(color.to_string());
@@ -262,87 +345,14 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
 
                 if show_emoticon_panel() {
                     div {
-                        class: "absolute left-10 bottom-9 w-60 max-h-52 overflow-y-auto bg-white border {theme.titlebar_border()} rounded shadow-lg z-50 p-2 grid grid-cols-6 gap-1 text-base scrollbar-thin scrollbar-thumb-slate-300",
-                        for (code, emoji_name) in &[
-                            (":-)", "slightly-smiling-face"),
-                            (":-D", "grinning-face-with-big-eyes"),
-                            (";-)", "winking-face"),
-                            (":-P", "face-with-tongue"),
-                            (":-O", "face-with-open-mouth"),
-                            (":-$", "flushed-face"),
-                            (":-@", "pouting-face"),
-                            (":-S", "confused-face"),
-                            ("(H)", "smiling-face-with-sunglasses"),
-                            ("(Y)", "thumbs-up"),
-                            ("(N)", "thumbs-down"),
-                            ("(K)", "kiss-mark"),
-                            ("(A)", "smiling-face-with-halo"),
-                            ("(L)", "red-heart"),
-                            ("(U)", "broken-heart"),
-                            ("(O)", "alarm-clock"),
-                            ("(G)", "wrapped-gift"),
-                            ("(F)", "wilted-flower"),
-                            ("(P)", "camera"),
-                            ("(M)", "musical-note"),
-                            ("(S)", "crescent-moon"),
-                            ("(*)", "star"),
-                            ("(E)", "envelope"),
-                            ("(C)", "hot-beverage"),
-                            ("(HE)", "smiling-face-with-heart-eyes"),
-                            ("(BK)", "face-blowing-a-kiss"),
-                            ("(ST)", "squinting-face-with-tongue"),
-                            ("(ZF)", "zany-face"),
-                            ("(SF)", "shushing-face"),
-                            ("(TF)", "thinking-face"),
-                            ("(EF)", "expressionless-face"),
-                            ("(SM)", "smirking-face"),
-                            ("(GF)", "grimacing-face"),
-                            ("(DF)", "drooling-face"),
-                            ("(SL)", "sleeping-face"),
-                            ("(NF)", "nauseated-face"),
-                            ("(VOM)", "face-vomiting"),
-                            ("(EH)", "exploding-head"),
-                            ("(PF)", "partying-face"),
-                            ("(WF)", "woozy-face"),
-                            ("(;_;)", "crying-face"),
-                            ("(LCF)", "loudly-crying-face"),
-                            ("(SCR)", "face-screaming-in-fear"),
-                            ("(ANG)", "angry-face"),
-                            ("(FSM)", "face-with-symbols-on-mouth"),
-                            ("(SK)", "skull"),
-                            ("(POO)", "pile-of-poo"),
-                            ("(CLAP)", "clapping-hands"),
-                            ("(HS)", "handshake"),
-                            ("(VIC)", "victory-hand"),
-                            ("(FLEX)", "flexed-biceps"),
-                            ("(FOLD)", "folded-hands"),
-                            ("(BR)", "brain"),
-                            ("(FIRE)", "fire"),
-                            ("(BOOM)", "collision"),
-                            ("(SPARKS)", "sparkles"),
-                            ("(BAL)", "balloon"),
-                            ("(POP)", "party-popper"),
-                            ("(RAIN)", "rainbow"),
-                            ("(SUN)", "sun"),
-                            ("(SNOW)", "snowflake"),
-                            ("(UMB)", "umbrella"),
-                            ("(DOG)", "dog-face"),
-                            ("(CAT)", "cat-face"),
-                            ("(PANDA)", "panda"),
-                            ("(ALIEN)", "alien"),
-                            ("(ROCKET)", "rocket"),
-                            ("(PLANE)", "airplane"),
-                            ("(BEER)", "beer-mug"),
-                            ("(PIZZA)", "pizza"),
-                            ("(MONEY)", "money-bag"),
-                            ("(TROPHY)", "trophy"),
-                        ] {
+                        class: "absolute left-10 bottom-9 w-60 max-h-52 overflow-y-auto bg-white border {theme_titlebar_border} rounded shadow-lg z-50 p-2 grid grid-cols-6 gap-1 text-base scrollbar-thin scrollbar-thumb-slate-300",
+                        for (code, emoji_url) in emoticons_list {
                             button {
                                 class: "hover:bg-slate-100 p-0.5 rounded flex items-center justify-center transition-colors cursor-pointer",
                                 title: code,
                                 onclick: move |_| insert_emoticon(code),
                                 img {
-                                    src: "/emojis_anim/{emoji_name}.webp",
+                                    src: emoji_url,
                                     class: "w-6 h-6 object-contain pointer-events-none"
                                 }
                             }
@@ -351,9 +361,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 }
 
                 if show_wink_panel() {
-                    div { class: "absolute left-20 bottom-9 w-40 bg-white border {theme.titlebar_border()} rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
+                    div { class: "absolute left-20 bottom-9 w-40 bg-white border {theme_titlebar_border} rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
                         button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
+                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
                             onclick: {
                                 let cid = contact_id.clone();
                                 move |_| {
@@ -362,13 +372,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/emojis/kiss-mark.svg",
+                                src: crate::models::get_emoji_url("kiss-mark.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Beijo de Batom" }
                         }
                         button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
+                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
                             onclick: {
                                 let cid = contact_id.clone();
                                 move |_| {
@@ -377,13 +387,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/emojis/hammer.svg",
+                                src: crate::models::get_emoji_url("hammer.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Martelada na Tela" }
                         }
                         button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
+                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
                             onclick: {
                                 let cid = contact_id.clone();
                                 move |_| {
@@ -392,7 +402,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/emojis/pig-face.svg",
+                                src: crate::models::get_emoji_url("pig-face.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Porco Dançarino" }
@@ -401,9 +411,9 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 }
 
                 if show_file_panel() {
-                    div { class: "absolute left-32 bottom-9 w-40 bg-white border {theme.titlebar_border()} rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
+                    div { class: "absolute left-32 bottom-9 w-40 bg-white border {theme_titlebar_border} rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
                         button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
+                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
                             onclick: {
                                 let cid = contact_id.clone();
                                 move |_| {
@@ -412,13 +422,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/emojis/framed-picture.svg",
+                                src: crate::models::get_emoji_url("framed-picture.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Foto" }
                         }
                         button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
+                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
                             onclick: {
                                 let cid = contact_id.clone();
                                 move |_| {
@@ -427,13 +437,13 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/emojis/musical-note.svg",
+                                src: crate::models::get_emoji_url("musical-note.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Música" }
                         }
                         button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme.titlebar_text()}",
+                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
                             onclick: {
                                 let cid = contact_id.clone();
                                 move |_| {
@@ -442,7 +452,7 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                                 }
                             },
                             img {
-                                src: "/emojis/floppy-disk.svg",
+                                src: crate::models::get_emoji_url("floppy-disk.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Arquivo" }

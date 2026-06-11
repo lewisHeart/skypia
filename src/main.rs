@@ -84,6 +84,100 @@ fn App() -> Element {
     let logged_in = app_state.logged_in();
     let theme = app_state.theme();
 
+    #[cfg(feature = "desktop")]
+    {
+        use dioxus::desktop::use_asset_handler;
+
+        use_asset_handler("emojis", move |request, responder| {
+            let host = request.uri().host().unwrap_or("");
+            let path = request.uri().path();
+            let raw_path = format!("{}{}", host, path);
+            let decoded_path = percent_encoding::percent_decode_str(&raw_path).decode_utf8_lossy().to_string();
+            let decoded_path = decoded_path.trim_end_matches('/');
+            let mut emoji_path = std::path::PathBuf::from("public/emojis").join(&decoded_path);
+            if !emoji_path.exists() {
+                if let Ok(res_dir) = std::env::current_exe() {
+                    if let Some(parent) = res_dir.parent() {
+                        let fallback = parent.join("public/emojis").join(&decoded_path);
+                        if fallback.exists() {
+                            emoji_path = fallback;
+                        }
+                    }
+                }
+            }
+
+            tokio::task::spawn(async move {
+                if let Ok(bytes) = std::fs::read(&emoji_path) {
+                    let mime = if emoji_path.extension().map(|e| e == "svg").unwrap_or(false) {
+                        "image/svg+xml"
+                    } else if emoji_path.extension().map(|e| e == "png").unwrap_or(false) {
+                        "image/png"
+                    } else if emoji_path.extension().map(|e| e == "webp").unwrap_or(false) {
+                        "image/webp"
+                    } else {
+                        "image/gif"
+                    };
+                    let response = dioxus::desktop::wry::http::Response::builder()
+                        .header("Content-Type", mime)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(bytes)
+                        .unwrap();
+                    responder.respond(response);
+                } else {
+                    let response = dioxus::desktop::wry::http::Response::builder()
+                        .status(404)
+                        .body(Vec::new())
+                        .unwrap();
+                    responder.respond(response);
+                }
+            });
+        });
+
+        use_asset_handler("emojis-anim", move |request, responder| {
+            let host = request.uri().host().unwrap_or("");
+            let path = request.uri().path();
+            let raw_path = format!("{}{}", host, path);
+            let decoded_path = percent_encoding::percent_decode_str(&raw_path).decode_utf8_lossy().to_string();
+            let decoded_path = decoded_path.trim_end_matches('/');
+            let mut emoji_path = std::path::PathBuf::from("public/emojis_anim").join(&decoded_path);
+            if !emoji_path.exists() {
+                if let Ok(res_dir) = std::env::current_exe() {
+                    if let Some(parent) = res_dir.parent() {
+                        let fallback = parent.join("public/emojis_anim").join(&decoded_path);
+                        if fallback.exists() {
+                            emoji_path = fallback;
+                        }
+                    }
+                }
+            }
+
+            tokio::task::spawn(async move {
+                if let Ok(bytes) = std::fs::read(&emoji_path) {
+                    let mime = if emoji_path.extension().map(|e| e == "webp").unwrap_or(false) {
+                        "image/webp"
+                    } else if emoji_path.extension().map(|e| e == "gif").unwrap_or(false) {
+                        "image/gif"
+                    } else {
+                        "image/png"
+                    };
+                    let response = dioxus::desktop::wry::http::Response::builder()
+                        .header("Content-Type", mime)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(bytes)
+                        .unwrap();
+                    responder.respond(response);
+                } else {
+                    let response = dioxus::desktop::wry::http::Response::builder()
+                        .status(404)
+                        .body(Vec::new())
+                        .unwrap();
+                    responder.respond(response);
+                }
+            });
+        });
+    }
+
+
     // Sincroniza decorações da janela nativa
     use_effect(move || {
         #[cfg(feature = "desktop")]
@@ -194,28 +288,10 @@ fn App() -> Element {
     use_future(move || {
         let mut state = app_state;
         async move {
-            #[allow(unused_mut, unused_variables)]
-            let mut mock_song_index = 0;
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 if state.logged_in() && state.spotify_rpc_enabled() {
-                    #[allow(unused_mut)]
-                    let mut detected = crate::services::spotify::detect_current_song().await;
-                    
-                    #[cfg(target_os = "android")]
-                    {
-                        if detected.is_none() {
-                            let songs = state.recommended_songs();
-                            if !songs.is_empty() {
-                                let song = songs[mock_song_index % songs.len()].clone();
-                                detected = Some(song);
-                                // Alterna a música de tempos em tempos
-                                if chrono::Utc::now().timestamp() % 15 < 3 {
-                                    mock_song_index += 1;
-                                }
-                            }
-                        }
-                    }
+                    let detected = crate::services::spotify::detect_current_song().await;
 
                     if let Some(music) = detected {
                         if state.user_music() != Some(music.clone()) {
@@ -457,7 +533,7 @@ fn App() -> Element {
                     div { class: "p-4 flex flex-col space-y-4 text-xs {theme.titlebar_text()} bg-white/20",
                         div { class: "flex flex-col items-center text-center space-y-2 py-2",
                             img {
-                                src: "/emojis/butterfly.svg",
+                                src: "{crate::models::get_emoji_url(\"butterfly.svg\")}",
                                 class: "w-10 h-10 object-contain pointer-events-none"
                             }
                             span { class: "font-bold text-sm", "Skypia Messenger v14.0" }

@@ -36,7 +36,24 @@ pub fn ContactList(mut state: AppState) -> Element {
 
     let filtered_contacts = use_memo(move || {
         let query = search_query().to_lowercase();
-        let list = state.contacts();
+        let mut list = state.contacts();
+        
+        // Remove autocontato (próprio usuário logado)
+        let my_email = state.user_email().to_lowercase();
+        list.retain(|c| c.email.to_lowercase() != my_email);
+
+        // Deduplica contatos por e-mail
+        let mut seen = std::collections::HashSet::new();
+        list.retain(|c| {
+            let email = c.email.to_lowercase();
+            if seen.contains(&email) {
+                false
+            } else {
+                seen.insert(email);
+                true
+            }
+        });
+
         if query.is_empty() {
             list
         } else {

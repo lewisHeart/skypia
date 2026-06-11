@@ -23,6 +23,7 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
     let mut admin_banner_label = use_signal(|| String::new());
     let mut admin_banner_link = use_signal(|| String::new());
     let mut admin_banner_image = use_signal(|| String::new());
+    let mut admin_banner_type = use_signal(|| "classic".to_string());
     let mut new_cat_input = use_signal(|| String::new());
 
     let is_uploading_ad = use_signal(|| false);
@@ -34,11 +35,16 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
         temp_msg.set(state.user_personal_message());
         temp_folder.set(state.download_folder());
         if let Some(banner) = state.banner_info() {
-            admin_banner_icon.set(banner.icon);
+            admin_banner_icon.set(banner.icon.clone());
             admin_banner_text.set(banner.text);
             admin_banner_label.set(banner.action_label);
             admin_banner_link.set(banner.link);
             admin_banner_image.set(banner.image_url.clone().unwrap_or_default());
+            if banner.icon == "BANNER" {
+                admin_banner_type.set("full".to_string());
+            } else {
+                admin_banner_type.set("classic".to_string());
+            }
         }
     });
 
@@ -469,128 +475,188 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
                     }
 
                     if active_tab() == "admin_banners" {
-                        div { class: "flex flex-col space-y-3",
-                            div { class: "flex flex-col space-y-1",
-                                label { class: "font-semibold text-slate-700", "Ícone (Emoji)" }
-                                input {
-                                    class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
-                                    value: "{admin_banner_icon}",
-                                    oninput: move |e| admin_banner_icon.set(e.value()),
-                                }
-                            }
-                            div { class: "flex flex-col space-y-1",
-                                label { class: "font-semibold text-slate-700", "Texto do Anúncio" }
-                                input {
-                                    class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
-                                    value: "{admin_banner_text}",
-                                    oninput: move |e| admin_banner_text.set(e.value()),
-                                }
-                            }
-                            div { class: "flex flex-col space-y-1",
-                                label { class: "font-semibold text-slate-700", "Rótulo do Botão" }
-                                input {
-                                    class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
-                                    value: "{admin_banner_label}",
-                                    oninput: move |e| admin_banner_label.set(e.value()),
-                                }
-                            }
-                            div { class: "flex flex-col space-y-1",
-                                label { class: "font-semibold text-slate-700", "Link de Destino" }
-                                input {
-                                    class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
-                                    value: "{admin_banner_link}",
-                                    oninput: move |e| admin_banner_link.set(e.value()),
-                                }
-                            }
-                            div { class: "flex flex-col space-y-1",
-                                label { class: "font-semibold text-slate-700", "URL da Imagem (Opcional)" }
-                                input {
-                                    class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
-                                    value: "{admin_banner_image}",
-                                    placeholder: "https://site.com/imagem.png",
-                                    oninput: move |e| admin_banner_image.set(e.value()),
-                                }
-                            }
-                            div { class: "flex flex-col space-y-1 pt-1.5",
-                                label { class: "font-semibold text-slate-700", "Fazer Upload de Imagem de Anúncio" }
-                                if is_uploading_ad() {
-                                    div { class: "flex items-center space-x-2 py-2",
-                                        div { class: "w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" }
-                                        span { class: "text-[10px] text-slate-500 animate-pulse", "Enviando imagem..." }
+                        {
+                            let is_admin = state.user_email().contains("admin")
+                                || state.user_email() == "wk.scbd@skypia.io"
+                                || state.user_email() == "wk.scbd@protonmail.com";
+                            if !is_admin {
+                                rsx! {
+                                    div { class: "p-4 text-red-500 font-bold flex items-center space-x-2 bg-red-50 border border-red-200 rounded",
+                                        span { "⚠️" }
+                                        span { "Acesso Negado: Apenas administradores podem gerenciar anúncios." }
                                     }
-                                } else {
-                                    div { class: "relative",
-                                        input {
-                                            r#type: "file",
-                                            accept: "image/*",
-                                            class: "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
-                                            onchange: move |e| {
-                                                let mut img_sig = admin_banner_image;
-                                                let mut uploading = is_uploading_ad;
-                                                let mut err_sig = ad_upload_error;
-                                                let token_opt = state.auth_token();
-                                                let files = e.files();
-                                                if let Some(file) = files.into_iter().next() {
-                                                    let file_name = file.name();
-                                                    spawn(async move {
-                                                        uploading.set(true);
-                                                        err_sig.set(None);
-                                                        match file.read_bytes().await {
-                                                            Ok(bytes) => {
-                                                                if let Some(local_path) = crate::services::api::save_ad_image_local(&bytes, &file_name).await {
-                                                                    img_sig.set(local_path.clone());
-                                                                }
-                                                                if let Some(token) = token_opt {
-                                                                    let mime = if file_name.to_lowercase().ends_with(".png") { "image/png" }
-                                                                               else if file_name.to_lowercase().ends_with(".gif") { "image/gif" }
-                                                                               else if file_name.to_lowercase().ends_with(".webp") { "image/webp" }
-                                                                               else { "image/jpeg" };
-                                                                    match crate::services::api::upload_avatar(&token, bytes.to_vec(), mime).await {
-                                                                        Ok(url) => {
-                                                                            img_sig.set(url);
-                                                                        }
-                                                                        Err(e) => {
-                                                                            println!("Erro de upload: {}", e);
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                            Err(e) => {
-                                                                err_sig.set(Some(format!("Erro ao ler arquivo: {}", e)));
-                                                            }
-                                                        }
-                                                        uploading.set(false);
-                                                    });
+                                }
+                            } else {
+                                rsx! {
+                                    div { class: "flex flex-col space-y-3",
+                                        // Tipo de Anúncio
+                                        div { class: "flex flex-col space-y-1",
+                                            label { class: "font-semibold text-slate-700", "Tipo de Anúncio" }
+                                            div { class: "flex space-x-4 py-1",
+                                                label { class: "flex items-center space-x-1.5 cursor-pointer text-xs font-semibold text-slate-700",
+                                                    input {
+                                                        r#type: "radio",
+                                                        name: "banner_type",
+                                                        checked: admin_banner_type() == "classic",
+                                                        onchange: move |_| admin_banner_type.set("classic".to_string()),
+                                                    }
+                                                    span { "Texto e Ícones (Clássico)" }
+                                                }
+                                                label { class: "flex items-center space-x-1.5 cursor-pointer text-xs font-semibold text-slate-700",
+                                                    input {
+                                                        r#type: "radio",
+                                                        name: "banner_type",
+                                                        checked: admin_banner_type() == "full",
+                                                        onchange: move |_| admin_banner_type.set("full".to_string()),
+                                                    }
+                                                    span { "Banner de Imagem Completa (50px)" }
                                                 }
                                             }
                                         }
-                                        div {
-                                            class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] hover:border-slate-400 transition-colors flex items-center space-x-2 cursor-pointer pointer-events-none",
-                                            span { class: "text-slate-400 text-[11px]", "📁" }
-                                            span { class: "text-slate-500 text-[10px]", "Procurar arquivo de imagem..." }
+
+                                        if admin_banner_type() == "classic" {
+                                            div { class: "flex flex-col space-y-3",
+                                                div { class: "flex flex-col space-y-1",
+                                                    label { class: "font-semibold text-slate-700", "Ícone (Emoji)" }
+                                                    input {
+                                                        class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
+                                                        value: "{admin_banner_icon}",
+                                                        oninput: move |e| admin_banner_icon.set(e.value()),
+                                                    }
+                                                }
+                                                div { class: "flex flex-col space-y-1",
+                                                    label { class: "font-semibold text-slate-700", "Texto do Anúncio" }
+                                                    input {
+                                                        class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
+                                                        value: "{admin_banner_text}",
+                                                        oninput: move |e| admin_banner_text.set(e.value()),
+                                                    }
+                                                }
+                                                div { class: "flex flex-col space-y-1",
+                                                    label { class: "font-semibold text-slate-700", "Rótulo do Botão" }
+                                                    input {
+                                                        class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
+                                                        value: "{admin_banner_label}",
+                                                        oninput: move |e| admin_banner_label.set(e.value()),
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        div { class: "flex flex-col space-y-1",
+                                            label { class: "font-semibold text-slate-700", "Link de Destino" }
+                                            input {
+                                                class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
+                                                value: "{admin_banner_link}",
+                                                oninput: move |e| admin_banner_link.set(e.value()),
+                                            }
+                                        }
+                                        div { class: "flex flex-col space-y-1",
+                                            label { class: "font-semibold text-slate-700", if admin_banner_type() == "full" { "URL da Imagem (Obrigatório)" } else { "URL da Imagem (Opcional)" } }
+                                            input {
+                                                class: "px-2 py-1.5 border border-[#d1d1d1] msn-input rounded text-xs w-full focus:outline-none focus:border-slate-400 bg-white",
+                                                value: "{admin_banner_image}",
+                                                placeholder: "https://site.com/imagem.png",
+                                                oninput: move |e| admin_banner_image.set(e.value()),
+                                            }
+                                        }
+                                        div { class: "flex flex-col space-y-1 pt-1.5",
+                                            label { class: "font-semibold text-slate-700", "Fazer Upload de Imagem de Anúncio" }
+                                            if is_uploading_ad() {
+                                                div { class: "flex items-center space-x-2 py-2",
+                                                    div { class: "w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" }
+                                                    span { class: "text-[10px] text-slate-500 animate-pulse", "Enviando imagem..." }
+                                                }
+                                            } else {
+                                                div { class: "relative",
+                                                    input {
+                                                        r#type: "file",
+                                                        accept: "image/*",
+                                                        class: "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
+                                                        onchange: move |e| {
+                                                            let mut img_sig = admin_banner_image;
+                                                            let mut uploading = is_uploading_ad;
+                                                            let mut err_sig = ad_upload_error;
+                                                            let token_opt = state.auth_token();
+                                                            let files = e.files();
+                                                            if let Some(file) = files.into_iter().next() {
+                                                                let file_name = file.name();
+                                                                spawn(async move {
+                                                                    uploading.set(true);
+                                                                    err_sig.set(None);
+                                                                    match file.read_bytes().await {
+                                                                        Ok(bytes) => {
+                                                                            if let Some(local_path) = crate::services::api::save_ad_image_local(&bytes, &file_name).await {
+                                                                                img_sig.set(local_path.clone());
+                                                                            }
+                                                                            if let Some(token) = token_opt {
+                                                                                let mime = if file_name.to_lowercase().ends_with(".png") { "image/png" }
+                                                                                           else if file_name.to_lowercase().ends_with(".gif") { "image/gif" }
+                                                                                           else if file_name.to_lowercase().ends_with(".webp") { "image/webp" }
+                                                                                           else { "image/jpeg" };
+                                                                                match crate::services::api::upload_avatar(&token, bytes.to_vec(), mime).await {
+                                                                                    Ok(url) => {
+                                                                                        img_sig.set(url);
+                                                                                    }
+                                                                                    Err(e) => {
+                                                                                        println!("Erro de upload: {}", e);
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        Err(e) => {
+                                                                            err_sig.set(Some(format!("Erro ao ler arquivo: {}", e)));
+                                                                        }
+                                                                    }
+                                                                    uploading.set(false);
+                                                                });
+                                                            }
+                                                        }
+                                                    }
+                                                    div {
+                                                        class: "w-full h-[27px] px-2.5 text-xs text-slate-800 bg-white border border-[#d1d1d1] rounded-[4px] hover:border-slate-400 transition-colors flex items-center space-x-2 cursor-pointer pointer-events-none",
+                                                        span { class: "text-slate-400 text-[11px]", "📁" }
+                                                        span { class: "text-slate-500 text-[10px]", "Procurar arquivo de imagem..." }
+                                                    }
+                                                }
+                                            }
+                                            if let Some(err) = ad_upload_error() {
+                                                span { class: "text-[10px] text-red-600", "⚠️ {err}" }
+                                            }
+                                        }
+                                        button {
+                                            class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none self-end text-[10px] disabled:opacity-50 disabled:cursor-not-allowed",
+                                            disabled: if admin_banner_type() == "full" {
+                                                admin_banner_image().trim().is_empty() || admin_banner_link().trim().is_empty()
+                                            } else {
+                                                admin_banner_text().trim().is_empty() || admin_banner_link().trim().is_empty()
+                                            },
+                                            onclick: move |_| {
+                                                let img_opt = if admin_banner_image().trim().is_empty() { None } else { Some(admin_banner_image().trim().to_string()) };
+                                                let b = if admin_banner_type() == "full" {
+                                                    crate::models::BannerInfo {
+                                                        icon: "BANNER".to_string(),
+                                                        text: "".to_string(),
+                                                        action_label: "".to_string(),
+                                                        link: admin_banner_link().trim().to_string(),
+                                                        image_url: img_opt,
+                                                    }
+                                                } else {
+                                                    crate::models::BannerInfo {
+                                                        icon: admin_banner_icon(),
+                                                        text: admin_banner_text().trim().to_string(),
+                                                        action_label: admin_banner_label().trim().to_string(),
+                                                        link: admin_banner_link().trim().to_string(),
+                                                        image_url: img_opt,
+                                                    }
+                                                };
+                                                state.update_banner_admin(b);
+                                                state.add_toast("Anúncio Salvo".to_string(), "O banner promocional foi atualizado no servidor.".to_string(), None);
+                                            },
+                                            "Salvar Anúncio"
                                         }
                                     }
                                 }
-                                if let Some(err) = ad_upload_error() {
-                                    span { class: "text-[10px] text-red-600", "⚠️ {err}" }
-                                }
-                            }
-                            button {
-                                class: "px-4 py-1.5 {theme.btn_primary()} rounded font-bold shadow-md cursor-pointer transition-all focus:outline-none self-end text-[10px] disabled:opacity-50 disabled:cursor-not-allowed",
-                                disabled: admin_banner_text().trim().is_empty() || admin_banner_link().trim().is_empty(),
-                                onclick: move |_| {
-                                    let img_opt = if admin_banner_image().trim().is_empty() { None } else { Some(admin_banner_image().trim().to_string()) };
-                                    let b = crate::models::BannerInfo {
-                                        icon: admin_banner_icon(),
-                                        text: admin_banner_text().trim().to_string(),
-                                        action_label: admin_banner_label().trim().to_string(),
-                                        link: admin_banner_link().trim().to_string(),
-                                        image_url: img_opt,
-                                    };
-                                    state.update_banner_admin(b);
-                                    state.add_toast("Anúncio Salvo".to_string(), "O banner promocional foi atualizado.".to_string(), None);
-                                },
-                                "Salvar Anúncio"
                             }
                         }
                     }

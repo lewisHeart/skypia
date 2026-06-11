@@ -452,13 +452,16 @@ impl DatabaseService {
 
         if user_count == 0 {
             sqlx::query(
-                "INSERT INTO user_profile (id, name, email, status, personal_message, music, avatar_id) VALUES (1, ?, ?, 'Online', 'Tô cagando', 'Linkin Park - In The End', 0)",
+                "INSERT INTO user_profile (id, name, email, status, personal_message, music, avatar_id) VALUES (1, '', '', 'Offline', '', NULL, 0)",
             )
-            .bind("Wellington Skypia")
-            .bind("wk.scbd@skypia.io")
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
+        } else {
+            // Garante que o user_profile local do ID 1 não tenha dados estáticos mocks de execuções passadas
+            let _ = sqlx::query("UPDATE user_profile SET name = '', email = '', status = 'Offline', personal_message = '', music = NULL WHERE id = 1 AND name = 'Wellington Skypia'")
+                .execute(pool)
+                .await;
         }
 
         // Seed settings se não existe
@@ -479,34 +482,8 @@ impl DatabaseService {
                 .map_err(|e| e.to_string())?;
         }
 
-        // Seed recommended songs se tabela vazia
-        let song_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM recommended_songs")
-            .fetch_one(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if song_count == 0 {
-            let songs = vec![
-                "NX Zero - Cedo Ou Tarde",
-                "Coldplay - Viva La Vida",
-                "Linkin Park - In The End",
-                "Green Day - Boulevard of Broken Dreams",
-                "Blink-182 - I Miss You",
-                "Evanescence - Bring Me To Life",
-                "Simple Plan - Welcome to My Life",
-                "Fresno - Alguém Que Te Faz Sorrir",
-                "Paramore - Decode",
-                "Pitty - Admirável Chip Novo",
-            ];
-
-            for title in songs {
-                sqlx::query("INSERT INTO recommended_songs (title) VALUES (?)")
-                    .bind(title)
-                    .execute(pool)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-        }
+        // recommended_songs agora inicia vazia para remover dados estáticos e simulações aleatórias.
+        let _ = sqlx::query("DELETE FROM recommended_songs").execute(pool).await;
 
         Ok(())
     }
