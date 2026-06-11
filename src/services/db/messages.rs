@@ -165,6 +165,7 @@ impl DatabaseService {
                     nickname: None,
                     role,
                     is_favorite: None,
+                    is_admin: Some(false),
                 });
             }
 

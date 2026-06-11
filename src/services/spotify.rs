@@ -105,9 +105,79 @@ pub async fn detect_current_song() -> Option<String> {
 
     #[cfg(target_os = "android")]
     {
-        // O Android não permite monitoramento direto de processos de terceiros via terminal/IPC sem permissões especiais
-        // Retornamos None para manter a consistência estrutural multiplataforma compilando sem erros
-        let _ = ();
+        use jni::objects::{JObject, JValue};
+        use jni::JavaVM;
+        
+        if let Ok(song_opt) = (|| -> Result<Option<String>, String> {
+            let ctx = ndk_context::android_context();
+            let vm = unsafe { JavaVM::from_raw(ctx.vm().cast()) }
+                .map_err(|e| format!("Failed to get JavaVM: {:?}", e))?;
+            
+            let mut env = vm.attach_current_thread()
+                .map_err(|e| format!("Failed to attach thread: {:?}", e))?;
+            
+            let context_obj = unsafe { JObject::from_raw(ctx.context() as jni::sys::jobject) };
+            
+            let pref_name = env.new_string("spotify_pref")
+                .map_err(|e| format!("Failed to create pref name string: {:?}", e))?;
+            
+            let shared_pref = env.call_method(
+                &context_obj,
+                "getSharedPreferences",
+                "(Ljava/lang/String;I)Landroid/content/SharedPreferences;",
+                &[JValue::Object(&pref_name), JValue::Int(0)]
+            ).map_err(|e| format!("Failed to call getSharedPreferences: {:?}", e))?
+             .l()
+             .map_err(|e| format!("Failed to get SharedPreferences object: {:?}", e))?;
+            
+            let is_playing_key = env.new_string("is_playing")
+                .map_err(|e| format!("Failed to create string is_playing: {:?}", e))?;
+            let is_playing = env.call_method(
+                &shared_pref,
+                "getBoolean",
+                "(Ljava/lang/String;Z)Z",
+                &[JValue::Object(&is_playing_key), JValue::Bool(0)]
+            ).map_err(|e| format!("Failed to get is_playing: {:?}", e))?
+             .z()
+             .map_err(|e| format!("Failed to get boolean value: {:?}", e))?;
+            
+            if !is_playing {
+                return Ok(None);
+            }
+            
+            let song_key = env.new_string("current_song")
+                .map_err(|e| format!("Failed to create string current_song: {:?}", e))?;
+            let current_song = env.call_method(
+                &shared_pref,
+                "getString",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+                &[
+                    JValue::Object(&song_key),
+                    JValue::Object(&JObject::null())
+                ]
+            ).map_err(|e| format!("Failed to call getString: {:?}", e))?
+             .l()
+             .map_err(|e| format!("Failed to get String object: {:?}", e))?;
+            
+            if current_song.is_null() {
+                return Ok(None);
+            }
+            
+            let song_jstr: jni::objects::JString = current_song.into();
+            let song_str: String = env.get_string(&song_jstr)
+                .map_err(|e| format!("Failed to convert song string: {:?}", e))?
+                .into();
+            
+            if song_str.trim().is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(song_str))
+            }
+        })() {
+            if let Some(song) = song_opt {
+                return Some(song);
+            }
+        }
     }
 
     None

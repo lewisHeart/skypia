@@ -57,6 +57,7 @@ pub struct AppState {
     pub auth_token: Signal<Option<String>>,
     pub server_user_id: Signal<Option<String>>,
     pub user_avatar_url: Signal<Option<String>>, // URL da foto real (do servidor)
+    pub is_admin: Signal<bool>,
     pub show_register_modal: Signal<bool>,
     pub server_error: Signal<Option<String>>, // Último erro da API
     pub show_avatar_picker: Signal<bool>,
@@ -139,6 +140,7 @@ impl AppState {
             auth_token: Signal::new(None),
             server_user_id: Signal::new(None),
             user_avatar_url: Signal::new(None),
+            is_admin: Signal::new(false),
             show_register_modal: Signal::new(false),
             server_error: Signal::new(None),
             show_avatar_picker: Signal::new(false),
@@ -952,6 +954,10 @@ impl AppState {
 
     pub fn groups_density(&self) -> String {
         self.groups_density.read().clone()
+    }
+
+    pub fn is_admin(&self) -> bool {
+        (self.is_admin)()
     }
 
     pub fn set_contact_density(&mut self, density: String) {

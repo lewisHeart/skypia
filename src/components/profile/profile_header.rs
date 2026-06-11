@@ -259,19 +259,8 @@ pub fn ProfileHeader(mut state: AppState) -> Element {
                         },
                         onblur: move |_| {
                             let msg = temp_msg();
-                            *state.user_personal_message.write() = msg.clone();
+                            state.set_user_personal_message(msg);
                             is_editing_msg.set(false);
-                            // Sincroniza com servidor
-                            if let Some(token) = state.auth_token() {
-                                spawn(async move {
-                                    let _ = api::update_profile(&token, api::UpdateProfileRequest {
-                                        display_name: None,
-                                        personal_message: Some(msg),
-                                        status: None,
-                                        music: None,
-                                    }).await;
-                                });
-                            }
                         },
                         autofocus: true,
                     }

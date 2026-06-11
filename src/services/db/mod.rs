@@ -431,18 +431,13 @@ impl DatabaseService {
     }
 
     async fn seed_initial_data(pool: &SqlitePool) -> Result<(), String> {
-        // Se houver dados mocks legados, limpa o banco local
-        let has_mock: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM contacts WHERE email = 'lucas_heavy@hotmail.com'")
-            .fetch_one(pool)
-            .await
-            .unwrap_or(0);
-        if has_mock > 0 {
-            let _ = sqlx::query("DELETE FROM contacts").execute(pool).await;
-            let _ = sqlx::query("DELETE FROM messages").execute(pool).await;
-            let _ = sqlx::query("DELETE FROM conversations").execute(pool).await;
-            let _ = sqlx::query("DELETE FROM conversation_members").execute(pool).await;
-            println!("🧹 Banco de dados local limpo de dados mocks legados.");
-        }
+        // Limpa incondicionalmente o banco local de dados legados / cache
+        let _ = sqlx::query("DELETE FROM contacts").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM messages").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM conversations").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM conversation_members").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM recommended_songs").execute(pool).await;
+        println!("🧹 Banco de dados local/cache limpo com sucesso.");
 
         // Seed user_profile se não existe
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profile")

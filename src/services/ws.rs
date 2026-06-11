@@ -238,6 +238,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if Some(user_id.clone()) == state.server_user_id() {
                 // Atualiza avatar do próprio usuário
                 if let Some(ref url) = avatar_url {
+                    crate::models::invalidate_avatar_cache(url);
                     let is_local = if let Some(local_url) = state.user_avatar_url() {
                         local_url.starts_with("/assets/")
                             || local_url.starts_with("assets/")
@@ -276,8 +277,9 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     c.status = user_status;
                     c.personal_message = personal_message;
                     c.music_listening = music;
-                    if avatar_url.is_some() {
-                        c.avatar_url = avatar_url.clone();
+                    if let Some(ref url) = avatar_url {
+                        crate::models::invalidate_avatar_cache(url);
+                        c.avatar_url = Some(url.clone());
                     }
                     if !display_name.is_empty() {
                         c.display_name = display_name;
@@ -529,5 +531,19 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             }
         }
         WsEvent::ConversationJoined(_conversation) => todo!(),
+        WsEvent::BannerUpdated { text, action_label, link, icon, image_url } => {
+            let banner = crate::models::BannerInfo {
+                text,
+                action_label,
+                link,
+                icon,
+                image_url,
+            };
+            *state.banner_info.write() = Some(banner.clone());
+            // Salva no banco local
+            spawn(async move {
+                let _ = crate::services::db::DatabaseService::save_banner(&banner).await;
+            });
+        }
     }
 }

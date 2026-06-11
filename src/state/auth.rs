@@ -9,6 +9,7 @@ impl AppState {
         *self.user_name.write() = profile.display_name.clone();
         *self.user_email.write() = profile.email.clone();
         *self.user_personal_message.write() = profile.personal_message.clone();
+        *self.is_admin.write() = profile.is_admin.unwrap_or(false);
         if let Some(music) = profile.music.clone() {
             *self.user_music.write() = Some(music);
         }

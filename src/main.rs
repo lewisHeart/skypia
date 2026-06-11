@@ -289,7 +289,7 @@ fn App() -> Element {
         let mut state = app_state;
         async move {
             loop {
-                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(*crate::services::api::SPOTIFY_CHECK_INTERVAL)).await;
                 if state.logged_in() && state.spotify_rpc_enabled() {
                     let detected = crate::services::spotify::detect_current_song().await;
 

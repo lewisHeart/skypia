@@ -296,9 +296,16 @@ impl AppTheme {
 use std::sync::{Mutex, LazyLock};
 use std::collections::HashMap;
 
-static AVATAR_CACHE: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(|| {
+pub static AVATAR_CACHE: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(|| {
     Mutex::new(HashMap::new())
 });
+
+pub fn invalidate_avatar_cache(url: &str) {
+    let mut cache = AVATAR_CACHE.lock().unwrap();
+    cache.remove(url);
+    let base_url = url.split('?').next().unwrap_or(url);
+    cache.retain(|k, _| !k.starts_with(base_url));
+}
 
 #[component]
 pub fn Avatar(url: Option<String>, size: usize) -> Element {
@@ -445,6 +452,7 @@ pub struct UserProfile {
     pub nickname: Option<String>,
     pub role: Option<String>,
     pub is_favorite: Option<bool>,
+    pub is_admin: Option<bool>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -494,6 +502,13 @@ pub enum WsEvent {
         is_favorite: bool,
     },
     ConversationJoined(Conversation),
+    BannerUpdated {
+        text: String,
+        action_label: String,
+        link: String,
+        icon: String,
+        image_url: Option<String>,
+    },
     Error {
         message: String,
     },
@@ -635,24 +650,9 @@ pub fn parse_emoticons_inline(text: &str, size_class: &str) -> Element {
 }
 
 pub fn get_emoji_url(name: &str) -> String {
-    #[cfg(feature = "desktop")]
-    {
-        format!("emojis://{}", name)
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        format!("/emojis/{}", name)
-    }
+    format!("{}/emojis/{}", crate::services::api::SERVER_BASE_URL, name)
 }
 
 pub fn get_emoji_anim_url(name: &str) -> String {
-    #[cfg(feature = "desktop")]
-    {
-        format!("emojis-anim://{}", name)
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        format!("/emojis_anim/{}", name)
-    }
+    format!("{}/emojis_anim/{}", crate::services::api::SERVER_BASE_URL, name)
 }
-

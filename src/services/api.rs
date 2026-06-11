@@ -33,6 +33,20 @@ static SERVER_BASE_URL_INNER: LazyLock<String> = LazyLock::new(|| {
 
 pub static SERVER_BASE_URL: ServerBaseUrl = ServerBaseUrl;
 
+pub static SPOTIFY_CHECK_INTERVAL: LazyLock<u64> = LazyLock::new(|| {
+    std::env::var("SPOTIFY_CHECK_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3)
+});
+
+pub static WS_HEARTBEAT_INTERVAL: LazyLock<u64> = LazyLock::new(|| {
+    std::env::var("WS_HEARTBEAT_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30)
+});
+
 // ── Structs de request/response espelhadas do servidor ────────────────────
 
 pub use crate::models::UserProfile;
@@ -591,6 +605,120 @@ pub async fn update_banner(token: &str, banner: &crate::models::BannerInfo) -> R
         Ok(())
     } else {
         Err(format!("Erro {}: {}", status, body))
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct BannerAdminInfo {
+    pub id: i32,
+    pub title: String,
+    pub text: String,
+    pub action_label: String,
+    pub link: String,
+    pub icon: String,
+    pub image_url: Option<String>,
+    pub is_active: bool,
+}
+
+pub async fn list_banners_admin(token: &str) -> Result<Vec<BannerAdminInfo>, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/admin/banners", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        serde_json::from_str::<Vec<BannerAdminInfo>>(&body).map_err(|e| e.to_string())
+    } else {
+        Err(format!("Status de erro: {}", resp.status()))
+    }
+}
+
+pub async fn create_banner_admin(token: &str, title: &str, text: &str, action_label: &str, link: &str, icon: &str, image_url: Option<String>, is_active: bool) -> Result<BannerAdminInfo, String> {
+    let client = reqwest::Client::new();
+    let req = serde_json::json!({
+        "title": title,
+        "text": text,
+        "action_label": action_label,
+        "link": link,
+        "icon": icon,
+        "image_url": image_url,
+        "is_active": is_active
+    });
+    let resp = client
+        .post(format!("{}/admin/banners", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&req)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        serde_json::from_str::<BannerAdminInfo>(&body).map_err(|e| e.to_string())
+    } else {
+        Err(format!("Erro ao criar: {}", resp.status()))
+    }
+}
+
+pub async fn update_banner_admin_req(token: &str, id: i32, title: &str, text: &str, action_label: &str, link: &str, icon: &str, image_url: Option<String>, is_active: bool) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let req = serde_json::json!({
+        "title": title,
+        "text": text,
+        "action_label": action_label,
+        "link": link,
+        "icon": icon,
+        "image_url": image_url,
+        "is_active": is_active
+    });
+    let resp = client
+        .put(format!("{}/admin/banners/{}", SERVER_BASE_URL, id))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&req)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("Erro ao atualizar: {}", resp.status()))
+    }
+}
+
+pub async fn toggle_banner_admin_req(token: &str, id: i32) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .put(format!("{}/admin/banners/{}/toggle", SERVER_BASE_URL, id))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("Erro ao alternar: {}", resp.status()))
+    }
+}
+
+pub async fn delete_banner_admin_req(token: &str, id: i32) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .delete(format!("{}/admin/banners/{}", SERVER_BASE_URL, id))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("Erro ao deletar: {}", resp.status()))
     }
 }
 
