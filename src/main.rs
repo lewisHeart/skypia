@@ -1,4 +1,4 @@
-// Force rebuild to trigger build.rs Android monitoring - 2026
+// Force rebuild to trigger build.rs Android monitoring - 2026 - v5
 use crate::components::auth::login::Login;
 use crate::components::chat::chat_window::ChatWindow;
 use crate::components::main::main_window::MainWindow;
@@ -11,6 +11,7 @@ mod models;
 mod services;
 mod sound;
 mod state;
+pub mod emoji_assets;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");

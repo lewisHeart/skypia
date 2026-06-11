@@ -460,11 +460,19 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                     parts.push(rsx! { span { "{prev_text}" } });
                 }
                 let e_url = crate::models::get_emoji_anim_url(&format!("{}.webp", emoji_name));
+                let unicode_char = crate::models::get_emoji_unicode(emoji_name);
                 parts.push(rsx! {
-                    img {
-                        src: "{e_url}",
-                        class: "w-5 h-5 inline-block align-middle mx-0.5",
-                        alt: "{emoji_name}"
+                    span { class: "inline-block align-middle mx-0.5 relative",
+                        img {
+                            src: "{e_url}",
+                            class: "w-5 h-5 inline-block align-middle",
+                            alt: "{emoji_name}",
+                        }
+                        span {
+                            style: "display: none;",
+                            class: "text-base inline-block align-middle leading-none",
+                            "{unicode_char}"
+                        }
                     }
                 });
                 current_text = current_text[end..].to_string();

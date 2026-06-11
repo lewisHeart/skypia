@@ -47,6 +47,20 @@ fn apply_corrections() {
                 let _ = fs::copy(source, &target_main_activity);
             }
 
+            // 1.5. Corrige AndroidManifest.xml para injetar android:usesCleartextTraffic="true"
+            let target_manifest = target_dir.join("src/main/AndroidManifest.xml");
+            if target_manifest.exists() {
+                if let Ok(content) = fs::read_to_string(&target_manifest) {
+                    if !content.contains("android:usesCleartextTraffic=\"true\"") {
+                        let new_content = content.replace(
+                            "<application ",
+                            "<application android:usesCleartextTraffic=\"true\" "
+                        );
+                        let _ = fs::write(&target_manifest, new_content);
+                    }
+                }
+            }
+
             // 2. Corrige Logger.kt adicionando o import do BuildConfig ausente
             let target_logger = target_dir.join("src/main/kotlin/dev/dioxus/main/Logger.kt");
             if target_logger.exists() {
@@ -91,18 +105,27 @@ fn apply_corrections() {
 }
 
 fn main() {
-    // Registra dependencia para re-executar caso o MainActivity mude
+    // Registra dependencia para re-executar caso o MainActivity ou o .env mudem
     println!("cargo:rerun-if-changed=src/MainActivity.kt");
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=.env");
+
+    // Se o .env mudou, força a recompilação de api.rs para atualizar o SERVER_BASE_URL no APK
+    let api_rs = Path::new("src/services/api.rs");
+    if api_rs.exists() {
+        if let Ok(content) = fs::read_to_string(api_rs) {
+            let _ = fs::write(api_rs, content);
+        }
+    }
 
     // Aplica imediatamente
     apply_corrections();
 
     // Spawna uma thread em background para continuar monitorando e aplicando as correções
-    // enquanto o Dioxus CLI gera o esqueleto gradle e roda o Gradle Build
+    // enquanto o Dioxus CLI gera o esqueleto gradle e roda o Gradle Build (aumentado para 10 minutos)
     thread::spawn(move || {
         let start = Instant::now();
-        while start.elapsed() < Duration::from_secs(45) {
+        while start.elapsed() < Duration::from_secs(600) {
             apply_corrections();
             thread::sleep(Duration::from_millis(200));
         }

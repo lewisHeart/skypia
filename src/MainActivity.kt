@@ -42,7 +42,7 @@ class MainActivity : WryActivity() {
             }
         }
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(spotifyReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
             registerReceiver(spotifyReceiver, filter)
