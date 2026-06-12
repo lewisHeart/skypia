@@ -7,6 +7,9 @@ mod auth;
 mod chat;
 mod contact;
 mod game;
+mod settings;
+mod ui;
+pub mod version;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Toast {
@@ -201,7 +204,7 @@ impl AppState {
         }
     }
 
-    // Carrega dados dinâmicos do banco assincronamente
+    // Carrega dados dinâmicos do banco assincronamente em paralelo
     pub fn load_initial_data(&mut self) {
         let mut contacts_sig = self.contacts;
         let mut chat_messages_sig = self.chat_messages;
@@ -246,42 +249,47 @@ impl AppState {
         let mut self_clone = *self;
 
         spawn(async move {
-            // Carrega categorias locais
-            if let Ok(cats) = crate::services::db::DatabaseService::get_categories().await {
+            // 1. Carrega todas as informações básicas locais concorrentemente
+            let (
+                cats_res,
+                contacts_res,
+                conversations_res,
+                settings_res,
+                detached_res,
+                name_res,
+                music_res,
+                avatar_url_res,
+                songs_res,
+                banner_res,
+            ) = tokio::join!(
+                crate::services::db::DatabaseService::get_categories(),
+                crate::services::db::DatabaseService::load_contacts(),
+                crate::services::db::DatabaseService::load_conversations(),
+                crate::services::db::DatabaseService::load_settings(),
+                crate::services::db::DatabaseService::get_detached_chats(),
+                crate::services::db::DatabaseService::load_user_name(),
+                crate::services::db::DatabaseService::load_user_music(),
+                crate::services::db::DatabaseService::load_user_avatar_url(),
+                crate::services::db::DatabaseService::get_recommended_songs(),
+                crate::services::db::DatabaseService::load_banner(),
+            );
+
+            // 2. Desempacota e aplica no estado em memória
+            if let Ok(cats) = cats_res {
                 *categories_sig.write() = cats;
+            } else if let Err(e) = cats_res {
+                eprintln!("❌ Erro ao carregar categorias locais do SQLite: {}", e);
             }
 
-            // 0. Carrega contatos e conversas locais do SQLite imediatamente (Offline-first!)
-            if let Ok(local_contacts) = crate::services::db::DatabaseService::load_contacts().await {
+            if let Ok(local_contacts) = contacts_res {
                 if !local_contacts.is_empty() {
                     *contacts_sig.write() = local_contacts;
                 }
-            }
-            if let Ok(local_conversations) = crate::services::db::DatabaseService::load_conversations().await {
-                let mut all_messages = std::collections::HashMap::new();
-                let mut groups = Vec::new();
-                for conv in local_conversations {
-                    if conv.is_group {
-                        groups.push(conv.clone());
-                    }
-                    if let Ok(local_messages) = crate::services::db::DatabaseService::load_messages(conv.id.clone()).await {
-                        let mut normalized_messages = Vec::new();
-                        for mut msg in local_messages {
-                            if let Some(ref s_id) = self_user_id {
-                                if &msg.sender_id == s_id {
-                                    msg.sender_id = "0".to_string();
-                                }
-                            }
-                            normalized_messages.push(msg);
-                        }
-                        all_messages.insert(conv.id.clone(), normalized_messages);
-                    }
-                }
-                *chat_messages_sig.write() = all_messages;
-                *group_chats_sig.write() = groups;
+            } else if let Err(e) = contacts_res {
+                eprintln!("❌ Erro ao carregar contatos locais do SQLite: {}", e);
             }
 
-            if let Ok(db_settings) = crate::services::db::DatabaseService::load_settings().await {
+            if let Ok(db_settings) = settings_res {
                 *scale_sig.write() = db_settings.interface_scale;
                 *custom_bar_sig.write() = db_settings.use_custom_titlebar;
                 *theme_sig.write() = crate::services::db::str_to_theme(&db_settings.theme);
@@ -309,13 +317,90 @@ impl AppState {
                 *offline_collapsed_sig.write() = db_settings.offline_collapsed;
                 *groups_collapsed_sig.write() = db_settings.groups_collapsed;
                 *collapsed_cats_sig.write() = db_settings.collapsed_categories;
+            } else if let Err(e) = settings_res {
+                eprintln!("❌ Erro ao carregar configurações locais do SQLite: {}", e);
             }
 
-            // Sincronização de rede se autenticado
+            if let Ok(detached) = detached_res {
+                *detached_sig.write() = detached;
+            } else if let Err(e) = detached_res {
+                eprintln!("❌ Erro ao carregar chats destacados do SQLite: {}", e);
+            }
+
+            if let Ok(name) = name_res {
+                *name_sig.write() = name;
+            } else if let Err(e) = name_res {
+                eprintln!("❌ Erro ao carregar nome de usuário do SQLite: {}", e);
+            }
+
+            if let Ok(music) = music_res {
+                *music_sig.write() = music;
+            } else if let Err(e) = music_res {
+                eprintln!("❌ Erro ao carregar recado musical do SQLite: {}", e);
+            }
+
+            if let Ok(avatar_url) = avatar_url_res {
+                *avatar_url_sig.write() = avatar_url;
+            } else if let Err(e) = avatar_url_res {
+                eprintln!("❌ Erro ao carregar URL do avatar do SQLite: {}", e);
+            }
+
+            if let Ok(songs) = songs_res {
+                *songs_sig.write() = songs;
+            } else if let Err(e) = songs_res {
+                eprintln!("❌ Erro ao carregar recomendações de música do SQLite: {}", e);
+            }
+
+            if let Ok(Some(local_banner)) = banner_res {
+                *banner_sig.write() = Some(local_banner);
+            } else {
+                if let Ok(banner) = crate::services::api::get_banner().await {
+                    *banner_sig.write() = Some(banner);
+                } else {
+                    *banner_sig.write() = None;
+                }
+            }
+
+            // 3. Paraleliza o carregamento de mensagens de todas as conversas locais
+            if let Ok(local_conversations) = conversations_res {
+                let mut all_messages = std::collections::HashMap::new();
+                let mut groups = Vec::new();
+                
+                let mut msg_futures = Vec::new();
+                for conv in &local_conversations {
+                    if conv.is_group {
+                        groups.push(conv.clone());
+                    }
+                    let conv_id = conv.id.clone();
+                    msg_futures.push(async move {
+                        let msgs = crate::services::db::DatabaseService::load_messages(conv_id.clone())
+                            .await
+                            .unwrap_or_default();
+                        (conv_id, msgs)
+                    });
+                }
+                
+                let msgs_results = futures_util::future::join_all(msg_futures).await;
+                for (conv_id, mut local_messages) in msgs_results {
+                    for msg in &mut local_messages {
+                        if let Some(ref s_id) = self_user_id {
+                            if &msg.sender_id == s_id {
+                                msg.sender_id = "0".to_string();
+                            }
+                        }
+                    }
+                    all_messages.insert(conv_id, local_messages);
+                }
+                
+                *chat_messages_sig.write() = all_messages;
+                *group_chats_sig.write() = groups;
+            } else if let Err(e) = conversations_res {
+                eprintln!("❌ Erro ao carregar conversas locais do SQLite: {}", e);
+            }
+
+            // 4. Sincronização de rede se autenticado
             if let Some(token) = token_opt {
-                // 1. Busca contatos do servidor e salva em memória
                 if let Ok(srv_contacts) = crate::services::api::get_contacts(&token).await {
-                    // Carrega favoritos e categorias locais do SQLite
                     let (local_favorites, local_categories_map) = if let Ok(local_list) =
                         crate::services::db::DatabaseService::load_contacts().await
                     {
@@ -362,14 +447,16 @@ impl AppState {
                         });
                     }
                     *contacts_sig.write() = contacts_mapped.clone();
-                    for contact in contacts_mapped {
-                        spawn(async move {
-                            let _ = crate::services::db::DatabaseService::save_contact(&contact).await;
-                        });
-                    }
+                    let contacts_mapped_clone = contacts_mapped.clone();
+                    spawn(async move {
+                        if let Err(e) = crate::services::db::DatabaseService::save_contacts_bulk(contacts_mapped_clone).await {
+                            eprintln!("❌ Erro ao salvar contatos sincronizados no SQLite: {}", e);
+                        } else {
+                            crate::state::version::increment_state_version();
+                        }
+                    });
                 }
 
-                // 1.1 Busca solicitações pendentes do servidor
                 if let Ok(pending_srv) = crate::services::api::get_pending_requests(&token).await {
                     let contacts_mapped: Vec<Contact> = pending_srv
                         .into_iter()
@@ -399,10 +486,11 @@ impl AppState {
                     *pending_sig.write() = contacts_mapped;
                 }
 
-                // 2. Busca histórico de mensagens das conversas do servidor
                 if let Ok(srv_conversations) = crate::services::api::get_conversations(&token).await
                 {
-                    let _ = crate::services::db::DatabaseService::save_conversations(srv_conversations.clone()).await;
+                    if let Err(e) = crate::services::db::DatabaseService::save_conversations(srv_conversations.clone()).await {
+                        eprintln!("❌ Erro ao salvar conversas sincronizadas no SQLite: {}", e);
+                    }
                     let mut all_messages = HashMap::new();
                     let mut groups = Vec::new();
 
@@ -413,9 +501,15 @@ impl AppState {
                                 crate::services::api::get_conversation_messages(&token, &conv.id)
                                     .await
                             {
-                                for msg in &srv_messages {
-                                    let _ = crate::services::db::DatabaseService::save_message(conv.id.clone(), msg.clone()).await;
-                                }
+                                let srv_messages_clone = srv_messages.clone();
+                                let conv_id = conv.id.clone();
+                                spawn(async move {
+                                    if let Err(e) = crate::services::db::DatabaseService::save_messages_bulk(conv_id, srv_messages_clone).await {
+                                        eprintln!("❌ Erro ao salvar mensagens de grupo sincronizadas no SQLite: {}", e);
+                                    } else {
+                                        crate::state::version::increment_state_version();
+                                    }
+                                });
                                 let mut normalized_messages = Vec::new();
                                 for mut msg in srv_messages {
                                     if let Some(ref s_id) = self_user_id {
@@ -428,7 +522,6 @@ impl AppState {
                                 all_messages.insert(conv.id.clone(), normalized_messages);
                             }
                         } else {
-                            // Encontra o contato parceiro na conversa
                             let partner_opt = conv.members.iter().find(|member| {
                                 if let Some(ref s_id) = self_user_id {
                                     &member.id != s_id
@@ -443,18 +536,22 @@ impl AppState {
                                     crate::services::api::get_conversation_messages(&token, &conv.id)
                                         .await
                                 {
-                                    for msg in &srv_messages {
-                                        let _ = crate::services::db::DatabaseService::save_message(conv.id.clone(), msg.clone()).await;
-                                    }
+                                    let srv_messages_clone = srv_messages.clone();
+                                    let conv_id = conv.id.clone();
+                                    spawn(async move {
+                                        if let Err(e) = crate::services::db::DatabaseService::save_messages_bulk(conv_id, srv_messages_clone).await {
+                                            eprintln!("❌ Erro ao salvar mensagens 1:1 sincronizadas no SQLite: {}", e);
+                                        } else {
+                                            crate::state::version::increment_state_version();
+                                        }
+                                    });
                                     let mut normalized_messages = Vec::new();
                                     for mut msg in srv_messages {
-                                        // Se a mensagem foi enviada pelo próprio usuário local, muda o sender_id para "0"
                                         if let Some(ref s_id) = self_user_id {
                                             if &msg.sender_id == s_id {
                                                 msg.sender_id = "0".to_string();
                                             }
                                         }
-                                        // Seta a conversation_id no front para ser o partner_id
                                         msg.conversation_id = partner_id.clone();
                                         normalized_messages.push(msg);
                                     }
@@ -467,39 +564,12 @@ impl AppState {
                     *group_chats_sig.write() = groups;
                 }
             }
-
-            if let Ok(detached) = crate::services::db::DatabaseService::get_detached_chats().await {
-                *detached_sig.write() = detached;
-            }
-
-            if let Ok(name) = crate::services::db::DatabaseService::load_user_name().await {
-                *name_sig.write() = name;
-            }
-
-            if let Ok(music) = crate::services::db::DatabaseService::load_user_music().await {
-                *music_sig.write() = music;
-            }
-
-            if let Ok(avatar_url) = crate::services::db::DatabaseService::load_user_avatar_url().await {
-                *avatar_url_sig.write() = avatar_url;
-            }
-
-            if let Ok(songs) = crate::services::db::DatabaseService::get_recommended_songs().await {
-                *songs_sig.write() = songs;
-            }
-
-            if let Ok(Some(local_banner)) = crate::services::db::DatabaseService::load_banner().await {
-                *banner_sig.write() = Some(local_banner);
-            } else if let Ok(banner) = crate::services::api::get_banner().await {
-                *banner_sig.write() = Some(banner);
-            } else {
-                *banner_sig.write() = None;
-            }
         });
     }
 
     pub fn set_user_name(&mut self, name: String) {
         *self.user_name.write() = name.clone();
+        crate::state::version::increment_state_version();
 
         // Atualiza via WebSocket em tempo real se conectado
         if let Some(tx) = &*self.ws_tx.read() {
@@ -514,7 +584,9 @@ impl AppState {
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_user_name(name.clone()).await;
+            if let Err(e) = crate::services::db::DatabaseService::save_user_name(name.clone()).await {
+                eprintln!("❌ Erro ao salvar nome de usuário no SQLite: {}", e);
+            }
             if !has_ws {
                 if let Some(token) = token_opt {
                     let _ = crate::services::api::update_profile(
@@ -534,6 +606,7 @@ impl AppState {
 
     pub fn set_user_status(&mut self, status: UserStatus) {
         *self.user_status.write() = status;
+        crate::state::version::increment_state_version();
         if status == UserStatus::Offline {
             self.logout();
         }
@@ -559,7 +632,9 @@ impl AppState {
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_user_status(status).await;
+            if let Err(e) = crate::services::db::DatabaseService::save_user_status(status).await {
+                eprintln!("❌ Erro ao salvar status de usuário no SQLite: {}", e);
+            }
             if !has_ws {
                 if let Some(token) = token_opt {
                     let _ = crate::services::api::update_profile(
@@ -579,13 +654,17 @@ impl AppState {
 
     pub fn set_user_avatar(&mut self, avatar_id: usize) {
         *self.user_avatar_id.write() = avatar_id;
+        crate::state::version::increment_state_version();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_user_avatar(avatar_id).await;
+            if let Err(e) = crate::services::db::DatabaseService::save_user_avatar(avatar_id).await {
+                eprintln!("❌ Erro ao salvar avatar de usuário no SQLite: {}", e);
+            }
         });
     }
 
     pub fn set_user_personal_message(&mut self, msg: String) {
         *self.user_personal_message.write() = msg.clone();
+        crate::state::version::increment_state_version();
 
         // Atualiza via WebSocket em tempo real se conectado
         if let Some(tx) = &*self.ws_tx.read() {
@@ -600,7 +679,9 @@ impl AppState {
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_personal_message(msg.clone()).await;
+            if let Err(e) = crate::services::db::DatabaseService::save_personal_message(msg.clone()).await {
+                eprintln!("❌ Erro ao salvar recado pessoal no SQLite: {}", e);
+            }
             if !has_ws {
                 if let Some(token) = token_opt {
                     let _ = crate::services::api::update_profile(
@@ -620,6 +701,7 @@ impl AppState {
 
     pub fn set_user_music(&mut self, music: Option<String>) {
         *self.user_music.write() = music.clone();
+        crate::state::version::increment_state_version();
 
         // Atualiza via WebSocket em tempo real se conectado
         if let Some(tx) = &*self.ws_tx.read() {
@@ -634,7 +716,9 @@ impl AppState {
         let token_opt = self.auth_token();
         let has_ws = self.ws_tx.read().is_some();
         spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_user_music(music.clone()).await;
+            if let Err(e) = crate::services::db::DatabaseService::save_user_music(music.clone()).await {
+                eprintln!("❌ Erro ao salvar recado de música no SQLite: {}", e);
+            }
             if !has_ws {
                 if let Some(token) = token_opt {
                     let _ = crate::services::api::update_profile(
@@ -652,187 +736,7 @@ impl AppState {
         });
     }
 
-    pub fn add_toast(&mut self, title: String, message: String, avatar_url: Option<String>) {
-        let id = self.toast_counter();
-        *self.toast_counter.write() += 1;
 
-        let toast = Toast {
-            id,
-            title,
-            message,
-            avatar_url,
-        };
-
-        self.toasts.write().push(toast);
-    }
-
-    pub fn remove_toast(&mut self, id: usize) {
-        self.toasts.write().retain(|t| t.id != id);
-    }
-
-    pub fn save_current_settings(&self) {
-        let settings = crate::models::UserSettings {
-            interface_scale: self.interface_scale(),
-            use_custom_titlebar: self.use_custom_titlebar(),
-            theme: crate::services::db::theme_to_str(&self.theme()).to_string(),
-            chat_mode: self.chat_mode(),
-            contact_density: self.contact_density(),
-            font_color: self.chat_font_color(),
-            font_family: self.chat_font_family(),
-            spotify_rpc_enabled: self.spotify_rpc_enabled(),
-            show_typing_notification: self.show_typing_notification(),
-            enable_sounds: self.enable_sounds(),
-            enable_toasts: self.enable_toasts(),
-            download_folder: self.download_folder(),
-            auto_accept_files: self.auto_accept_files(),
-            remember_password: self.remember_password(),
-            save_chat_history: self.save_chat_history(),
-            saved_email: self.saved_email(),
-            saved_password: self.saved_password(),
-            auto_login: self.auto_login(),
-            window_x: (self.window_x)(),
-            window_y: (self.window_y)(),
-            window_width: (self.window_width)(),
-            window_height: (self.window_height)(),
-            fav_collapsed: (self.fav_collapsed)(),
-            online_collapsed: (self.online_collapsed)(),
-            offline_collapsed: (self.offline_collapsed)(),
-            groups_collapsed: (self.groups_collapsed)(),
-            collapsed_categories: self.collapsed_categories.read().clone(),
-        };
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::save_settings(&settings).await;
-        });
-    }
-
-    pub fn set_settings(&mut self, scale: f64, custom_bar: bool, theme: AppTheme) {
-        *self.interface_scale.write() = scale;
-        *self.use_custom_titlebar.write() = custom_bar;
-        *self.theme.write() = theme;
-        self.save_current_settings();
-    }
-
-    pub fn set_chat_mode(&mut self, mode: String) {
-        *self.chat_mode.write() = mode;
-        self.save_current_settings();
-    }
-
-    pub fn chat_font_color(&self) -> String {
-        self.chat_font_color.read().clone()
-    }
-
-    pub fn chat_font_family(&self) -> String {
-        self.chat_font_family.read().clone()
-    }
-
-    pub fn set_chat_font_color(&mut self, color: String) {
-        *self.chat_font_color.write() = color;
-        self.save_current_settings();
-    }
-
-    pub fn set_chat_font_family(&mut self, font_family: String) {
-        *self.chat_font_family.write() = font_family;
-        self.save_current_settings();
-    }
-
-    pub fn spotify_rpc_enabled(&self) -> bool {
-        (self.spotify_rpc_enabled)()
-    }
-
-    pub fn set_spotify_rpc_enabled(&mut self, enabled: bool) {
-        *self.spotify_rpc_enabled.write() = enabled;
-        self.save_current_settings();
-    }
-
-    pub fn show_typing_notification(&self) -> bool {
-        (self.show_typing_notification)()
-    }
-
-    pub fn set_show_typing_notification(&mut self, show: bool) {
-        *self.show_typing_notification.write() = show;
-        self.save_current_settings();
-    }
-
-    pub fn enable_sounds(&self) -> bool {
-        (self.enable_sounds)()
-    }
-
-    pub fn set_enable_sounds(&mut self, enable: bool) {
-        *self.enable_sounds.write() = enable;
-        self.save_current_settings();
-    }
-
-    pub fn enable_toasts(&self) -> bool {
-        (self.enable_toasts)()
-    }
-
-    pub fn set_enable_toasts(&mut self, enable: bool) {
-        *self.enable_toasts.write() = enable;
-        self.save_current_settings();
-    }
-
-    pub fn download_folder(&self) -> String {
-        self.download_folder.read().clone()
-    }
-
-    pub fn set_download_folder(&mut self, folder: String) {
-        *self.download_folder.write() = folder;
-        self.save_current_settings();
-    }
-
-    pub fn auto_accept_files(&self) -> bool {
-        (self.auto_accept_files)()
-    }
-
-    pub fn set_auto_accept_files(&mut self, auto: bool) {
-        *self.auto_accept_files.write() = auto;
-        self.save_current_settings();
-    }
-
-    pub fn remember_password(&self) -> bool {
-        (self.remember_password)()
-    }
-
-    pub fn set_remember_password(&mut self, remember: bool) {
-        *self.remember_password.write() = remember;
-        self.save_current_settings();
-    }
-
-    pub fn save_chat_history(&self) -> bool {
-        (self.save_chat_history)()
-    }
-
-    pub fn set_save_chat_history(&mut self, save: bool) {
-        *self.save_chat_history.write() = save;
-        self.save_current_settings();
-    }
-
-    pub fn saved_email(&self) -> String {
-        self.saved_email.read().clone()
-    }
-
-    pub fn set_saved_email(&mut self, email: String) {
-        *self.saved_email.write() = email;
-        self.save_current_settings();
-    }
-
-    pub fn saved_password(&self) -> String {
-        self.saved_password.read().clone()
-    }
-
-    pub fn set_saved_password(&mut self, password: String) {
-        *self.saved_password.write() = password;
-        self.save_current_settings();
-    }
-
-    pub fn auto_login(&self) -> bool {
-        (self.auto_login)()
-    }
-
-    pub fn set_auto_login(&mut self, auto: bool) {
-        *self.auto_login.write() = auto;
-        self.save_current_settings();
-    }
 
     // Getters convenientes
     pub fn logged_in(&self) -> bool {
@@ -939,44 +843,6 @@ impl AppState {
 
     pub fn game_states(&self) -> HashMap<String, TicTacToe> {
         self.game_states.read().clone()
-    }
-
-    pub fn show_games_modal(&self) -> bool {
-        (self.show_games_modal)()
-    }
-
-    pub fn show_settings_modal(&self) -> bool {
-        (self.show_settings_modal)()
-    }
-
-    pub fn show_add_contact_modal(&self) -> bool {
-        (self.show_add_contact_modal)()
-    }
-
-    pub fn show_music_player_modal(&self) -> bool {
-        (self.show_music_player_modal)()
-    }
-
-    pub fn show_profile_modal(&self) -> bool {
-        (self.show_profile_modal)()
-    }
-
-    pub fn show_about(&self) -> bool {
-        (self.show_about)()
-    }
-
-    pub fn profile_modal_contact_id(&self) -> Option<String> {
-        self.profile_modal_contact_id.read().clone()
-    }
-
-    pub fn open_my_profile(&mut self) {
-        *self.profile_modal_contact_id.write() = None;
-        self.show_profile_modal.set(true);
-    }
-
-    pub fn open_contact_profile(&mut self, contact_id: String) {
-        *self.profile_modal_contact_id.write() = Some(contact_id);
-        self.show_profile_modal.set(true);
     }
 
     pub fn recommended_songs(&self) -> Vec<String> {
@@ -1128,43 +994,9 @@ impl AppState {
         self.unread_counts.write().remove(contact_id);
     }
 
-    pub fn add_category(&mut self, name: String) {
-        let mut cats = self.categories.write();
-        if !cats.contains(&name) {
-            cats.push(name.clone());
-            cats.sort();
-            spawn(async move {
-                let _ = crate::services::db::DatabaseService::add_category(name).await;
-            });
-        }
-    }
-
-    pub fn delete_category(&mut self, name: String) {
-        self.categories.write().retain(|c| c != &name);
-        for contact in self.contacts.write().iter_mut() {
-            if contact.category_name.as_ref() == Some(&name) {
-                contact.category_name = None;
-            }
-        }
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::delete_category(name).await;
-        });
-    }
-
-    pub fn update_contact_category(&mut self, contact_id: String, category: Option<String>) {
-        for contact in self.contacts.write().iter_mut() {
-            if contact.id == contact_id {
-                contact.category_name = category.clone();
-                break;
-            }
-        }
-        spawn(async move {
-            let _ = crate::services::db::DatabaseService::update_contact_category(contact_id, category).await;
-        });
-    }
-
     pub fn update_banner_admin(&mut self, banner: crate::models::BannerInfo) {
         *self.banner_info.write() = Some(banner.clone());
+        crate::state::version::increment_state_version();
         let mut state_clone = *self;
         let token_opt = self.auth_token();
         spawn(async move {
@@ -1186,116 +1018,7 @@ impl AppState {
         });
     }
 
-    pub fn categories(&self) -> Vec<String> {
-        self.categories.read().clone()
-    }
-
-    pub fn show_friend_requests_modal(&self) -> bool {
-        (self.show_friend_requests_modal)()
-    }
-
-    pub fn show_group_profile_modal(&self) -> bool {
-        (self.show_group_profile_modal)()
-    }
-
-    pub fn group_profile_id(&self) -> Option<String> {
-        self.group_profile_id.read().clone()
-    }
-
     pub fn group_chats(&self) -> Vec<crate::models::Conversation> {
         self.group_chats.read().clone()
-    }
-
-    pub fn window_x(&self) -> i32 {
-        (self.window_x)()
-    }
-
-    pub fn window_y(&self) -> i32 {
-        (self.window_y)()
-    }
-
-    pub fn window_width(&self) -> f64 {
-        (self.window_width)()
-    }
-
-    pub fn window_height(&self) -> f64 {
-        (self.window_height)()
-    }
-
-    pub fn set_window_geom(&mut self, x: i32, y: i32, w: f64, h: f64) {
-        let changed = (self.window_x)() != x 
-            || (self.window_y)() != y 
-            || (self.window_width)() != w 
-            || (self.window_height)() != h;
-        if changed {
-            *self.window_x.write() = x;
-            *self.window_y.write() = y;
-            *self.window_width.write() = w;
-            *self.window_height.write() = h;
-            self.save_current_settings();
-        }
-    }
-
-    pub fn fav_collapsed(&self) -> bool {
-        (self.fav_collapsed)()
-    }
-
-    pub fn set_fav_collapsed(&mut self, val: bool) {
-        *self.fav_collapsed.write() = val;
-        self.save_current_settings();
-    }
-
-    pub fn online_collapsed(&self) -> bool {
-        (self.online_collapsed)()
-    }
-
-    pub fn set_online_collapsed(&mut self, val: bool) {
-        *self.online_collapsed.write() = val;
-        self.save_current_settings();
-    }
-
-    pub fn offline_collapsed(&self) -> bool {
-        (self.offline_collapsed)()
-    }
-
-    pub fn set_offline_collapsed(&mut self, val: bool) {
-        *self.offline_collapsed.write() = val;
-        self.save_current_settings();
-    }
-
-    pub fn groups_collapsed(&self) -> bool {
-        (self.groups_collapsed)()
-    }
-
-    pub fn set_groups_collapsed(&mut self, val: bool) {
-        *self.groups_collapsed.write() = val;
-        self.save_current_settings();
-    }
-
-    pub fn collapsed_categories(&self) -> String {
-        self.collapsed_categories.read().clone()
-    }
-
-    pub fn is_category_collapsed(&self, name: &str) -> bool {
-        let cats_str = self.collapsed_categories.read().clone();
-        if let Ok(cats) = serde_json::from_str::<Vec<String>>(&cats_str) {
-            cats.contains(&name.to_string())
-        } else {
-            false
-        }
-    }
-
-    pub fn toggle_category_collapsed(&mut self, name: &str) {
-        let cats_str = self.collapsed_categories.read().clone();
-        let mut cats = serde_json::from_str::<Vec<String>>(&cats_str).unwrap_or_default();
-        if cats.contains(&name.to_string()) {
-            cats.retain(|c| c != name);
-        } else {
-            cats.push(name.to_string());
-        }
-        if let Ok(serialized) = serde_json::to_string(&cats) {
-            *self.collapsed_categories.write() = serialized;
-            self.save_current_settings();
-        }
     }
 }

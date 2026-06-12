@@ -17,6 +17,7 @@ impl AppState {
         }
 
         if let Some((cid, email, name, is_fav)) = contact_info {
+            crate::state::version::increment_state_version();
             if let Some(tx) = &*self.ws_tx.read() {
                 let _ = tx.send(crate::models::ClientAction::SetFavorite {
                     contact_id: cid.clone(),
@@ -24,13 +25,15 @@ impl AppState {
                 });
             }
             spawn(async move {
-                let _ = crate::services::db::DatabaseService::save_contact_favorite(
+                if let Err(e) = crate::services::db::DatabaseService::save_contact_favorite(
                     cid,
                     email,
                     name,
                     is_fav,
                 )
-                .await;
+                .await {
+                    eprintln!("❌ Erro ao salvar contato favorito no SQLite: {}", e);
+                }
             });
         }
     }
@@ -117,6 +120,7 @@ impl AppState {
                         list_w.push(c.clone());
                     }
                 }
+                crate::state::version::increment_state_version();
                 state_clone.add_toast(
                     "Contato Adicionado".to_string(),
                     format!("{} foi adicionado ou atualizado.", c.display_name),
@@ -227,6 +231,14 @@ impl AppState {
     }
 
     pub fn rename_contact(&mut self, contact_id: String, nickname: Option<String>) {
+        for contact in self.contacts.write().iter_mut() {
+            if contact.id == contact_id {
+                contact.nickname = nickname.clone();
+                break;
+            }
+        }
+        crate::state::version::increment_state_version();
+
         // Tenta via WebSocket primeiro
         if let Some(tx) = &*self.ws_tx.read() {
             let _ = tx.send(crate::models::ClientAction::SetNickname {
@@ -577,5 +589,53 @@ impl AppState {
                 }
             }
         });
+    }
+
+    pub fn add_category(&mut self, name: String) {
+        let mut cats = self.categories.write();
+        if !cats.contains(&name) {
+            cats.push(name.clone());
+            cats.sort();
+            crate::state::version::increment_state_version();
+            spawn(async move {
+                if let Err(e) = crate::services::db::DatabaseService::add_category(name).await {
+                    eprintln!("❌ Erro ao salvar categoria no SQLite: {}", e);
+                }
+            });
+        }
+    }
+
+    pub fn delete_category(&mut self, name: String) {
+        self.categories.write().retain(|c| c != &name);
+        for contact in self.contacts.write().iter_mut() {
+            if contact.category_name.as_ref() == Some(&name) {
+                contact.category_name = None;
+            }
+        }
+        crate::state::version::increment_state_version();
+        spawn(async move {
+            if let Err(e) = crate::services::db::DatabaseService::delete_category(name).await {
+                eprintln!("❌ Erro ao excluir categoria do SQLite: {}", e);
+            }
+        });
+    }
+
+    pub fn update_contact_category(&mut self, contact_id: String, category: Option<String>) {
+        for contact in self.contacts.write().iter_mut() {
+            if contact.id == contact_id {
+                contact.category_name = category.clone();
+                break;
+            }
+        }
+        crate::state::version::increment_state_version();
+        spawn(async move {
+            if let Err(e) = crate::services::db::DatabaseService::update_contact_category(contact_id, category).await {
+                eprintln!("❌ Erro ao atualizar categoria do contato no SQLite: {}", e);
+            }
+        });
+    }
+
+    pub fn categories(&self) -> Vec<String> {
+        self.categories.read().clone()
     }
 }

@@ -3,9 +3,12 @@ use crate::state::AppState;
 use dioxus::prelude::*;
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message as TungsteniteMsg;
+
+static CONNECTION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub fn connect_ws(mut state: AppState, token: String) {
     let base = crate::services::api::SERVER_BASE_URL
@@ -13,15 +16,17 @@ pub fn connect_ws(mut state: AppState, token: String) {
         .replace("https://", "wss://");
     let ws_url = format!("{}/ws?token={}", base, token);
 
+    let my_conn_id = CONNECTION_COUNTER.fetch_add(1, Ordering::SeqCst) + 1;
+
     // Spawna o loop de conexão em background no scheduler do Dioxus (evita erros de Send)
     dioxus::prelude::spawn(async move {
         loop {
-            // Se o token foi limpo (logout), interrompe o loop
-            if state.auth_token().is_none() {
+            // Se o token foi limpo (logout), ou se uma nova conexão foi iniciada, interrompe o loop
+            if state.auth_token().is_none() || CONNECTION_COUNTER.load(Ordering::SeqCst) != my_conn_id {
                 break;
             }
 
-            println!("Conectando ao WebSocket em: {}/ws", base);
+            println!("Conectando ao WebSocket em: {}/ws (ID Conexão: {})", base, my_conn_id);
             match connect_async(&ws_url).await {
                 Ok((ws_stream, _)) => {
                     println!("WebSocket conectado com sucesso!");
@@ -75,16 +80,22 @@ pub fn connect_ws(mut state: AppState, token: String) {
 
                     // Task de Escrita: lê do canal rx e envia para o WebSocket (com heartbeat a cada 30 segundos)
                     let close_tx_write = close_tx.clone();
+                    let state_write = state;
                     dioxus::prelude::spawn(async move {
                         let mut interval = tokio::time::interval(Duration::from_secs(30));
-                        // Descarta o primeiro tick imediato para evitar envio instantâneo
                         interval.tick().await;
 
                         loop {
+                            if state_write.auth_token().is_none() || CONNECTION_COUNTER.load(Ordering::SeqCst) != my_conn_id {
+                                break;
+                            }
                             tokio::select! {
                                 action_opt = rx.recv() => {
                                     match action_opt {
                                         Some(action) => {
+                                            if state_write.auth_token().is_none() || CONNECTION_COUNTER.load(Ordering::SeqCst) != my_conn_id {
+                                                break;
+                                            }
                                             if let Ok(json_str) = serde_json::to_string(&action) {
                                                 if ws_sender
                                                     .send(TungsteniteMsg::Text(json_str.into()))
@@ -99,7 +110,9 @@ pub fn connect_ws(mut state: AppState, token: String) {
                                     }
                                 }
                                 _ = interval.tick() => {
-                                    // Envia Ping de controle do protocolo WebSocket para manter a conexão ativa
+                                    if state_write.auth_token().is_none() || CONNECTION_COUNTER.load(Ordering::SeqCst) != my_conn_id {
+                                        break;
+                                    }
                                     if ws_sender
                                         .send(TungsteniteMsg::Ping(vec![].into()))
                                         .await
@@ -118,7 +131,7 @@ pub fn connect_ws(mut state: AppState, token: String) {
                     let close_tx_read = close_tx.clone();
                     dioxus::prelude::spawn(async move {
                         while let Some(msg_res) = ws_receiver.next().await {
-                            if state_read.auth_token().is_none() {
+                            if state_read.auth_token().is_none() || CONNECTION_COUNTER.load(Ordering::SeqCst) != my_conn_id {
                                 break;
                             }
                             match msg_res {
@@ -162,12 +175,17 @@ pub fn connect_ws(mut state: AppState, token: String) {
                 }
             }
 
-            // Espera 3 segundos antes de tentar reconectar
+            // Espera 3 segundos antes de tentar reconectar, mas aborta se uma conexão mais nova iniciou
             tokio::time::sleep(Duration::from_secs(3)).await;
+            if CONNECTION_COUNTER.load(Ordering::SeqCst) != my_conn_id {
+                break;
+            }
         }
 
         // Garante limpeza ao final do loop
-        *state.ws_tx.write() = None;
+        if CONNECTION_COUNTER.load(Ordering::SeqCst) == my_conn_id {
+            *state.ws_tx.write() = None;
+        }
     });
 }
 
@@ -203,6 +221,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             let msg_to_save_clone = msg_to_save.clone();
             spawn(async move {
                 let _ = crate::services::db::DatabaseService::save_message(db_conv_id_clone, msg_to_save_clone).await;
+                crate::state::version::increment_state_version();
             });
 
             // Normaliza o sender_id para "0" se for o próprio usuário local
@@ -329,6 +348,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if let Some(c) = contact_to_save {
                 spawn(async move {
                     let _ = crate::services::db::DatabaseService::save_contact(&c).await;
+                    crate::state::version::increment_state_version();
                 });
             }
 
@@ -482,6 +502,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             let c_save = new_contact.clone();
             spawn(async move {
                 let _ = crate::services::db::DatabaseService::save_contact(&c_save).await;
+                crate::state::version::increment_state_version();
             });
 
             state.add_toast(
@@ -536,6 +557,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if let Some(c) = contact_to_save {
                 spawn(async move {
                     let _ = crate::services::db::DatabaseService::save_contact(&c).await;
+                    crate::state::version::increment_state_version();
                 });
             }
         }
@@ -557,6 +579,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if let Some(c) = contact_to_save {
                 spawn(async move {
                     let _ = crate::services::db::DatabaseService::save_contact(&c).await;
+                    crate::state::version::increment_state_version();
                 });
             }
         }
@@ -573,6 +596,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             // Salva no banco local
             spawn(async move {
                 let _ = crate::services::db::DatabaseService::save_banner(&banner).await;
+                crate::state::version::increment_state_version();
             });
         }
     }

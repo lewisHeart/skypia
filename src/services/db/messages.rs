@@ -82,11 +82,13 @@ impl DatabaseService {
         conversations: Vec<crate::models::Conversation>,
     ) -> Result<(), String> {
         let pool = get_pool();
+        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-        let _ = sqlx::query("DELETE FROM conversations").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM conversations").execute(&mut *tx).await.map_err(|e| e.to_string())?;
         let _ = sqlx::query("DELETE FROM conversation_members")
-            .execute(pool)
-            .await;
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
 
         for conv in conversations {
             sqlx::query("INSERT INTO conversations (id, name, is_group, avatar_url, description, created_at, allow_member_send, allow_member_invite) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -98,7 +100,7 @@ impl DatabaseService {
                 .bind(&conv.created_at)
                 .bind(conv.allow_member_send.unwrap_or(true) as i32)
                 .bind(conv.allow_member_invite.unwrap_or(true) as i32)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -109,12 +111,47 @@ impl DatabaseService {
                     .bind(&member.display_name)
                     .bind(&member.avatar_url)
                     .bind(&member.role)
-                    .execute(pool)
+                    .execute(&mut *tx)
                     .await
                     .map_err(|e| e.to_string())?;
             }
         }
 
+        tx.commit().await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn save_messages_bulk(conversation_id: String, messages: Vec<Message>) -> Result<(), String> {
+        let pool = get_pool();
+        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
+        for message in messages {
+            let file_transfer_str = message
+                .file_transfer
+                .as_ref()
+                .and_then(|ft| serde_json::to_string(ft).ok());
+
+            sqlx::query(
+                "INSERT OR REPLACE INTO messages (id, conversation_id, sender_id, sender_name, text, timestamp, is_nudge, font_color, font_family, is_wink, file_transfer, is_game_invite) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&message.id)
+            .bind(&conversation_id)
+            .bind(&message.sender_id)
+            .bind(&message.sender_name)
+            .bind(&message.text)
+            .bind(&message.timestamp)
+            .bind(message.is_nudge as i32)
+            .bind(&message.font_color)
+            .bind(&message.font_family)
+            .bind(&message.is_wink)
+            .bind(&file_transfer_str)
+            .bind(message.is_game_invite as i32)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+
+        tx.commit().await.map_err(|e| e.to_string())?;
         Ok(())
     }
 

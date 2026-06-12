@@ -225,6 +225,54 @@ impl DatabaseService {
         Ok(())
     }
 
+    pub async fn save_contacts_bulk(contacts: Vec<Contact>) -> Result<(), String> {
+        let pool = get_pool();
+        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
+        for contact in contacts {
+            let status_str = status_to_str(&contact.status);
+            
+            let result = sqlx::query("UPDATE contacts SET email = ?, display_name = ?, status = ?, personal_message = ?, music_listening = ?, is_favorite = ?, relation_status = ?, nickname = ?, avatar_url = ?, category_name = ? WHERE id = ?")
+                .bind(&contact.email)
+                .bind(&contact.display_name)
+                .bind(&status_str)
+                .bind(&contact.personal_message)
+                .bind(&contact.music_listening)
+                .bind(contact.is_favorite as i32)
+                .bind(&contact.relation_status)
+                .bind(&contact.nickname)
+                .bind(&contact.avatar_url)
+                .bind(&contact.category_name)
+                .bind(&contact.id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if result.rows_affected() == 0 {
+                let avatar_id = (contact.id.as_bytes().iter().map(|&b| b as usize).sum::<usize>()) % 7;
+                sqlx::query("INSERT INTO contacts (id, email, display_name, status, personal_message, music_listening, avatar_id, is_favorite, relation_status, nickname, avatar_url, category_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                    .bind(&contact.id)
+                    .bind(&contact.email)
+                    .bind(&contact.display_name)
+                    .bind(&status_str)
+                    .bind(&contact.personal_message)
+                    .bind(&contact.music_listening)
+                    .bind(avatar_id as i64)
+                    .bind(contact.is_favorite as i32)
+                    .bind(&contact.relation_status)
+                    .bind(&contact.nickname)
+                    .bind(&contact.avatar_url)
+                    .bind(&contact.category_name)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        tx.commit().await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub async fn add_category(name: String) -> Result<(), String> {
         let pool = get_pool();
         sqlx::query("INSERT INTO categories (name) VALUES (?)")

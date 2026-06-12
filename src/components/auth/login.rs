@@ -4,6 +4,25 @@ use crate::sound::play_sound;
 use crate::state::AppState;
 use dioxus::prelude::*;
 
+fn obfuscate_password(email: &str, password: &str) -> String {
+    let key = format!("skypia_secure_salt_2026_{}", email.trim().to_lowercase());
+    let encrypted = password.as_bytes().iter().enumerate().map(|(i, &byte)| {
+        byte ^ key.as_bytes()[i % key.len()]
+    }).collect::<Vec<u8>>();
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(encrypted)
+}
+
+fn deobfuscate_password(email: &str, encrypted_base64: &str) -> Option<String> {
+    use base64::Engine;
+    let decoded = base64::engine::general_purpose::STANDARD.decode(encrypted_base64).ok()?;
+    let key = format!("skypia_secure_salt_2026_{}", email.trim().to_lowercase());
+    let decrypted = decoded.iter().enumerate().map(|(i, &byte)| {
+        byte ^ key.as_bytes()[i % key.len()]
+    }).collect::<Vec<u8>>();
+    String::from_utf8(decrypted).ok()
+}
+
 #[component]
 pub fn Login(mut state: AppState) -> Element {
     let mut email = use_signal(|| String::new());
@@ -68,15 +87,12 @@ pub fn Login(mut state: AppState) -> Element {
                     
                     if settings.remember_password {
                         loaded_email = settings.saved_email.clone();
-                        email.set(settings.saved_email);
+                        email.set(settings.saved_email.clone());
                         
                         if !settings.saved_password.is_empty() {
-                            use base64::Engine;
-                            if let Ok(decoded_bytes) = base64::engine::general_purpose::STANDARD.decode(&settings.saved_password) {
-                                if let Ok(decoded_str) = String::from_utf8(decoded_bytes) {
-                                    loaded_password = decoded_str.clone();
-                                    password.set(decoded_str);
-                                }
+                            if let Some(decoded_str) = deobfuscate_password(&loaded_email, &settings.saved_password) {
+                                loaded_password = decoded_str.clone();
+                                password.set(decoded_str);
                             }
                         }
                     }
@@ -144,10 +160,10 @@ pub fn Login(mut state: AppState) -> Element {
                     state.set_user_status(status);
                     
                     // Persiste as credenciais se o usuário desejar
-                    let email_to_save = if rem { email_val } else { String::new() };
+                    // Persiste as credenciais se o usuário desejar com criptografia simétrica
+                    let email_to_save = if rem { email_val.clone() } else { String::new() };
                     let pass_to_save = if rem {
-                        use base64::Engine;
-                        base64::engine::general_purpose::STANDARD.encode(password_val.as_bytes())
+                        obfuscate_password(&email_val, &password_val)
                     } else {
                         String::new()
                     };
@@ -157,7 +173,9 @@ pub fn Login(mut state: AppState) -> Element {
                         settings.auto_login = aut;
                         settings.saved_email = email_to_save;
                         settings.saved_password = pass_to_save;
-                        let _ = crate::services::db::DatabaseService::save_settings(&settings).await;
+                        if let Err(e) = crate::services::db::DatabaseService::save_settings(&settings).await {
+                            eprintln!("❌ Erro ao salvar configurações no SQLite: {}", e);
+                        }
                     }
 
                     *state.signing_in.write() = false;

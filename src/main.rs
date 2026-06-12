@@ -264,6 +264,7 @@ fn App() -> Element {
     use_future(move || {
         let mut state = app_state;
         async move {
+            let mut last_version = 0;
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
@@ -287,37 +288,41 @@ fn App() -> Element {
                 }
 
                 if state.logged_in() {
-                    if let Ok(settings) = crate::services::db::DatabaseService::load_settings().await {
-                        let db_theme = crate::services::db::str_to_theme(&settings.theme);
-                        if db_theme != state.theme() {
-                            *state.theme.write() = db_theme;
+                    let current_version = crate::state::version::get_state_version();
+                    if current_version != last_version {
+                        last_version = current_version;
+                        if let Ok(settings) = crate::services::db::DatabaseService::load_settings().await {
+                            let db_theme = crate::services::db::str_to_theme(&settings.theme);
+                            if db_theme != state.theme() {
+                                *state.theme.write() = db_theme;
+                            }
+                            if settings.interface_scale != state.interface_scale() {
+                                *state.interface_scale.write() = settings.interface_scale;
+                            }
+                            if settings.use_custom_titlebar != state.use_custom_titlebar() {
+                                *state.use_custom_titlebar.write() = settings.use_custom_titlebar;
+                            }
+                            if settings.chat_mode != state.chat_mode() {
+                                *state.chat_mode.write() = settings.chat_mode;
+                            }
                         }
-                        if settings.interface_scale != state.interface_scale() {
-                            *state.interface_scale.write() = settings.interface_scale;
+                        if let Ok(local_contacts) = crate::services::db::DatabaseService::load_contacts().await {
+                            let current = state.contacts();
+                            if current.len() != local_contacts.len() || current != local_contacts {
+                                *state.contacts.write() = local_contacts;
+                            }
                         }
-                        if settings.use_custom_titlebar != state.use_custom_titlebar() {
-                            *state.use_custom_titlebar.write() = settings.use_custom_titlebar;
+                        if let Ok(cats) = crate::services::db::DatabaseService::get_categories().await {
+                            let current = state.categories();
+                            if current != cats {
+                                *state.categories.write() = cats;
+                            }
                         }
-                        if settings.chat_mode != state.chat_mode() {
-                            *state.chat_mode.write() = settings.chat_mode;
-                        }
-                    }
-                    if let Ok(local_contacts) = crate::services::db::DatabaseService::load_contacts().await {
-                        let current = state.contacts();
-                        if current.len() != local_contacts.len() || current != local_contacts {
-                            *state.contacts.write() = local_contacts;
-                        }
-                    }
-                    if let Ok(cats) = crate::services::db::DatabaseService::get_categories().await {
-                        let current = state.categories();
-                        if current != cats {
-                            *state.categories.write() = cats;
-                        }
-                    }
-                    if let Ok(Some(local_banner)) = crate::services::db::DatabaseService::load_banner().await {
-                        let current = state.banner_info();
-                        if current.as_ref() != Some(&local_banner) {
-                            *state.banner_info.write() = Some(local_banner);
+                        if let Ok(Some(local_banner)) = crate::services::db::DatabaseService::load_banner().await {
+                            let current = state.banner_info();
+                            if current.as_ref() != Some(&local_banner) {
+                                *state.banner_info.write() = Some(local_banner);
+                            }
                         }
                     }
                 }
