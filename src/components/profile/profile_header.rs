@@ -1,7 +1,8 @@
-use crate::models::{render_avatar, AppTheme, UserStatus};
+use crate::models::{AppTheme, UserStatus};
 use crate::services::api;
 use crate::state::AppState;
 use dioxus::prelude::*;
+use crate::components::render_avatar;
 
 #[component]
 pub fn ProfileHeader(mut state: AppState) -> Element {

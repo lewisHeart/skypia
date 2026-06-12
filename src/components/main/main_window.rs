@@ -200,7 +200,7 @@ pub fn MainWindow(mut state: AppState) -> Element {
                                                 class: "flex-shrink-0 p-[2px] rounded-[7px] border {status_enum.avatar_frame_class()} bg-transparent shadow-[inset_0_0.5px_0_rgba(255,255,255,0.4)] flex items-center justify-center shadow-md",
                                                 div {
                                                     class: "rounded-[4px] overflow-hidden border border-white/30 bg-white flex-shrink-0 flex items-center justify-center",
-                                                    {crate::models::render_avatar(user_for_add.avatar_url.as_deref(), 48)}
+                                                    {crate::components::render_avatar(user_for_add.avatar_url.as_deref(), 48)}
                                                 }
                                             }
                                             // Detalhes

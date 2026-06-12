@@ -160,7 +160,7 @@ pub fn AvatarPicker(mut state: AppState) -> Element {
                             if state.user_avatar_url().is_some() {
                                 div { class: "flex items-center space-x-2 px-2 py-1.5 bg-white/60 border border-[#d1d1d1] rounded-[4px]",
                                     div { class: "w-9 h-9 rounded-[3px] overflow-hidden border border-[#d1d1d1] flex-shrink-0",
-                                        {crate::models::render_avatar(state.user_avatar_url().as_deref(), 36)}
+                                        {crate::components::render_avatar(state.user_avatar_url().as_deref(), 36)}
                                     }
                                     div {
                                         p { class: "text-[10px] font-semibold text-[#1e395b]", "Foto atual" }

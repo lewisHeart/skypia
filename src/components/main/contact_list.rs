@@ -798,7 +798,7 @@ fn GroupRow(group: crate::models::Conversation, mut state: AppState, density: St
                             }
                             div {
                                 class: "msn-avatar-content w-[28px] h-[28px] rounded-[3px] bg-transparent flex items-center justify-center",
-                                {crate::models::render_avatar(group.avatar_url.as_deref(), 28)}
+                                {crate::components::render_avatar(group.avatar_url.as_deref(), 28)}
                             }
                         }
                         div { class: "flex-1 min-w-0 flex flex-col space-y-0.25",

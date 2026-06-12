@@ -1,4 +1,4 @@
-use crate::models::render_avatar;
+use crate::components::render_avatar;
 use crate::state::AppState;
 use dioxus::prelude::*;
 

@@ -287,7 +287,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
             if Some(user_id.clone()) == state.server_user_id() {
                 // Atualiza avatar do próprio usuário
                 if let Some(ref url) = avatar_url {
-                    crate::models::invalidate_avatar_cache(url);
+                    crate::components::avatar::invalidate_avatar_cache(url);
                     let is_local = if let Some(local_url) = state.user_avatar_url() {
                         local_url.starts_with("/assets/")
                             || local_url.starts_with("assets/")
@@ -327,7 +327,7 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                     c.personal_message = personal_message;
                     c.music_listening = music;
                     if let Some(ref url) = avatar_url {
-                        crate::models::invalidate_avatar_cache(url);
+                        crate::components::avatar::invalidate_avatar_cache(url);
                         c.avatar_url = Some(url.clone());
                     }
                     if !display_name.is_empty() {

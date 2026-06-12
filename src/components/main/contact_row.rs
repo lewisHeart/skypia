@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 use crate::state::AppState;
-use crate::models::{Contact, render_avatar, UserStatus};
+use crate::models::{Contact, UserStatus};
+use crate::components::render_avatar;
 
 #[component]
 pub fn ContactRow(contact: Contact, mut state: AppState, density: String) -> Element {

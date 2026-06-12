@@ -49,7 +49,7 @@ pub fn FriendRequestsModal(mut state: AppState) -> Element {
                                                 class: "flex-shrink-0 p-[1px] rounded-[5px] border border-slate-300 bg-white flex items-center justify-center shadow-sm",
                                                 div {
                                                     class: "rounded-[3px] overflow-hidden flex items-center justify-center w-8 h-8",
-                                                    {crate::models::render_avatar(request.avatar_url.as_deref(), 32)}
+                                                    {crate::components::render_avatar(request.avatar_url.as_deref(), 32)}
                                                 }
                                             }
                                             div { class: "flex flex-col min-w-0",

@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 use crate::state::AppState;
-use crate::models::{render_avatar, TicTacToeCell};
+use crate::models::TicTacToeCell;
+use crate::components::render_avatar;
 
 #[component]
 pub fn ChatSidebar(contact_id: String, mut state: AppState) -> Element {
