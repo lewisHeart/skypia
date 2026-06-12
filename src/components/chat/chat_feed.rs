@@ -7,6 +7,7 @@ use std::collections::HashSet;
 pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
     let theme = state.theme();
     let mut show_images = use_signal(|| HashSet::new());
+    let link_previews = use_signal(|| std::collections::HashMap::<String, Option<crate::services::api::LinkPreview>>::new());
 
     let mut limit = use_signal(|| 15);
     let mut last_contact_id = use_signal(|| contact_id.clone());
@@ -454,27 +455,124 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                 }
             }
 
-            if let Some((start, end, emoji_name)) = earliest_match {
+            let mut earliest_img: Option<(usize, usize, String, String)> = None;
+            if let Some(img_start) = current_text.find("![") {
+                if let Some(img_mid) = current_text[img_start..].find("](") {
+                    let img_mid_abs = img_start + img_mid;
+                    if let Some(img_end) = current_text[img_mid_abs..].find(")") {
+                        let img_end_abs = img_mid_abs + img_end;
+                        let alt = current_text[img_start + 2..img_mid_abs].to_string();
+                        let url = current_text[img_mid_abs + 2..img_end_abs].to_string();
+                        earliest_img = Some((img_start, img_end_abs + 1, alt, url));
+                    }
+                }
+            }
+            
+            let mut earliest_file: Option<(usize, usize, String, String)> = None;
+            if let Some(file_start) = current_text.find("[") {
+                if !current_text[file_start..].starts_with("![") {
+                    if let Some(file_mid) = current_text[file_start..].find("](") {
+                        let file_mid_abs = file_start + file_mid;
+                        if let Some(file_end) = current_text[file_mid_abs..].find(")") {
+                            let file_end_abs = file_mid_abs + file_end;
+                            let alt = current_text[file_start + 1..file_mid_abs].to_string();
+                            let url = current_text[file_mid_abs + 2..file_end_abs].to_string();
+                            earliest_file = Some((file_start, file_end_abs + 1, alt, url));
+                        }
+                    }
+                }
+            }
+
+            enum MatchType { Emoticon(&'static str), Image(String, String), File(String, String) }
+            let mut best_match: Option<(usize, usize, MatchType)> = None;
+            
+            if let Some((start, end, emoji)) = earliest_match {
+                best_match = Some((start, end, MatchType::Emoticon(emoji)));
+            }
+            if let Some((start, end, alt, url)) = earliest_img {
+                if best_match.as_ref().map(|(s, _, _)| start < *s).unwrap_or(true) {
+                    best_match = Some((start, end, MatchType::Image(alt, url)));
+                }
+            }
+            if let Some((start, end, alt, url)) = earliest_file {
+                if best_match.as_ref().map(|(s, _, _)| start < *s).unwrap_or(true) {
+                    best_match = Some((start, end, MatchType::File(alt, url)));
+                }
+            }
+            
+            if let Some((start, end, match_type)) = best_match {
                 if start > 0 {
                     let prev_text = current_text[..start].to_string();
                     parts.push(rsx! { span { "{prev_text}" } });
                 }
-                let e_url = crate::models::get_emoji_anim_url(&format!("{}.webp", emoji_name));
-                let unicode_char = crate::models::get_emoji_unicode(emoji_name);
-                parts.push(rsx! {
-                    span { class: "inline-block align-middle mx-0.5 relative",
-                        img {
-                            src: "{e_url}",
-                            class: "w-5 h-5 inline-block align-middle",
-                            alt: "{emoji_name}",
-                        }
-                        span {
-                            style: "display: none;",
-                            class: "text-base inline-block align-middle leading-none",
-                            "{unicode_char}"
+                match match_type {
+                    MatchType::Emoticon(emoji_name) => {
+                        let e_url = crate::models::get_emoji_anim_url(&format!("{}.webp", emoji_name));
+                        let unicode_char = crate::models::get_emoji_unicode(emoji_name);
+                        parts.push(rsx! {
+                            span { class: "inline-block align-middle mx-0.5 relative",
+                                img {
+                                    src: "{e_url}",
+                                    class: "w-5 h-5 inline-block align-middle",
+                                    alt: "{emoji_name}",
+                                }
+                                span {
+                                    style: "display: none;",
+                                    class: "text-base inline-block align-middle leading-none",
+                                    "{unicode_char}"
+                                }
+                            }
+                        });
+                    }
+                    MatchType::Image(alt, url) => {
+                        parts.push(rsx! {
+                            div { class: "mt-1 mb-1 max-w-[200px] border border-slate-300 p-1 rounded bg-white shadow-sm",
+                                a {
+                                    href: "{url}",
+                                    target: "_blank",
+                                    img {
+                                        src: "{url}",
+                                        alt: "{alt}",
+                                        class: "max-w-full h-auto rounded-sm cursor-pointer"
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    MatchType::File(alt, url) => {
+                        let is_audio = alt.starts_with("Áudio:");
+                        if is_audio {
+                            let final_url = if url.starts_with("http") {
+                                url.clone()
+                            } else {
+                                format!("{}{}", crate::services::api::SERVER_BASE_URL, url)
+                            };
+                            parts.push(rsx! {
+                                div { class: "flex flex-col space-y-1 mt-1 mb-1 bg-slate-100/70 border border-slate-300/80 p-2 rounded-[4px] max-w-[280px] shadow-sm",
+                                    div { class: "flex items-center space-x-1.5 text-slate-600 font-semibold text-[10px] select-none",
+                                        span { "🎵" }
+                                        span { "{alt}" }
+                                    }
+                                    audio {
+                                        src: "{final_url}",
+                                        controls: true,
+                                        class: "w-full h-8 mt-1 focus:outline-none"
+                                    }
+                                }
+                            });
+                        } else {
+                            parts.push(rsx! {
+                                a {
+                                    href: "{url}",
+                                    target: "_blank",
+                                    class: "inline-flex items-center space-x-1.5 px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded text-slate-700 hover:text-sky-600 transition-colors mt-1 mb-1 shadow-sm no-underline cursor-pointer",
+                                    span { "📂" }
+                                    span { class: "font-semibold underline", "{alt}" }
+                                }
+                            });
                         }
                     }
-                });
+                }
                 current_text = current_text[end..].to_string();
             } else {
                 parts.push(rsx! { span { "{current_text}" } });
@@ -661,6 +759,81 @@ pub fn ChatFeed(contact_id: String, mut state: AppState) -> Element {
                                         class: "pl-2 select-text",
                                         style: "font-family: {msg.font_family}; color: {msg.font_color}; font-size: 13px;",
                                         {format_message_text(&msg.text)}
+                                    }
+                                    
+                                    // Extract URLs and fetch preview
+                                    {
+                                        let mut urls = Vec::new();
+                                        // Simple regex-less URL extraction (ignores markdown brackets if any, but since it splits by whitespace...)
+                                        for word in msg.text.split_whitespace() {
+                                            if (word.starts_with("http://") || word.starts_with("https://")) 
+                                                && !word.contains("dioxus-asset") 
+                                                && !word.ends_with(")") {
+                                                urls.push(word.to_string());
+                                            }
+                                        }
+                                        
+                                        rsx! {
+                                            if !urls.is_empty() {
+                                                for url in urls {
+                                                    {
+                                                        let url_clone = url.clone();
+                                                        let mut previews = link_previews;
+                                                        let state = state;
+                                                        
+                                                        // Fetch preview if missing
+                                                        use_effect(move || {
+                                                            let u = url_clone.clone();
+                                                            let st = state;
+                                                            spawn(async move {
+                                                                if !previews().contains_key(&u) {
+                                                                    previews.write().insert(u.clone(), None); // mark as fetching
+                                                                    if let Some(token) = st.auth_token() {
+                                                                        if let Ok(preview) = crate::services::api::fetch_link_preview(&token, &u).await {
+                                                                            previews.write().insert(u, Some(preview));
+                                                                        }
+                                                                    }
+                                                                }
+                                                            });
+                                                        });
+                                                        
+                                                        rsx! {
+                                                            if let Some(Some(preview)) = previews().get(&url) {
+                                                                div {
+                                                                    class: "ml-2 mt-1 mb-2 border border-slate-200 rounded-[4px] bg-white shadow-sm flex flex-col overflow-hidden max-w-[300px]",
+                                                                    a {
+                                                                        href: "{url}",
+                                                                        target: "_blank",
+                                                                        class: "no-underline hover:opacity-90 transition-opacity",
+                                                                        if let Some(img) = &preview.image {
+                                                                            if !img.is_empty() {
+                                                                                div {
+                                                                                    class: "w-full h-[120px] bg-slate-100 flex items-center justify-center overflow-hidden border-b border-slate-100",
+                                                                                    img {
+                                                                                        src: "{img}",
+                                                                                        class: "w-full h-full object-cover"
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        div {
+                                                                            class: "p-2 flex flex-col",
+                                                                            if let Some(title) = &preview.title {
+                                                                                span { class: "font-semibold text-slate-800 text-xs truncate", "{title}" }
+                                                                            }
+                                                                            if let Some(desc) = &preview.description {
+                                                                                span { class: "text-[10px] text-slate-500 line-clamp-2 mt-0.5", "{desc}" }
+                                                                            }
+                                                                            span { class: "text-[9px] text-sky-600 mt-1 truncate", "{url}" }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

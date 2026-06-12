@@ -26,8 +26,8 @@ pub fn SettingsContent(props: SettingsContentProps) -> Element {
     let mut admin_banner_type = use_signal(|| "classic".to_string());
     let mut new_cat_input = use_signal(|| String::new());
 
-    let is_uploading_ad = use_signal(|| false);
-    let ad_upload_error = use_signal(|| Option::<String>::None);
+    let _is_uploading_ad = use_signal(|| false);
+    let _ad_upload_error = use_signal(|| Option::<String>::None);
 
     let mut admin_banner_title = use_signal(|| String::new());
     let mut admin_banner_active = use_signal(|| true);

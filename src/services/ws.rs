@@ -583,6 +583,41 @@ async fn process_ws_event(state: &mut AppState, event: WsEvent) {
                 });
             }
         }
+        WsEvent::CategoryUpdated {
+            contact_id,
+            category,
+        } => {
+            let mut contact_to_save = None;
+            {
+                let mut list = state.contacts.write();
+                if let Some(c) = list.iter_mut().find(|c| c.id == contact_id) {
+                    c.category_name = category.clone();
+                    contact_to_save = Some(c.clone());
+                }
+                
+                // Adiciona a categoria na lista se não existir e não for nula
+                if let Some(cat_name) = category {
+                    let mut cats = state.categories.write();
+                    if !cats.contains(&cat_name) {
+                        cats.push(cat_name);
+                        cats.sort();
+                    }
+                }
+            }
+            if let Some(c) = contact_to_save {
+                spawn(async move {
+                    let _ = crate::services::db::DatabaseService::save_contact(&c).await;
+                    crate::state::version::increment_state_version();
+                });
+            }
+        }
+        WsEvent::PreferencesUpdated => {
+            // Em tese, isso só é retornado como confirmação.
+            // Para ter certeza que estamos com as preferência atualizadas, 
+            // a gente poderia recarregar o perfil aqui, mas não é estritamente necessário.
+            // Poderíamos exibir um toast discreto ou só ignorar.
+            // state.add_toast("Configurações", "Preferências sincronizadas na nuvem", None);
+        }
         WsEvent::ConversationJoined(_conversation) => todo!(),
         WsEvent::BannerUpdated { text, action_label, link, icon, image_url } => {
             let banner = crate::models::BannerInfo {

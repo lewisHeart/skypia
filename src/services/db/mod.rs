@@ -8,6 +8,7 @@ mod user;
 mod contacts;
 mod messages;
 mod settings;
+mod stickers;
 
 static POOL: OnceLock<SqlitePool> = OnceLock::new();
 
@@ -486,6 +487,19 @@ impl DatabaseService {
         let _ = sqlx::query("ALTER TABLE conversations ADD COLUMN allow_member_invite INTEGER DEFAULT 1")
             .execute(pool)
             .await;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS stickers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                url TEXT NOT NULL
+            );
+            "#,
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
         Ok(())
     }

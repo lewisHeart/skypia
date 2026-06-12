@@ -1,11 +1,18 @@
 package dev.dioxus.main
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Build
+import android.view.View
+import android.view.ViewGroup
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
+import android.webkit.WebView
 import app.skypia.messenger.BuildConfig
 
 class MainActivity : WryActivity() {
@@ -13,6 +20,16 @@ class MainActivity : WryActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Solicita permissão do sistema operacional Android para gravação de áudio
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 200)
+            }
+        }
+
+        // Busca a WebView na árvore de views e configura o WebChromeClient de forma assíncrona
+        setupWebViewDelayed(15)
         
         val filter = IntentFilter()
         filter.addAction("com.spotify.music.metachanged")
@@ -46,6 +63,65 @@ class MainActivity : WryActivity() {
             registerReceiver(spotifyReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
             registerReceiver(spotifyReceiver, filter)
+        }
+    }
+
+    private fun setupWebViewDelayed(attemptsLeft: Int) {
+        if (attemptsLeft <= 0) return
+        window.decorView.postDelayed({
+            val webView = findWebView(window.decorView)
+            if (webView != null) {
+                setupWebChromeClient(webView)
+            } else {
+                setupWebViewDelayed(attemptsLeft - 1)
+            }
+        }, 400)
+    }
+
+    private fun findWebView(view: View): WebView? {
+        if (view is WebView) {
+            return view
+        }
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                val child = view.getChildAt(i)
+                val result = findWebView(child)
+                if (result != null) {
+                    return result
+                }
+            }
+        }
+        return null
+    }
+
+    private fun setupWebChromeClient(webView: WebView) {
+        val originalClient = webView.webChromeClient
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                if (request != null) {
+                    val resources = request.resources
+                    for (resource in resources) {
+                        if (resource == PermissionRequest.RESOURCE_AUDIO_CAPTURE) {
+                            request.grant(arrayOf(resource))
+                            return
+                        }
+                    }
+                    request.grant(resources)
+                }
+            }
+
+            override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+                return originalClient?.onConsoleMessage(consoleMessage) ?: super.onConsoleMessage(consoleMessage)
+            }
+
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                return originalClient?.onShowFileChooser(webView, filePathCallback, fileChooserParams)
+                    ?: super.onShowFileChooser(webView, filePathCallback, fileChooserParams)
+            }
         }
     }
 

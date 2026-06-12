@@ -40,6 +40,7 @@ pub static SPOTIFY_CHECK_INTERVAL: LazyLock<u64> = LazyLock::new(|| {
         .unwrap_or(3)
 });
 
+#[allow(dead_code)]
 pub static WS_HEARTBEAT_INTERVAL: LazyLock<u64> = LazyLock::new(|| {
     std::env::var("WS_HEARTBEAT_INTERVAL")
         .ok()
@@ -236,6 +237,70 @@ pub async fn upload_avatar(
             .ok_or_else(|| "Campo avatar_url ausente na resposta.".to_string())
     } else {
         Err(format!("Erro no upload ({}): {}", status, body))
+    }
+}
+
+/// Faz upload genérico de um arquivo (imagem, áudio, arquivo) e retorna os metadados (url e filepath)
+pub async fn upload_generic_file(
+    token: &str,
+    file_bytes: Vec<u8>,
+    filename: &str,
+    mime_type: &str,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+
+    let part = reqwest::multipart::Part::bytes(file_bytes)
+        .file_name(filename.to_string())
+        .mime_str(mime_type)
+        .map_err(|e| e.to_string())?;
+
+    let form = reqwest::multipart::Form::new().part("file", part);
+
+    let resp = client
+        .post(format!("{}/upload", SERVER_BASE_URL))
+        .header("Authorization", format!("Bearer {}", token))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        serde_json::from_str(&body).map_err(|e| e.to_string())
+    } else {
+        Err(format!("Erro no upload ({}): {}", status, body))
+    }
+}
+
+#[derive(serde::Deserialize, Debug, Clone)]
+pub struct LinkPreview {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub image: Option<String>,
+    #[allow(dead_code)]
+    pub url: String,
+}
+
+/// Fetch link preview from backend
+pub async fn fetch_link_preview(token: &str, url: &str) -> Result<LinkPreview, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/preview", SERVER_BASE_URL))
+        .query(&[("url", url)])
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| format!("Erro de conexão: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        serde_json::from_str(&body).map_err(|e| e.to_string())
+    } else {
+        Err(format!("Erro ao buscar preview ({}): {}", status, body))
     }
 }
 
@@ -558,6 +623,7 @@ pub async fn get_banner() -> Result<crate::models::BannerInfo, String> {
 }
 
 /// Salva a imagem do anúncio no sistema de arquivos local
+#[allow(dead_code)]
 pub async fn save_ad_image_local(bytes: &[u8], name: &str) -> Option<String> {
     let data_dir = crate::services::db::get_app_data_dir();
     let _ = std::fs::create_dir_all(&data_dir);

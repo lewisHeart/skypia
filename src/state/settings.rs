@@ -37,6 +37,14 @@ impl AppState {
         // Incrementa a versão atômica do estado para notificar outras threads/janelas
         crate::state::version::increment_state_version();
 
+        // Envia para o servidor para sincronização em nuvem
+        if let Some(tx) = self.ws_tx.read().as_ref() {
+            let prefs_json = serde_json::to_string(&settings).unwrap_or_default();
+            let _ = tx.send(crate::models::ClientAction::UpdatePreferences {
+                preferences: prefs_json,
+            });
+        }
+
         spawn(async move {
             if let Err(e) = crate::services::db::DatabaseService::save_settings(&settings).await {
                 eprintln!("❌ Erro ao salvar configurações de tela e tema no SQLite: {}", e);

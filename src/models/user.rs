@@ -105,6 +105,11 @@ pub struct UserProfile {
     pub relation_status: Option<String>,
     pub nickname: Option<String>,
     pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub is_favorite: Option<bool>,
-    pub is_admin: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_name: Option<String>,
+    pub is_admin: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_preferences: Option<serde_json::Value>,
 }

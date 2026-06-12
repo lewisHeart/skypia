@@ -202,7 +202,9 @@ impl DatabaseService {
                     nickname: None,
                     role,
                     is_favorite: None,
-                    is_admin: Some(false),
+                    category_name: None,
+                    is_admin: false,
+                    ui_preferences: None,
                 });
             }
 

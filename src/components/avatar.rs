@@ -31,6 +31,12 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
         _ => "".to_string(),
     };
 
+    // Criamos um sinal reativo para a URL final para que o use_resource reaja às suas mudanças
+    let mut url_signal = use_signal(|| final_url.clone());
+    if url_signal() != final_url {
+        url_signal.set(final_url.clone());
+    }
+
     // Obter do cache de forma síncrona
     let cached = if final_url.is_empty() {
         None
@@ -38,15 +44,17 @@ pub fn Avatar(url: Option<String>, size: usize) -> Element {
         AVATAR_CACHE.lock().unwrap().get(&final_url).cloned()
     };
 
-    let url_to_fetch = final_url.clone();
-    let has_cache = cached.is_some();
-
     // Recurso reativo para fazer o fetch assíncrono em segundo plano se não estiver em cache
     let avatar_resource = use_resource(move || {
-        let url = url_to_fetch.clone();
+        let url = url_signal();
         async move {
-            if url.is_empty() || has_cache {
+            if url.is_empty() {
                 return None;
+            }
+            // Verifica no cache global antes de fazer o fetch
+            let cached_in_resource = AVATAR_CACHE.lock().unwrap().get(&url).cloned();
+            if let Some(c) = cached_in_resource {
+                return Some(c);
             }
             if !url.starts_with("http") {
                 return Some(url);

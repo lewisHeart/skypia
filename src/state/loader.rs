@@ -228,8 +228,8 @@ impl AppState {
                             "Invisivel" => UserStatus::Invisivel,
                             _ => UserStatus::Offline,
                         };
-                        let is_fav = local_favorites.contains(&profile.id);
-                        let cat_name = local_categories_map.get(&profile.id).cloned();
+                        let is_fav = profile.is_favorite.unwrap_or_else(|| local_favorites.contains(&profile.id));
+                        let cat_name = profile.category_name.or_else(|| local_categories_map.get(&profile.id).cloned());
                         contacts_mapped.push(Contact {
                             id: profile.id.clone(),
                             email: profile.email,

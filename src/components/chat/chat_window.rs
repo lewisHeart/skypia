@@ -39,6 +39,17 @@ const WINK_STYLES: &str = r#"
 .animate-msn-pig {
     animation: msnPig 4s forwards linear;
 }
+
+@keyframes winkZoom {
+    0% { transform: scale(0.1); opacity: 0; }
+    20% { transform: scale(1.2); opacity: 1; }
+    40% { transform: scale(1.0); }
+    70% { transform: scale(1.0); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+.animate-wink-zoom {
+    animation: winkZoom 4s forwards ease-in-out;
+}
 "#;
 
 #[component]
@@ -111,7 +122,13 @@ pub fn ChatWindow(mut state: AppState, contact_id_prop: Option<String>) -> Eleme
             div {
                 class: "absolute inset-0 z-[150] flex flex-col items-center justify-center pointer-events-none select-none overflow-hidden rounded-lg",
 
-                if wink == "kiss" {
+                if wink.starts_with("http") {
+                    div { class: "absolute inset-0 bg-black/10 animate-pulse" }
+                    img {
+                        src: "{wink}",
+                        class: "w-64 h-64 object-contain animate-wink-zoom drop-shadow-2xl"
+                    }
+                } else if wink == "kiss" {
                     div { class: "absolute inset-0 bg-pink-400/20 animate-pulse" }
                     div { class: "text-9xl animate-msn-kiss", "💋" }
                 } else if wink == "hammer" {

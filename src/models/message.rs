@@ -73,6 +73,11 @@ pub enum WsEvent {
         contact_id: String,
         is_favorite: bool,
     },
+    CategoryUpdated {
+        contact_id: String,
+        category: Option<String>,
+    },
+    PreferencesUpdated,
     ConversationJoined(Conversation),
     BannerUpdated {
         text: String,
@@ -128,6 +133,13 @@ pub enum ClientAction {
     SetFavorite {
         contact_id: String,
         is_favorite: bool,
+    },
+    SetCategory {
+        contact_id: String,
+        category: Option<String>,
+    },
+    UpdatePreferences {
+        preferences: String,
     },
 }
 

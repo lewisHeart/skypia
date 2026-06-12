@@ -1,6 +1,7 @@
 use crate::sound::play_sound;
 use crate::state::AppState;
 use dioxus::prelude::*;
+use base64::Engine;
 
 #[component]
 pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler<()>) -> Element {
@@ -16,6 +17,46 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
     let mut show_font_panel = use_signal(|| false);
     let mut show_wink_panel = use_signal(|| false);
     let mut show_file_panel = use_signal(|| false);
+
+    let is_recording = use_signal(|| false);
+    let mut recording_seconds = use_signal(|| 0);
+    let mut recording_error = use_signal(|| Option::<String>::None);
+
+    // Efeito para contar os segundos de gravação
+    use_effect(move || {
+        let is_rec = is_recording();
+        if is_rec {
+            recording_seconds.set(0);
+            spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    if !is_recording() {
+                        break;
+                    }
+                    recording_seconds.set(recording_seconds() + 1);
+                }
+            });
+        }
+    });
+
+    let format_duration = |sec: usize| -> String {
+        let m = sec / 60;
+        let s = sec % 60;
+        format!("{:02}:{:02}", m, s)
+    };
+
+    let custom_stickers = use_signal(|| Vec::<(i64, String, String)>::new());
+
+    use_effect(move || {
+        if show_wink_panel() {
+            let mut custom_stickers_clone = custom_stickers;
+            spawn(async move {
+                if let Ok(st) = crate::services::db::DatabaseService::get_stickers().await {
+                    custom_stickers_clone.set(st);
+                }
+            });
+        }
+    });
 
     let typings = state.typing_contacts();
     let users_typing = typings.get(&contact_id).cloned().unwrap_or_default();
@@ -77,6 +118,137 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
         state.send_nudge(contact_id_nudge.clone());
         play_sound("nudge");
         on_nudge.call(());
+    };
+
+    // Gravação de Mensagem de Voz (Microfone)
+    let start_recording = {
+        let cid = contact_id.clone();
+        let state = state;
+        let mut recording_error = recording_error;
+        let mut is_recording = is_recording;
+        move || {
+            if is_send_disabled { return; }
+            if let Some(token) = state.auth_token() {
+                let mut state_clone = state;
+                let cid_clone = cid.clone();
+                
+                recording_error.set(None);
+                
+                let init_script = r#"
+                    (async function() {
+                        try {
+                            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                                dioxus.send("error:Microfone não suportado nesta plataforma.");
+                                return;
+                            }
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            window.mediaStream = stream;
+                            window.audioChunks = [];
+                            
+                            let options = { mimeType: 'audio/webm' };
+                            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                                if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                                    options = { mimeType: 'audio/mp4' };
+                                } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                                    options = { mimeType: 'audio/ogg' };
+                                } else {
+                                    options = {};
+                                }
+                            }
+                            
+                            window.mediaRecorder = new MediaRecorder(stream, options);
+                            window.mediaRecorder.ondataavailable = e => {
+                                if (e.data && e.data.size > 0) {
+                                    window.audioChunks.push(e.data);
+                                }
+                            };
+                            
+                            window.mediaRecorder.onstop = () => {
+                                const mimeType = window.mediaRecorder.mimeType || 'audio/webm';
+                                const blob = new Blob(window.audioChunks, { type: mimeType });
+                                
+                                let ext = 'webm';
+                                if (mimeType.includes('mp4')) {
+                                    ext = 'mp4';
+                                } else if (mimeType.includes('ogg')) {
+                                    ext = 'ogg';
+                                } else if (mimeType.includes('wav')) {
+                                    ext = 'wav';
+                                } else if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
+                                    ext = 'mp3';
+                                }
+                                
+                                const reader = new FileReader();
+                                reader.readAsDataURL(blob);
+                                reader.onloadend = () => {
+                                    const base64data = reader.result;
+                                    dioxus.send("audio:" + ext + ":" + base64data);
+                                };
+                            };
+                            
+                            window.mediaRecorder.start(100);
+                            dioxus.send("started");
+                        } catch (err) {
+                            console.error("Microphone access error:", err);
+                            dioxus.send("error:" + err.message);
+                        }
+                    })();
+                "#;
+                
+                let mut eval = document::eval(init_script);
+                
+                spawn(async move {
+                    if let Ok(serde_json::Value::String(response)) = eval.recv().await {
+                        if response == "started" {
+                            is_recording.set(true);
+                            
+                            if let Ok(serde_json::Value::String(final_response)) = eval.recv().await {
+                                if final_response.starts_with("audio:") {
+                                    let parts: Vec<&str> = final_response.splitn(3, ':').collect();
+                                    if parts.len() == 3 {
+                                        let ext = parts[1];
+                                        let data_uri = parts[2];
+                                        if let Some(comma_idx) = data_uri.find(',') {
+                                            let base64_str = &data_uri[comma_idx + 1..];
+                                            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(base64_str) {
+                                                let filename = format!("voice-message.{}", ext);
+                                                let mime = match ext {
+                                                    "webm" => "audio/webm",
+                                                    "mp4" => "audio/mp4",
+                                                    "ogg" => "audio/ogg",
+                                                    "wav" => "audio/wav",
+                                                    _ => "audio/mpeg",
+                                                };
+                                                match crate::services::api::upload_generic_file(&token, bytes, &filename, mime).await {
+                                                    Ok(res) => {
+                                                        if let Some(url) = res["url"].as_str() {
+                                                            let md_text = format!("[Áudio: Mensagem de Voz]({})", url);
+                                                            state_clone.send_message(cid_clone, md_text, "#000000".to_string(), "Segoe UI".to_string());
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        eprintln!("Erro no upload de áudio: {}", e);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if final_response == "cancelled" {
+                                    println!("Gravação cancelada.");
+                                } else if final_response.starts_with("error:") {
+                                    let err_msg = final_response.trim_start_matches("error:").to_string();
+                                    recording_error.set(Some(err_msg));
+                                }
+                            }
+                        } else if response.starts_with("error:") {
+                            let err_msg = response.trim_start_matches("error:").to_string();
+                            recording_error.set(Some(err_msg));
+                        }
+                    }
+                    is_recording.set(false);
+                });
+            }
+        }
     };
 
     // Helper to insert emoticons at text cursor
@@ -237,6 +409,23 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                         span { class: "text-[8px] text-slate-600 select-none", "▼" }
                     }
 
+                    // Gravar Mensagem de Voz (Microfone)
+                    button {
+                        class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center transition-colors focus:outline-none",
+                        title: "Gravar Mensagem de Voz",
+                        onclick: {
+                            let mut start_recording = start_recording.clone();
+                            move |_| {
+                                start_recording();
+                            }
+                        },
+                        img {
+                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Mic/SVG/ic_fluent_mic_24_color.svg",
+                            class: "w-5 h-5 select-none pointer-events-none"
+                        }
+                        span { class: "text-[11px] text-[#2b3e51] font-semibold ml-1.5 hidden sm:inline", "Gravar voz" }
+                    }
+
                     // Chamar a Atenção (Nudge)
                     button {
                         class: "hover:bg-white/80 p-1 rounded cursor-pointer flex items-center transition-colors focus:outline-none",
@@ -361,96 +550,277 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 }
 
                 if show_wink_panel() {
-                    div { class: "absolute left-20 bottom-9 w-40 bg-white border {theme_titlebar_border} rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
-                        button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
-                            onclick: {
-                                let cid = contact_id.clone();
-                                move |_| {
-                                    state.send_wink(cid.clone(), "kiss".to_string());
-                                    show_wink_panel.set(false);
+                    div { class: "absolute left-20 bottom-9 w-64 bg-white border {theme_titlebar_border} rounded shadow-lg z-50 p-2 flex flex-col text-xs text-slate-700",
+                        div { class: "flex justify-between items-center mb-2 pb-1 border-b border-slate-100",
+                            span { class: "font-bold {theme_titlebar_text}", "Meus Stickers e Winks" }
+                            label {
+                                class: "cursor-pointer text-[10px] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded font-semibold text-slate-600 transition-colors",
+                                input {
+                                    r#type: "file",
+                                    class: "hidden",
+                                    accept: "image/*",
+                                    onchange: {
+                                        let state = state;
+                                        let token_opt = state.auth_token();
+                                        let mut custom_stickers_clone = custom_stickers;
+                                        move |e| {
+                                            if let Some(token) = token_opt.clone() {
+                                                let files = e.files();
+                                                if let Some(file) = files.into_iter().next() {
+                                                    spawn(async move {
+                                                        if let Ok(bytes) = file.read_bytes().await {
+                                                            match crate::services::api::upload_generic_file(&token, bytes.to_vec(), "sticker.gif", "image/gif").await {
+                                                                Ok(url_val) => {
+                                                                    let url_str = if let Some(s) = url_val.as_str() {
+                                                                        s.to_string()
+                                                                    } else {
+                                                                        url_val.to_string()
+                                                                    };
+                                                                    let _ = crate::services::db::DatabaseService::add_sticker("Sticker".to_string(), url_str).await;
+                                                                    if let Ok(st) = crate::services::db::DatabaseService::get_stickers().await {
+                                                                        custom_stickers_clone.set(st);
+                                                                    }
+                                                                }
+                                                                Err(e) => eprintln!("Upload sticker error: {}", e),
+                                                            }
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                            },
-                            img {
-                                src: crate::models::get_emoji_url("kiss-mark.svg"),
-                                class: "w-4 h-4 object-contain pointer-events-none"
+                                "+ Adicionar"
                             }
-                            span { "Beijo de Batom" }
                         }
-                        button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
-                            onclick: {
-                                let cid = contact_id.clone();
-                                move |_| {
-                                    state.send_wink(cid.clone(), "hammer".to_string());
-                                    show_wink_panel.set(false);
+                        div { class: "grid grid-cols-4 gap-2 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 pr-1",
+                            // Winks Padrão
+                            button {
+                                class: "p-1.5 hover:bg-black/5 rounded transition-colors flex flex-col items-center justify-center cursor-pointer {theme_titlebar_text} border border-transparent hover:border-slate-200",
+                                onclick: {
+                                    let cid = contact_id.clone();
+                                    move |_| {
+                                        state.send_wink(cid.clone(), "kiss".to_string());
+                                        show_wink_panel.set(false);
+                                    }
+                                },
+                                img {
+                                    src: crate::models::get_emoji_url("kiss-mark.svg"),
+                                    class: "w-6 h-6 object-contain pointer-events-none mb-1"
                                 }
-                            },
-                            img {
-                                src: crate::models::get_emoji_url("hammer.svg"),
-                                class: "w-4 h-4 object-contain pointer-events-none"
+                                span { class: "text-[9px] text-center truncate w-full", "Beijo" }
                             }
-                            span { "Martelada na Tela" }
-                        }
-                        button {
-                            class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
-                            onclick: {
-                                let cid = contact_id.clone();
-                                move |_| {
-                                    state.send_wink(cid.clone(), "pig".to_string());
-                                    show_wink_panel.set(false);
+                            button {
+                                class: "p-1.5 hover:bg-black/5 rounded transition-colors flex flex-col items-center justify-center cursor-pointer {theme_titlebar_text} border border-transparent hover:border-slate-200",
+                                onclick: {
+                                    let cid = contact_id.clone();
+                                    move |_| {
+                                        state.send_wink(cid.clone(), "hammer".to_string());
+                                        show_wink_panel.set(false);
+                                    }
+                                },
+                                img {
+                                    src: crate::models::get_emoji_url("hammer.svg"),
+                                    class: "w-6 h-6 object-contain pointer-events-none mb-1"
                                 }
-                            },
-                            img {
-                                src: crate::models::get_emoji_url("pig-face.svg"),
-                                class: "w-4 h-4 object-contain pointer-events-none"
+                                span { class: "text-[9px] text-center truncate w-full", "Martelo" }
                             }
-                            span { "Porco Dançarino" }
+                            button {
+                                class: "p-1.5 hover:bg-black/5 rounded transition-colors flex flex-col items-center justify-center cursor-pointer {theme_titlebar_text} border border-transparent hover:border-slate-200",
+                                onclick: {
+                                    let cid = contact_id.clone();
+                                    move |_| {
+                                        state.send_wink(cid.clone(), "pig".to_string());
+                                        show_wink_panel.set(false);
+                                    }
+                                },
+                                img {
+                                    src: crate::models::get_emoji_url("pig-face.svg"),
+                                    class: "w-6 h-6 object-contain pointer-events-none mb-1"
+                                }
+                                span { class: "text-[9px] text-center truncate w-full", "Porco" }
+                            }
+                            
+                            // Custom Stickers
+                            for (id, _name, url) in custom_stickers() {
+                                {
+                                    let url_clone = url.clone();
+                                    let cid = contact_id.clone();
+                                    let sid = id;
+                                    let mut custom_stickers_del = custom_stickers;
+                                    rsx! {
+                                        div { class: "relative group",
+                                            button {
+                                                class: "w-full p-1.5 hover:bg-black/5 rounded transition-colors flex flex-col items-center justify-center cursor-pointer border border-transparent hover:border-slate-200",
+                                                onclick: move |_| {
+                                                    state.send_wink(cid.clone(), url_clone.clone());
+                                                    show_wink_panel.set(false);
+                                                },
+                                                img {
+                                                    src: "{url}",
+                                                    class: "w-8 h-8 object-contain pointer-events-none"
+                                                }
+                                            }
+                                            button {
+                                                class: "absolute -top-1 -right-1 bg-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] border border-slate-300 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50",
+                                                onclick: move |e| {
+                                                    e.stop_propagation();
+                                                    spawn(async move {
+                                                        let _ = crate::services::db::DatabaseService::delete_sticker(sid).await;
+                                                        if let Ok(st) = crate::services::db::DatabaseService::get_stickers().await {
+                                                            custom_stickers_del.set(st);
+                                                        }
+                                                    });
+                                                },
+                                                "×"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
                 if show_file_panel() {
                     div { class: "absolute left-32 bottom-9 w-40 bg-white border {theme_titlebar_border} rounded shadow-lg z-50 p-1 flex flex-col text-xs text-slate-700",
-                        button {
+                        label {
                             class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
-                            onclick: {
-                                let cid = contact_id.clone();
-                                move |_| {
-                                    state.send_file_transfer(cid.clone(), "foto_flogao_2010.jpg".to_string());
-                                    show_file_panel.set(false);
+                            input {
+                                r#type: "file",
+                                class: "hidden",
+                                accept: "image/*",
+                                onchange: {
+                                    let cid = contact_id.clone();
+                                    let state = state;
+                                    let token_opt = state.auth_token();
+                                    move |e| {
+                                        show_file_panel.set(false);
+                                        if let Some(token) = token_opt.clone() {
+                                            let files = e.files();
+                                            if let Some(file) = files.into_iter().next() {
+                                                let cid_clone = cid.clone();
+                                                let filename_clone = file.name();
+                                                let mut st = state;
+                                                spawn(async move {
+                                                    if let Ok(bytes) = file.read_bytes().await {
+                                                        let ext = std::path::Path::new(&filename_clone)
+                                                            .extension()
+                                                            .and_then(|e| e.to_str())
+                                                            .unwrap_or("bin");
+                                                        let mime = match ext.to_lowercase().as_str() {
+                                                            "png" => "image/png",
+                                                            "jpg" | "jpeg" => "image/jpeg",
+                                                            "gif" => "image/gif",
+                                                            "webp" => "image/webp",
+                                                            _ => "application/octet-stream"
+                                                        };
+                                                        
+                                                        match crate::services::api::upload_generic_file(&token, bytes.to_vec(), &filename_clone, mime).await {
+                                                            Ok(res) => {
+                                                                if let Some(url) = res["url"].as_str() {
+                                                                    let md_text = format!("![{}]({})", filename_clone, url);
+                                                                    st.send_message(cid_clone, md_text, "#000000".to_string(), "Segoe UI".to_string());
+                                                                }
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Upload error: {}", e);
+                                                            }
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
                                 }
-                            },
+                            }
                             img {
                                 src: crate::models::get_emoji_url("framed-picture.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Foto" }
                         }
-                        button {
+                        label {
                             class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
-                            onclick: {
-                                let cid = contact_id.clone();
-                                move |_| {
-                                    state.send_file_transfer(cid.clone(), "musica_emo.mp3".to_string());
-                                    show_file_panel.set(false);
+                            input {
+                                r#type: "file",
+                                class: "hidden",
+                                accept: "audio/*",
+                                onchange: {
+                                    let cid = contact_id.clone();
+                                    let state = state;
+                                    let token_opt = state.auth_token();
+                                    move |e| {
+                                        show_file_panel.set(false);
+                                        if let Some(token) = token_opt.clone() {
+                                            let files = e.files();
+                                            if let Some(file) = files.into_iter().next() {
+                                                let cid_clone = cid.clone();
+                                                let filename_clone = file.name();
+                                                let mut st = state;
+                                                spawn(async move {
+                                                    if let Ok(bytes) = file.read_bytes().await {
+                                                        match crate::services::api::upload_generic_file(&token, bytes.to_vec(), &filename_clone, "audio/mpeg").await {
+                                                            Ok(res) => {
+                                                                if let Some(url) = res["url"].as_str() {
+                                                                    let md_text = format!("[Áudio: {}]({})", filename_clone, url);
+                                                                    st.send_message(cid_clone, md_text, "#000000".to_string(), "Segoe UI".to_string());
+                                                                }
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Upload error: {}", e);
+                                                            }
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
                                 }
-                            },
+                            }
                             img {
                                 src: crate::models::get_emoji_url("musical-note.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
                             }
                             span { "Enviar Música" }
                         }
-                        button {
+                        label {
                             class: "px-2 py-1 text-left hover:bg-black/5 rounded transition-colors flex items-center space-x-1.5 cursor-pointer {theme_titlebar_text}",
-                            onclick: {
-                                let cid = contact_id.clone();
-                                move |_| {
-                                    state.send_file_transfer(cid.clone(), "jogo_habbo.exe".to_string());
-                                    show_file_panel.set(false);
+                            input {
+                                r#type: "file",
+                                class: "hidden",
+                                onchange: {
+                                    let cid = contact_id.clone();
+                                    let state = state;
+                                    let token_opt = state.auth_token();
+                                    move |e| {
+                                        show_file_panel.set(false);
+                                        if let Some(token) = token_opt.clone() {
+                                            let files = e.files();
+                                            if let Some(file) = files.into_iter().next() {
+                                                let cid_clone = cid.clone();
+                                                let filename_clone = file.name();
+                                                let mut st = state;
+                                                spawn(async move {
+                                                    if let Ok(bytes) = file.read_bytes().await {
+                                                        match crate::services::api::upload_generic_file(&token, bytes.to_vec(), &filename_clone, "application/octet-stream").await {
+                                                            Ok(res) => {
+                                                                if let Some(url) = res["url"].as_str() {
+                                                                    let md_text = format!("[Arquivo: {}]({})", filename_clone, url);
+                                                                    st.send_message(cid_clone, md_text, "#000000".to_string(), "Segoe UI".to_string());
+                                                                }
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("Upload error: {}", e);
+                                                            }
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
                                 }
-                            },
+                            }
                             img {
                                 src: crate::models::get_emoji_url("floppy-disk.svg"),
                                 class: "w-4 h-4 object-contain pointer-events-none"
@@ -461,58 +831,137 @@ pub fn ChatInput(contact_id: String, mut state: AppState, on_nudge: EventHandler
                 }
             }
 
+            // Banner de erro de microfone/gravação
+            if let Some(ref err) = *recording_error.read() {
+                div { class: "bg-red-50 border-b border-red-200 px-3 py-1.5 text-[10px] text-red-650 flex items-center justify-between select-none animate-fade-in relative z-20",
+                    span { class: "font-semibold", "Erro de Microfone: {err}" }
+                    button {
+                        class: "text-red-800 hover:text-red-950 font-bold focus:outline-none cursor-pointer",
+                        onclick: move |_| recording_error.set(None),
+                        "✕"
+                    }
+                }
+            }
+
             // Chat message input area
             div { class: "h-[85px] bg-transparent py-[12.5px] px-[14px] flex flex-col justify-between relative",
-                if is_typing_srv {
+                if is_typing_srv && !is_recording() {
                     div { class: "absolute -top-5 left-2 h-5 text-[10px] text-slate-500 italic flex items-center space-x-1 animate-pulse z-10 bg-[#eff5fb] px-2 rounded-t border-t border-l border-r border-[#96badb]",
                         span { "✍️" }
                         span { "{typing_name} está digitando..." }
                     }
                 }
-                 div { class: "flex-1 flex space-x-2.5 w-full items-center",
-                    textarea {
-                        class: if is_send_disabled { "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400 bg-slate-100 text-slate-400" } else { "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400" },
-                        style: "font-family: {selected_font()}; color: {selected_color()};",
-                        placeholder: if is_send_disabled { "O envio de mensagens foi desativado por um administrador." } else { "Digite sua mensagem aqui..." },
-                        disabled: is_send_disabled,
-                        value: "{input_text}",
-                        oninput: move |e| input_text.set(e.value()),
-                        onkeydown: {
-                            let cid = contact_id.clone();
-                            move |e| {
-                                if is_send_disabled { return; }
-                                if e.key() == Key::Enter && !e.modifiers().shift() {
-                                    e.prevent_default();
+                
+                if is_recording() {
+                    div { class: "flex-1 flex space-x-3 w-full items-center bg-[#fdf2f2] border-2 border-red-200 p-2 shadow-inner justify-between",
+                        div { class: "flex items-center space-x-2.5 text-xs text-red-700 font-bold select-none",
+                            span { class: "w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" }
+                            span { "Gravando Mensagem de Voz..." }
+                            span { class: "px-2 py-0.5 bg-red-100 text-red-800 rounded font-semibold text-[11px] font-mono",
+                                "{format_duration(recording_seconds())}"
+                            }
+                        }
+                        div { class: "flex items-center space-x-2",
+                            button {
+                                class: "px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] rounded shadow cursor-pointer transition-colors focus:outline-none flex items-center space-x-1",
+                                onclick: move |_| {
+                                    let stop_script = r#"
+                                        if (window.mediaRecorder && window.mediaRecorder.state !== "inactive") {
+                                            window.mediaRecorder.stop();
+                                            if (window.mediaStream) {
+                                                window.mediaStream.getTracks().forEach(t => t.stop());
+                                            }
+                                        }
+                                    "#;
+                                    let _ = document::eval(stop_script);
+                                },
+                                span { "⏹" }
+                                span { "Parar e Enviar" }
+                            }
+                            button {
+                                class: "px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-[10px] rounded shadow cursor-pointer transition-colors focus:outline-none",
+                                onclick: move |_| {
+                                    let cancel_script = r#"
+                                        if (window.mediaRecorder) {
+                                            if (window.mediaRecorder.state !== "inactive") {
+                                                window.mediaRecorder.stop();
+                                            }
+                                            if (window.mediaStream) {
+                                                window.mediaStream.getTracks().forEach(t => t.stop());
+                                            }
+                                        }
+                                        dioxus.send("cancelled");
+                                    "#;
+                                    let _ = document::eval(cancel_script);
+                                },
+                                "Cancelar"
+                            }
+                        }
+                    }
+                } else {
+                    div { class: "flex-1 flex space-x-2.5 w-full items-center",
+                        textarea {
+                            class: if is_send_disabled { "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400 bg-slate-100 text-slate-400" } else { "flex-1 h-[60px] resize-none p-1.5 text-xs msn-input rounded-none border-2 border-[#d1d1d1] placeholder-[#a5a5a5] placeholder:text-[10px] focus:outline-none focus:border-slate-400" },
+                            style: "font-family: {selected_font()}; color: {selected_color()};",
+                            placeholder: if is_send_disabled { "O envio de mensagens foi desativado por um administrador." } else { "Digite sua mensagem aqui..." },
+                            disabled: is_send_disabled,
+                            value: "{input_text}",
+                            oninput: move |e| input_text.set(e.value()),
+                            onkeydown: {
+                                let cid = contact_id.clone();
+                                move |e| {
+                                    if is_send_disabled { return; }
+                                    if e.key() == Key::Enter && !e.modifiers().shift() {
+                                        e.prevent_default();
+                                        let txt = input_text();
+                                        if !txt.trim().is_empty() {
+                                            state.send_message(cid.clone(), txt.clone(), selected_color(), selected_font());
+                                            input_text.set(String::new());
+                                            play_sound("message");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        button {
+                            class: if is_send_disabled { "w-[60px] h-[60px] flex items-center justify-center focus:outline-none flex-shrink-0 rounded-none border-none bg-slate-300 text-slate-500 cursor-not-allowed opacity-60" } else { "w-[60px] h-[60px] bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] transition-colors flex items-center justify-center cursor-pointer text-white focus:outline-none flex-shrink-0 rounded-none border-none" },
+                            title: if is_send_disabled {
+                                "Envio desativado".to_string()
+                            } else if input_text().trim().is_empty() {
+                                "Gravar Mensagem de Voz".to_string()
+                            } else {
+                                "Enviar".to_string()
+                            },
+                            disabled: is_send_disabled,
+                            onclick: {
+                                let cid = contact_id.clone();
+                                let mut start_recording = start_recording.clone();
+                                move |_| {
+                                    if is_send_disabled { return; }
                                     let txt = input_text();
-                                    if !txt.trim().is_empty() {
+                                    if txt.trim().is_empty() {
+                                        start_recording();
+                                    } else {
                                         state.send_message(cid.clone(), txt.clone(), selected_color(), selected_font());
                                         input_text.set(String::new());
                                         play_sound("message");
                                     }
                                 }
-                            }
-                        }
-                    }
-
-                    button {
-                        class: if is_send_disabled { "w-[60px] h-[60px] flex items-center justify-center focus:outline-none flex-shrink-0 rounded-none border-none bg-slate-300 text-slate-500 cursor-not-allowed opacity-60" } else { "w-[60px] h-[60px] bg-[#5cb2ff] hover:bg-[#4ba2ef] active:bg-[#3992df] transition-colors flex items-center justify-center cursor-pointer text-white focus:outline-none flex-shrink-0 rounded-none border-none" },
-                        title: if is_send_disabled { "Envio desativado" } else { "Enviar (Mensagem de Voz)" },
-                        disabled: is_send_disabled,
-                        onclick: {
-                            let cid = contact_id.clone();
-                            move |_| {
-                                if is_send_disabled { return; }
-                                let txt = input_text();
-                                if !txt.trim().is_empty() {
-                                    state.send_message(cid.clone(), txt.clone(), selected_color(), selected_font());
-                                    input_text.set(String::new());
-                                    play_sound("message");
+                            },
+                            if input_text().trim().is_empty() {
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Mic/SVG/ic_fluent_mic_24_color.svg",
+                                    class: "w-6 h-6 select-none pointer-events-none brightness-0 invert",
+                                    alt: "Gravar Voz"
+                                }
+                            } else {
+                                img {
+                                    src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Send/SVG/ic_fluent_send_24_color.svg",
+                                    class: "w-6 h-6 select-none pointer-events-none brightness-0 invert",
+                                    alt: "Enviar"
                                 }
                             }
-                        },
-                        img {
-                            src: "https://cdn.jsdelivr.net/gh/microsoft/fluentui-system-icons@main/assets/Mic/SVG/ic_fluent_mic_24_color.svg",
-                            class: "w-6 h-6 select-none pointer-events-none brightness-0 invert"
                         }
                     }
                 }

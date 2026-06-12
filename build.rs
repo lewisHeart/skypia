@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -39,7 +39,13 @@ fn apply_corrections() {
             
             // Verifica se precisa copiar (se nao existe ou se o conteudo esta diferente da nossa)
             let need_copy = match fs::read_to_string(&target_main_activity) {
-                Ok(content) => !content.contains("spotifyReceiver"),
+                Ok(target_content) => {
+                    if let Ok(source_content) = fs::read_to_string(source) {
+                        target_content != source_content
+                    } else {
+                        true
+                    }
+                }
                 Err(_) => true,
             };
 
@@ -47,16 +53,27 @@ fn apply_corrections() {
                 let _ = fs::copy(source, &target_main_activity);
             }
 
-            // 1.5. Corrige AndroidManifest.xml para injetar android:usesCleartextTraffic="true"
+            // 1.5. Corrige AndroidManifest.xml para injetar android:usesCleartextTraffic="true" e permissoes de audio
             let target_manifest = target_dir.join("src/main/AndroidManifest.xml");
             if target_manifest.exists() {
-                if let Ok(content) = fs::read_to_string(&target_manifest) {
+                if let Ok(mut content) = fs::read_to_string(&target_manifest) {
+                    let mut changed = false;
                     if !content.contains("android:usesCleartextTraffic=\"true\"") {
-                        let new_content = content.replace(
+                        content = content.replace(
                             "<application ",
                             "<application android:usesCleartextTraffic=\"true\" "
                         );
-                        let _ = fs::write(&target_manifest, new_content);
+                        changed = true;
+                    }
+                    if !content.contains("android.permission.RECORD_AUDIO") {
+                        content = content.replace(
+                            "<application",
+                            "<uses-permission android:name=\"android.permission.RECORD_AUDIO\" />\n    <uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\" />\n    <application"
+                        );
+                        changed = true;
+                    }
+                    if changed {
+                        let _ = fs::write(&target_manifest, content);
                     }
                 }
             }

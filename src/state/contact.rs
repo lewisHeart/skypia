@@ -628,6 +628,15 @@ impl AppState {
             }
         }
         crate::state::version::increment_state_version();
+        
+        // Envia para o servidor
+        if let Some(tx) = &*self.ws_tx.read() {
+            let _ = tx.send(crate::models::ClientAction::SetCategory {
+                contact_id: contact_id.clone(),
+                category: category.clone(),
+            });
+        }
+        
         spawn(async move {
             if let Err(e) = crate::services::db::DatabaseService::update_contact_category(contact_id, category).await {
                 eprintln!("❌ Erro ao atualizar categoria do contato no SQLite: {}", e);
